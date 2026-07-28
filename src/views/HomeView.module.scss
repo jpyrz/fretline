@@ -1,0 +1,474 @@
+.page {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+
+  > p {
+    margin: 0;
+    color: var(--muted);
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+
+    strong {
+      color: var(--text);
+    }
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+
+  span {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border: 1px solid rgba(180, 187, 255, 0.48);
+    border-radius: 9px;
+    color: #0b0d17;
+    background: linear-gradient(145deg, #d3d7ff, #7f8aff);
+    box-shadow: 0 0 24px rgba(123, 135, 255, 0.25);
+  }
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.55fr);
+  gap: 3rem;
+  align-items: end;
+  padding: clamp(4rem, 10vw, 8rem) 0 clamp(3.5rem, 8vw, 6rem);
+
+  h1 {
+    max-width: 850px;
+    margin: 0;
+    font-size: clamp(3.3rem, 8.8vw, 7.2rem);
+    line-height: 0.9;
+    letter-spacing: -0.075em;
+  }
+}
+
+.lede {
+  max-width: 680px;
+  margin: 1.7rem 0 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.8vw, 1.22rem);
+  line-height: 1.65;
+}
+
+.signal {
+  display: flex;
+  height: 150px;
+  align-items: center;
+  justify-content: end;
+  gap: clamp(3px, 0.6vw, 7px);
+  padding-bottom: 0.9rem;
+
+  i {
+    width: 4px;
+    min-height: 8px;
+    border-radius: 99px;
+    background: linear-gradient(180deg, var(--accent-bright), #5965e8);
+    box-shadow: 0 0 16px rgba(125, 138, 255, 0.38);
+    animation: pulse 1.1s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.36;
+    transform: scaleY(0.34);
+  }
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.65fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.songPanel,
+.instructions,
+.timingPanel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  backdrop-filter: blur(18px);
+}
+
+.songPanel {
+  display: grid;
+  gap: 1.2rem;
+  padding: clamp(1.2rem, 3vw, 2rem);
+
+  > .large {
+    justify-self: start;
+  }
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.7rem;
+  }
+
+  > span {
+    color: var(--muted);
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.7rem;
+  }
+}
+
+.songCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid rgba(168, 176, 240, 0.12);
+  border-radius: 18px;
+  background: rgba(4, 6, 14, 0.48);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+
+  &[data-selected='true'] {
+    border-color: rgba(139, 150, 255, 0.46);
+    background:
+      linear-gradient(90deg, rgba(116, 128, 255, 0.11), transparent 58%),
+      rgba(4, 6, 14, 0.65);
+    box-shadow: inset 3px 0 0 var(--accent-bright);
+  }
+}
+
+.songLibrary {
+  display: grid;
+  max-height: 420px;
+  gap: 0.7rem;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+  scrollbar-color: rgba(151, 160, 239, 0.35) transparent;
+}
+
+.album {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-content: center;
+  border: 1px solid rgba(189, 195, 255, 0.25);
+  border-radius: 14px;
+  text-align: center;
+  background:
+    linear-gradient(145deg, rgba(174, 181, 255, 0.24), rgba(58, 65, 132, 0.08)),
+    #101326;
+
+  span {
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 1.2rem;
+    font-weight: 500;
+  }
+
+  small {
+    color: var(--muted);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+  }
+}
+
+.songDetails {
+  min-width: 0;
+
+  p,
+  span {
+    overflow: hidden;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  h3 {
+    overflow: hidden;
+    margin: 0.25rem 0;
+    font-size: 1.25rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.songActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.55rem;
+}
+
+.selectedBadge {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 0.85rem;
+  border: 1px solid rgba(139, 150, 255, 0.3);
+  border-radius: 10px;
+  color: #c8cdff;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(116, 128, 255, 0.1);
+}
+
+.libraryActions {
+  display: grid;
+  gap: 0.65rem;
+
+  > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  > small {
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+}
+
+.trackPicker {
+  display: grid;
+  max-width: 420px;
+  gap: 0.5rem;
+
+  span {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  select {
+    min-height: 46px;
+    padding: 0.65rem 2.4rem 0.65rem 0.85rem;
+    border: 1px solid rgba(167, 174, 232, 0.26);
+    border-radius: 11px;
+    color: var(--text);
+    font: inherit;
+    background: #111426;
+  }
+}
+
+.error {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 79, 100, 0.25);
+  border-radius: 12px;
+  color: #ffabb5;
+  background: rgba(255, 79, 100, 0.08);
+}
+
+.instructions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(1.3rem, 3vw, 2rem);
+
+  h2 {
+    margin-bottom: 1.5rem;
+    font-size: 1.65rem;
+  }
+
+  > p:last-child {
+    margin: 1.4rem 0 0;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  kbd {
+    padding: 0.14rem 0.4rem;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.75rem;
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.keys {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.45rem;
+
+  kbd {
+    display: grid;
+    aspect-ratio: 1;
+    place-items: center;
+    border-bottom-width: 4px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+  }
+
+  [data-lane='0'] { color: var(--green); }
+  [data-lane='1'] { color: var(--red); }
+  [data-lane='2'] { color: var(--yellow); }
+  [data-lane='3'] { color: var(--blue); }
+  [data-lane='4'] { color: var(--orange); }
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.timingPanel {
+  display: grid;
+  gap: 1.4rem;
+  padding: 1.4rem;
+
+  h2 {
+    margin-bottom: 0.45rem;
+  }
+
+  p {
+    margin-bottom: 0;
+    color: var(--muted);
+  }
+
+  label {
+    display: grid;
+    gap: 0.7rem;
+
+    > span {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      color: var(--muted);
+
+      strong {
+        color: var(--text);
+        font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+      }
+    }
+  }
+
+  input[type='range'] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 2rem 0 3rem;
+  color: var(--muted);
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.68rem;
+}
+
+@media (max-width: 800px) {
+  .hero,
+  .workspace,
+  .settingsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    gap: 2rem;
+  }
+
+  .signal {
+    display: none;
+  }
+
+  .songCard {
+    grid-template-columns: auto 1fr;
+
+    > .songActions {
+      grid-column: 1 / -1;
+      justify-content: start;
+
+      button {
+        flex: 1 1 180px;
+      }
+    }
+  }
+}
+
+@media (max-width: 520px) {
+  .page {
+    width: min(100% - 1rem, 1180px);
+  }
+
+  .header {
+    min-height: 64px;
+
+    > p {
+      display: none;
+    }
+  }
+
+  .hero {
+    padding: 3.5rem 0 2.5rem;
+
+    h1 {
+      font-size: clamp(3rem, 17vw, 4.5rem);
+    }
+  }
+
+  .sectionHeading {
+    > span {
+      display: none;
+    }
+  }
+
+  .songCard {
+    gap: 0.8rem;
+    padding: 0.8rem;
+  }
+
+  .album {
+    width: 58px;
+    height: 58px;
+  }
+
+  .songDetails {
+    h3 {
+      font-size: 1.05rem;
+    }
+  }
+
+  .libraryActions {
+    button {
+      flex: 1 1 150px;
+    }
+  }
+
+  .footer {
+    flex-direction: column;
+  }
+}

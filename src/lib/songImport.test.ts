@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest'
+import { calibrationChartSource } from './calibrationSong'
+import { importCloneHeroFolder } from './songImport'
+
+describe('importCloneHeroFolder', () => {
+  it('loads a chart and its local audio files', async () => {
+    const chart = new File([calibrationChartSource], 'notes.chart', {
+      type: 'text/plain',
+      lastModified: 123,
+    })
+    const audio = new File(['test-audio'], 'song.ogg', {
+      type: 'audio/ogg',
+    })
+
+    const song = await importCloneHeroFolder([chart, audio])
+
+    expect(song.kind).toBe('folder')
+    expect(song.chart.metadata.name).toBe('Timing Lab')
+    expect(song.audioFiles).toEqual([audio])
+  })
+
+  it('reports a missing chart clearly', async () => {
+    const audio = new File(['test-audio'], 'song.ogg', {
+      type: 'audio/ogg',
+    })
+
+    await expect(importCloneHeroFolder([audio])).rejects.toThrow(
+      'No notes.chart',
+    )
+  })
+
+  it('loads every available difficulty and instrument track', async () => {
+    const source = `${calibrationChartSource}
+[HardDoubleBass]
+{
+  768 = N 2 0
+}`
+    const chart = new File([source], 'notes.chart')
+    const audio = new File(['test-audio'], 'song.ogg')
+
+    const song = await importCloneHeroFolder([chart, audio])
+
+    expect(song.charts.map((candidate) => candidate.trackName)).toEqual([
+      'ExpertSingle',
+      'HardDoubleBass',
+    ])
+    expect(song.charts[1].notes).toHaveLength(1)
+  })
+})

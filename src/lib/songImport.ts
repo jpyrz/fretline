@@ -1,0 +1,123 @@
+import { parseChart } from './chartParser'
+import type { LocalSong } from '../types/game'
+
+const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
+const STEM_ORDER = [
+  'song',
+  'guitar',
+  'rhythm',
+  'bass',
+  'keys',
+  'vocals',
+  'drums',
+  'drums_1',
+  'drums_2',
+  'drums_3',
+  'drums_4',
+  'crowd',
+]
+
+function relativePath(file: File): string {
+  return file.webkitRelativePath || file.name
+}
+
+function parentPath(file: File): string {
+  const path = relativePath(file)
+  return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
+}
+
+function stemRank(file: File): number {
+  const base = file.name.replace(/\.[^.]+$/, '').toLowerCase()
+  const index = STEM_ORDER.indexOf(base)
+  return index === -1 ? STEM_ORDER.length : index
+}
+
+export async function importCloneHeroFolder(
+  selectedFiles: FileList | File[],
+): Promise<LocalSong> {
+  const files = Array.from(selectedFiles)
+  const chartFile =
+    files.find((file) => file.name.toLowerCase() === 'notes.chart') ??
+    files.find((file) => file.name.toLowerCase().endsWith('.chart'))
+
+  if (!chartFile) {
+    throw new Error('No notes.chart or other .chart file was found.')
+  }
+
+  const folder = parentPath(chartFile)
+  const folderFiles = files.filter((file) => parentPath(file) === folder)
+  const audioFiles = folderFiles
+    .filter((file) => AUDIO_EXTENSIONS.test(file.name))
+    .sort((a, b) => stemRank(a) - stemRank(b))
+
+  if (audioFiles.length === 0) {
+    throw new Error(
+      'The chart was found, but its folder does not contain supported audio.',
+    )
+  }
+
+  const chartSource = await chartFile.text()
+  const chart = parseChart(chartSource)
+  const charts = chart.availableTracks.map((trackName) =>
+    trackName === chart.trackName
+      ? chart
+      : parseChart(chartSource, trackName),
+  )
+
+  return {
+    id: `${relativePath(chartFile)}:${chartFile.lastModified}`,
+    kind: 'folder',
+    chart,
+    charts,
+    audioFiles,
+    folderName: folder || 'Selected folder',
+  }
+}
+
+export async function loadBundledSong(): Promise<LocalSong> {
+  const baseUrl = import.meta.env.BASE_URL
+  const root = `${baseUrl}songs/techno-chiptale`
+  const [chartResponse, audioResponse] = await Promise.all([
+    fetch(`${root}/notes.chart`),
+    fetch(`${root}/song.ogg`),
+  ])
+
+  if (!chartResponse.ok || !audioResponse.ok) {
+    throw new Error('The bundled sample song could not be loaded.')
+  }
+
+  const chartFile = new File(
+    [await chartResponse.text()],
+    'notes.chart',
+    { type: 'text/plain', lastModified: 0 },
+  )
+  const audioFile = new File(
+    [await audioResponse.blob()],
+    'song.ogg',
+    { type: 'audio/ogg', lastModified: 0 },
+  )
+  const song = await importCloneHeroFolder([chartFile, audioFile])
+
+  return {
+    ...song,
+    id: 'bundled-techno-chiptale',
+    folderName: 'Bundled CC0 sample',
+  }
+}
+
+export async function decodeAudioFiles(
+  audioContext: AudioContext,
+  files: File[],
+): Promise<AudioBuffer[]> {
+  const decoded: AudioBuffer[] = []
+  for (const file of files) {
+    try {
+      decoded.push(await audioContext.decodeAudioData(await file.arrayBuffer()))
+    } catch {
+      throw new Error(
+        `The browser could not decode ${file.name}. Try Chrome/Edge or use OGG, MP3, or WAV audio.`,
+      )
+    }
+  }
+  return decoded
+}

@@ -1,0 +1,161 @@
+:root {
+  color: #f2f4ff;
+  background: #070913;
+  font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --background: #070913;
+  --panel: rgba(17, 20, 37, 0.82);
+  --panel-strong: #121526;
+  --line: rgba(162, 169, 224, 0.16);
+  --text: #f2f4ff;
+  --muted: #9298b5;
+  --accent: #8e98ff;
+  --accent-bright: #b7bdff;
+  --green: #5bd66f;
+  --red: #ff4f64;
+  --yellow: #ffd34e;
+  --blue: #45a7ff;
+  --orange: #ff9e45;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--background);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 75% -10%, rgba(92, 101, 211, 0.16), transparent 38rem),
+    radial-gradient(circle at -12% 30%, rgba(89, 45, 152, 0.1), transparent 34rem),
+    var(--background);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.04em;
+}
+
+.eyebrow {
+  margin: 0 0 0.4rem;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 0.72rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 750;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(142, 152, 255, 0.58);
+  outline-offset: 3px;
+}
+
+.button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.button.primary {
+  color: #080a12;
+  background: linear-gradient(135deg, #bfc4ff, #7d88ff);
+  box-shadow: 0 10px 30px rgba(109, 121, 255, 0.24);
+}
+
+.button.secondary {
+  border-color: rgba(167, 174, 232, 0.26);
+  background: rgba(143, 152, 225, 0.1);
+}
+
+.button.ghost {
+  border-color: var(--line);
+  background: transparent;
+}
+
+.button.large {
+  min-height: 54px;
+  padding-inline: 1.4rem;
+  font-size: 1rem;
+}
+
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
