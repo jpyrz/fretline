@@ -23,3 +23,6 @@ local-songs/
 *.njsproj
 *.sln
 *.sw?
+
+# Local Netlify folder
+.netlify

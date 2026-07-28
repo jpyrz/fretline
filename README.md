@@ -5,6 +5,8 @@ deliver accurate five-fret rhythm gameplay. It uses the Web Audio output clock
 for song position, translates input timestamps into that clock, and reports
 per-strum timing errors.
 
+[Play the current build](https://jpyrz-fretline.netlify.app).
+
 See [ROADMAP.md](./ROADMAP.md) for the V1 playable-slice scope, milestones, and
 definition of done.
 
