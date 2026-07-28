@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { activeGamepadBindings } from '../lib/controllerInput'
 import type {
   ControllerMapping,
   GamepadBinding,
@@ -14,23 +15,6 @@ const STEPS = [
   'Strum up',
   'Strum down',
 ]
-
-function activeBindings(gamepad: Gamepad): GamepadBinding[] {
-  const bindings: GamepadBinding[] = []
-  gamepad.buttons.forEach((button, index) => {
-    if (button.pressed) bindings.push({ type: 'button', index })
-  })
-  gamepad.axes.forEach((value, index) => {
-    if (Math.abs(value) > 0.65) {
-      bindings.push({
-        type: 'axis',
-        index,
-        direction: value > 0 ? 1 : -1,
-      })
-    }
-  })
-  return bindings
-}
 
 function bindingLabel(binding: GamepadBinding): string {
   return binding.type === 'button'
@@ -52,22 +36,89 @@ export function ControllerSetup({
   )
   const [captured, setCaptured] = useState<GamepadBinding[]>([])
   const [message, setMessage] = useState('')
+  const [mappingRequested, setMappingRequested] = useState(false)
   const armed = useRef(false)
-  const mappingActive = Boolean(gamepad && captured.length < STEPS.length)
+  const axisBaseline = useRef<number[]>([])
+  const lastAxes = useRef<number[]>([])
+  const neutralFrames = useRef(0)
+  const baselineReady = useRef(false)
+  const mappingActive =
+    mappingRequested && captured.length < STEPS.length
 
   const beginMapping = () => {
-    const connected = [...(navigator.getGamepads?.() ?? [])].find(Boolean)
-    if (!connected) {
+    if (!navigator.getGamepads) {
       setMessage(
-        'No controller detected yet. Press a button on it, then try again.',
+        'This browser does not support the Gamepad API. Try current Chrome or Edge.',
       )
       return
     }
-    setGamepad({ id: connected.id, index: connected.index })
+
+    try {
+      navigator.getGamepads()
+    } catch {
+      setMessage(
+        'The browser blocked controller access. Reload this secure page and try again.',
+      )
+      return
+    }
+
+    setMappingRequested(true)
+    setGamepad(null)
     setCaptured([])
-    setMessage('Release every button to begin.')
+    setMessage(
+      'Waiting for a controller. Press any fret or move the strum bar now.',
+    )
+    armed.current = false
+    axisBaseline.current = []
+    lastAxes.current = []
+    neutralFrames.current = 0
+    baselineReady.current = false
+  }
+
+  const cancelMapping = () => {
+    setMappingRequested(false)
+    setGamepad(null)
+    setCaptured([])
+    setMessage('Mapping cancelled.')
     armed.current = false
   }
+
+  useEffect(() => {
+    if (!mappingActive || gamepad) return
+    let frame = 0
+    let found = false
+
+    const connect = (connected: Gamepad) => {
+      if (found) return
+      found = true
+      setGamepad({ id: connected.id, index: connected.index })
+      setMessage(
+        `Detected ${connected.id || 'gamepad'}. Release every control to calibrate it.`,
+      )
+      armed.current = false
+      baselineReady.current = false
+      neutralFrames.current = 0
+      lastAxes.current = []
+    }
+
+    const poll = () => {
+      const connected = [...(navigator.getGamepads?.() ?? [])].find(Boolean)
+      if (connected) {
+        connect(connected)
+        return
+      }
+      frame = requestAnimationFrame(poll)
+    }
+
+    const handleConnected = (event: GamepadEvent) => connect(event.gamepad)
+    window.addEventListener('gamepadconnected', handleConnected)
+    frame = requestAnimationFrame(poll)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('gamepadconnected', handleConnected)
+    }
+  }, [gamepad, mappingActive])
 
   useEffect(() => {
     if (!mappingActive || !gamepad) return
@@ -81,39 +132,69 @@ export function ControllerSetup({
         )
 
       if (!current) {
-        setMessage('Controller disconnected. Reconnect it and start again.')
+        setMessage(
+          'Controller disconnected. Reconnect it and press any control.',
+        )
         setGamepad(null)
         return
       }
 
-      const active = activeBindings(current)
+      if (!baselineReady.current) {
+        const axes = [...current.axes]
+        const buttonsReleased = current.buttons.every(
+          (button) => !button.pressed,
+        )
+        const axesStable =
+          axes.length === lastAxes.current.length &&
+          axes.every(
+            (value, index) =>
+              Math.abs(value - (lastAxes.current[index] ?? value)) < 0.04,
+          )
+
+        lastAxes.current = axes
+        neutralFrames.current =
+          buttonsReleased && axesStable ? neutralFrames.current + 1 : 0
+
+        if (neutralFrames.current >= 12) {
+          axisBaseline.current = axes
+          baselineReady.current = true
+          armed.current = true
+          setMessage(`Press ${STEPS[captured.length]}.`)
+        } else {
+          setMessage('Controller detected. Release every control to calibrate it.')
+        }
+
+        frame = requestAnimationFrame(poll)
+        return
+      }
+
+      const active = activeGamepadBindings(current, axisBaseline.current)
       if (active.length === 0) {
         armed.current = true
         setMessage(`Press ${STEPS[captured.length]}.`)
       } else if (armed.current) {
         const binding = active[0]
         armed.current = false
-        setCaptured((previous) => {
-          const next = [...previous, binding]
-          if (next.length === STEPS.length) {
-            onChange({
-              gamepadId: current.id,
-              gamepadIndex: current.index,
-              frets: [
-                next[0],
-                next[1],
-                next[2],
-                next[3],
-                next[4],
-              ],
-              strumUp: next[5],
-              strumDown: next[6],
-            })
-            setMessage('Mapping saved locally.')
-            setGamepad(null)
-          }
-          return next
-        })
+        const next = [...captured, binding]
+        setCaptured(next)
+        if (next.length === STEPS.length) {
+          onChange({
+            gamepadId: current.id,
+            gamepadIndex: current.index,
+            frets: [
+              next[0],
+              next[1],
+              next[2],
+              next[3],
+              next[4],
+            ],
+            strumUp: next[5],
+            strumDown: next[6],
+          })
+          setMessage('Mapping saved locally.')
+          setMappingRequested(false)
+          setGamepad(null)
+        }
       }
 
       frame = requestAnimationFrame(poll)
@@ -121,7 +202,7 @@ export function ControllerSetup({
 
     frame = requestAnimationFrame(poll)
     return () => cancelAnimationFrame(frame)
-  }, [captured.length, gamepad, mappingActive, onChange])
+  }, [captured, gamepad, mappingActive, onChange])
 
   return (
     <section className={styles.panel} aria-labelledby="controller-title">
@@ -168,8 +249,16 @@ export function ControllerSetup({
       )}
 
       <div className={styles.actions}>
-        <button type="button" className="button secondary" onClick={beginMapping}>
-          {mapping ? 'Remap guitar' : 'Map a guitar'}
+        <button
+          type="button"
+          className="button secondary"
+          onClick={mappingActive ? cancelMapping : beginMapping}
+        >
+          {mappingActive
+            ? 'Cancel mapping'
+            : mapping
+              ? 'Remap guitar'
+              : 'Map a guitar'}
         </button>
         {mapping && (
           <button

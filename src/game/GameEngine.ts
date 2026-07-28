@@ -1,4 +1,5 @@
 import { secondsToTick } from '../lib/chartParser'
+import { gamepadBindingActive } from '../lib/controllerInput'
 import {
   canFretHit,
   HIT_WINDOW_MS,
@@ -18,7 +19,6 @@ import type {
   CalibrationSettings,
   ControllerMapping,
   GameFrame,
-  GamepadBinding,
   Lane,
   ParsedChart,
   SessionStats,
@@ -62,14 +62,6 @@ function freshStats(): SessionStats {
     lastErrorMs: null,
     records: [],
   }
-}
-
-function bindingActive(gamepad: Gamepad, binding: GamepadBinding): boolean {
-  if (binding.type === 'button') {
-    return Boolean(gamepad.buttons[binding.index]?.pressed)
-  }
-  const value = gamepad.axes[binding.index] ?? 0
-  return binding.direction === 1 ? value > 0.55 : value < -0.55
 }
 
 function normalizePerformanceTimestamp(timestamp: number): number {
@@ -324,7 +316,7 @@ export class GameEngine {
     const previousLanes = this.gamepadLanes
     this.gamepadLanes = this.controllerMapping.frets
       .map((binding, index) =>
-        bindingActive(gamepad, binding) ? (index as Lane) : null,
+        gamepadBindingActive(gamepad, binding) ? (index as Lane) : null,
       )
       .filter((lane): lane is Lane => lane !== null)
     const fretsChanged =
@@ -332,8 +324,8 @@ export class GameEngine {
       previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
 
     const strumming =
-      bindingActive(gamepad, this.controllerMapping.strumUp) ||
-      bindingActive(gamepad, this.controllerMapping.strumDown)
+      gamepadBindingActive(gamepad, this.controllerMapping.strumUp) ||
+      gamepadBindingActive(gamepad, this.controllerMapping.strumDown)
 
     if (strumming && !this.previousGamepadStrum) {
       const timestamp =

@@ -28,7 +28,13 @@ values spread dense patterns farther apart without changing audio, scoring,
 or the hit window.
 
 You can also map a Gamepad API controller, including strum bars exposed as an
-axis.
+axis. Choose **Map a guitar**, then press any fret or move the strum bar while
+the page is focused. Fretline waits for the browser to expose the controller
+and samples its neutral axis positions before walking through each control.
+
+On Windows, if the mapper continues waiting, run `joy.cpl` and confirm that the
+receiver and guitar appear and respond there first. The browser cannot access a
+controller that Windows has not enumerated.
 
 Choose **Add free sample** to play the bundled beginner chart for
 **Techno Chiptale** by Centurion_of_war. The 90 BPM music is CC0 and the folder
