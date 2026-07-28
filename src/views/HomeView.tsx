@@ -139,7 +139,7 @@ export function HomeView() {
 
       if (result.discovered === 0) {
         setDriveStatus(
-          `No song folders with both a .chart file and supported audio were found in ${source.name}.`,
+          `No song folders with a .chart or .mid file and supported audio were found in ${source.name}.`,
         )
       } else if (result.songs.length === 0) {
         setDriveStatus(
@@ -240,7 +240,9 @@ export function HomeView() {
                           : 'CH'}
                     </span>
                     <small>
-                      {librarySong.kind === 'calibration' ? 'BPM' : '.chart'}
+                      {librarySong.kind === 'calibration'
+                        ? 'BPM'
+                        : 'Clone Hero'}
                     </small>
                   </div>
                   <div className={styles.songDetails}>

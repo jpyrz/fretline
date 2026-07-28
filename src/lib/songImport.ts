@@ -1,7 +1,10 @@
 import { parseChart } from './chartParser'
+import { parseMidiCharts } from './midiChartParser'
+import { parseSongIni } from './songIni'
 import type { LocalSong } from '../types/game'
 
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
+const NON_PLAYABLE_AUDIO = /^(preview)\.[^.]+$/i
 const STEM_ORDER = [
   'song',
   'guitar',
@@ -38,16 +41,22 @@ export async function importCloneHeroFolder(
   const files = Array.from(selectedFiles)
   const chartFile =
     files.find((file) => file.name.toLowerCase() === 'notes.chart') ??
-    files.find((file) => file.name.toLowerCase().endsWith('.chart'))
+    files.find((file) => file.name.toLowerCase().endsWith('.chart')) ??
+    files.find((file) => file.name.toLowerCase() === 'notes.mid') ??
+    files.find((file) => file.name.toLowerCase().endsWith('.mid'))
 
   if (!chartFile) {
-    throw new Error('No notes.chart or other .chart file was found.')
+    throw new Error('No notes.chart, notes.mid, or other chart file was found.')
   }
 
   const folder = parentPath(chartFile)
   const folderFiles = files.filter((file) => parentPath(file) === folder)
   const audioFiles = folderFiles
-    .filter((file) => AUDIO_EXTENSIONS.test(file.name))
+    .filter(
+      (file) =>
+        AUDIO_EXTENSIONS.test(file.name) &&
+        !NON_PLAYABLE_AUDIO.test(file.name),
+    )
     .sort((a, b) => stemRank(a) - stemRank(b))
 
   if (audioFiles.length === 0) {
@@ -56,13 +65,25 @@ export async function importCloneHeroFolder(
     )
   }
 
-  const chartSource = await chartFile.text()
-  const chart = parseChart(chartSource)
-  const charts = chart.availableTracks.map((trackName) =>
-    trackName === chart.trackName
-      ? chart
-      : parseChart(chartSource, trackName),
+  const iniFile = folderFiles.find(
+    (file) => file.name.toLowerCase() === 'song.ini',
   )
+  const iniMetadata = iniFile
+    ? parseSongIni(await iniFile.text())
+    : undefined
+  let charts
+  if (chartFile.name.toLowerCase().endsWith('.mid')) {
+    charts = parseMidiCharts(await chartFile.arrayBuffer(), iniMetadata)
+  } else {
+    const chartSource = await chartFile.text()
+    const firstChart = parseChart(chartSource)
+    charts = firstChart.availableTracks.map((trackName) =>
+      trackName === firstChart.trackName
+        ? firstChart
+        : parseChart(chartSource, trackName),
+    )
+  }
+  const chart = charts[0]
 
   return {
     id: `${relativePath(chartFile)}:${chartFile.lastModified}`,

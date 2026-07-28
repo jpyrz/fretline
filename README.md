@@ -45,7 +45,8 @@ Hero.
 
 Choose **Add song folder** and select a folder containing:
 
-- `notes.chart` (or another `.chart` file)
+- `notes.chart`, `notes.mid`, or another `.chart`/`.mid` file
+- `song.ini` for MIDI song title, artist, charter, and delay metadata
 - One or more supported audio files such as `song.ogg`, `guitar.ogg`, MP3, or WAV
 
 The importer understands five-fret `[ExpertSingle]`, `[HardSingle]`,
@@ -64,7 +65,7 @@ original folder. Calibration and controller mappings are also saved locally.
 
 Google Drive can be used as an import and sync source. Select one parent Charts
 folder and Fretline recursively discovers compatible song folders beneath it.
-Each song must contain a `.chart` file and supported audio. Fretline downloads
+Each song must contain a `.chart` or `.mid` file and supported audio. Fretline downloads
 complete songs, validates them with the normal Clone Hero importer, and stores
 them in IndexedDB before play. Gameplay never streams charts or audio from
 Drive, so network conditions cannot change timing. Synced songs remain

@@ -50,4 +50,34 @@ describe('createDriveFingerprint', () => {
       createDriveFingerprint([after]),
     )
   })
+
+  it('tracks MIDI charts and song.ini but ignores preview audio', () => {
+    const midi: DriveFileMetadata = {
+      id: 'midi-id',
+      name: 'notes.mid',
+      mimeType: 'audio/midi',
+      modifiedTime: '2026-07-28T10:00:00Z',
+      size: '123',
+    }
+    const ini: DriveFileMetadata = {
+      id: 'ini-id',
+      name: 'song.ini',
+      mimeType: 'text/plain',
+      modifiedTime: '2026-07-28T10:01:00Z',
+      size: '456',
+    }
+    const preview: DriveFileMetadata = {
+      id: 'preview-id',
+      name: 'preview.mp3',
+      mimeType: 'audio/mpeg',
+      modifiedTime: '2026-07-28T10:02:00Z',
+      size: '789',
+    }
+
+    expect(createDriveFingerprint([midi, ini, preview])).toContain('midi-id')
+    expect(createDriveFingerprint([midi, ini, preview])).toContain('ini-id')
+    expect(createDriveFingerprint([midi, ini, preview])).not.toContain(
+      'preview-id',
+    )
+  })
 })

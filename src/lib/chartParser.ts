@@ -13,7 +13,7 @@ const TRACK_PREFERENCE = [
   'EasySingle',
 ]
 
-interface RawNote {
+export interface RawNote {
   tick: number
   lane: number
   sustainTicks: number
@@ -88,10 +88,19 @@ function readTempos(
     .filter((event) => event.bpm > 0)
     .sort((a, b) => a.tick - b.tick)
 
+  return createTempoEvents(raw, resolution)
+}
+
+export function createTempoEvents(
+  rawTempos: Array<{ tick: number; bpm: number }>,
+  resolution: number,
+): TempoEvent[] {
+  const raw = [...rawTempos]
+    .filter((event) => event.bpm > 0)
+    .sort((a, b) => a.tick - b.tick)
   if (raw.length === 0) {
     throw new Error('The chart does not contain any BPM events.')
   }
-
   if (raw[0].tick !== 0) {
     raw.unshift({ tick: 0, bpm: raw[0].bpm })
   }
@@ -165,7 +174,7 @@ function readNotes(section: string): RawNote[] {
     .sort((a, b) => a.tick - b.tick || a.lane - b.lane)
 }
 
-function groupNotes(
+export function groupNotes(
   rawNotes: RawNote[],
   metadata: ChartMetadata,
   tempos: TempoEvent[],

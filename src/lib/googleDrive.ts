@@ -8,7 +8,9 @@ const SOURCE_STORAGE_KEY = 'fretline:google-drive-source'
 const SOURCE_SCOPE_VERSION = 2
 const MAX_DRIVE_ITEMS = 5000
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
-const CHART_EXTENSION = /\.chart$/i
+const NON_PLAYABLE_AUDIO = /^(preview)\.[^.]+$/i
+const CHART_EXTENSION = /\.(chart|mid)$/i
+const METADATA_FILE = /^song\.ini$/i
 
 interface GoogleDriveConfig {
   clientId: string
@@ -442,7 +444,12 @@ async function scanDriveTree(
 }
 
 function isSongFile(file: DriveFileMetadata): boolean {
-  return CHART_EXTENSION.test(file.name) || AUDIO_EXTENSIONS.test(file.name)
+  return (
+    CHART_EXTENSION.test(file.name) ||
+    (AUDIO_EXTENSIONS.test(file.name) &&
+      !NON_PLAYABLE_AUDIO.test(file.name)) ||
+    METADATA_FILE.test(file.name)
+  )
 }
 
 export function createDriveFingerprint(
@@ -489,7 +496,8 @@ export async function syncGoogleDriveLibrary(
       CHART_EXTENSION.test(file.name),
     )
     const hasAudio = directory.files.some((file) =>
-      AUDIO_EXTENSIONS.test(file.name),
+      AUDIO_EXTENSIONS.test(file.name) &&
+      !NON_PLAYABLE_AUDIO.test(file.name),
     )
     return hasChart && hasAudio
   })
