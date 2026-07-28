@@ -88,7 +88,6 @@
   border-radius: 3px;
   font-size: 0.72rem;
   background: rgba(4, 12, 17, 0.72);
-  transform: rotate(0.25deg);
 
   div {
     display: flex;
@@ -257,7 +256,6 @@
   padding: 0 1.25rem;
   color: #1d3540;
   background: linear-gradient(90deg, #dce9ed, #91b8c7);
-  transform: skewY(0.25deg);
 
   span {
     font-size: clamp(1.4rem, 3vw, 2rem);

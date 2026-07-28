@@ -91,7 +91,6 @@
 .mainMenu {
   display: grid;
   gap: 0.38rem;
-  transform: rotate(0.7deg);
 
   > p {
     margin: 0 0 0.5rem 1.2rem;
@@ -112,16 +111,10 @@
     text-align: left;
     cursor: pointer;
     background: rgba(5, 15, 22, 0.66);
-    transform: skewX(-1.5deg);
     transition:
       color 130ms ease,
       background 130ms ease,
       transform 130ms ease;
-
-    span,
-    small {
-      transform: skewX(1.5deg);
-    }
 
     span {
       font-size: clamp(1.2rem, 2vw, 1.65rem);
@@ -141,7 +134,7 @@
     &:focus-visible {
       color: #10202a;
       background: rgba(240, 248, 252, 0.94);
-      transform: skewX(-1.5deg) translateX(0.45rem);
+      transform: translateX(0.45rem);
 
       small {
         color: rgba(16, 32, 42, 0.62);
@@ -216,7 +209,6 @@
   border: 1px solid rgba(223, 244, 255, 0.1);
   border-radius: 3px;
   background: rgba(4, 13, 20, 0.48);
-  transform: rotate(-0.8deg);
 
   > p {
     margin: 0;
