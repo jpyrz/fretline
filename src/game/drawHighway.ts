@@ -274,20 +274,15 @@ function drawHighwaySurface(
   context.fillRect(0, 0, width, height)
   context.restore()
 
-  for (let boundary = 1; boundary < 5; boundary += 1) {
+  for (let laneNumber = 0; laneNumber < 5; laneNumber += 1) {
+    const lane = laneNumber as Lane
     context.beginPath()
-    context.moveTo(
-      trackEdge(top, -1) + (top.trackWidth / 5) * boundary,
-      top.topY,
-    )
-    context.lineTo(
-      trackEdge(bottom, -1) + (bottom.trackWidth / 5) * boundary,
-      bottom.hitY,
-    )
-    context.strokeStyle = 'rgba(201, 207, 218, 0.16)'
-    context.lineWidth = 1
-    context.shadowColor = 'rgba(255,255,255,0.18)'
-    context.shadowBlur = 3
+    context.moveTo(laneX(width, height, lane, 0), top.topY)
+    context.lineTo(laneX(width, height, lane, 1), bottom.hitY)
+    context.strokeStyle = 'rgba(207, 214, 226, 0.2)'
+    context.lineWidth = 1.25
+    context.shadowColor = 'rgba(255,255,255,0.22)'
+    context.shadowBlur = 4
     context.stroke()
   }
   context.shadowBlur = 0
@@ -865,52 +860,183 @@ function drawHitEffects(
     ),
   )
   const bottom = highwayPoint(width, height, 1)
-  const opacity = 1 - impactProgress
+  const opacity = Math.pow(1 - impactProgress, 1.15)
+  const radius = receptorRadius(bottom)
 
   context.save()
   context.globalAlpha = opacity
   context.globalCompositeOperation = 'lighter'
 
   if (frame.hitFlash.open) {
-    const barWidth = bottom.trackWidth * (0.68 + impactProgress * 0.08)
-    const barHeight = Math.min(24, width * 0.038)
+    const lift = Math.sin(impactProgress * Math.PI) * radius * 0.38
+    const barWidth =
+      bottom.trackWidth * (0.72 + impactProgress * 0.12)
+    const barHeight = radius * (0.68 - impactProgress * 0.14)
+    const barY = bottom.hitY - lift
+
+    const curtain = context.createLinearGradient(
+      0,
+      barY - radius * 3.8,
+      0,
+      barY + radius * 0.3,
+    )
+    curtain.addColorStop(0, 'rgba(164, 179, 255, 0)')
+    curtain.addColorStop(0.58, 'rgba(192, 205, 255, 0.13)')
+    curtain.addColorStop(1, 'rgba(244, 247, 255, 0.72)')
+    context.beginPath()
+    context.moveTo(
+      bottom.center - barWidth * 0.36,
+      barY - radius * 3.5,
+    )
+    context.lineTo(bottom.center + barWidth * 0.36, barY - radius * 3.5)
+    context.lineTo(bottom.center + barWidth / 2, barY)
+    context.lineTo(bottom.center - barWidth / 2, barY)
+    context.closePath()
+    context.fillStyle = curtain
+    context.fill()
+
+    const openBloom = context.createRadialGradient(
+      bottom.center,
+      barY,
+      0,
+      bottom.center,
+      barY,
+      barWidth * 0.58,
+    )
+    openBloom.addColorStop(0, 'rgba(255,255,255,0.94)')
+    openBloom.addColorStop(0.18, 'rgba(202,213,255,0.66)')
+    openBloom.addColorStop(1, 'rgba(133,151,255,0)')
+    context.beginPath()
+    context.ellipse(
+      bottom.center,
+      barY,
+      barWidth * 0.58,
+      radius * (1.1 + impactProgress),
+      0,
+      0,
+      Math.PI * 2,
+    )
+    context.fillStyle = openBloom
+    context.fill()
+
+    const barGradient = context.createLinearGradient(
+      0,
+      barY - barHeight / 2,
+      0,
+      barY + barHeight / 2,
+    )
+    barGradient.addColorStop(0, '#ffffff')
+    barGradient.addColorStop(0.42, '#e9edff')
+    barGradient.addColorStop(1, '#8698f2')
     context.beginPath()
     context.roundRect(
       bottom.center - barWidth / 2,
-      bottom.hitY - barHeight / 2,
+      barY - barHeight / 2,
       barWidth,
       barHeight,
       barHeight,
     )
-    context.strokeStyle = 'rgba(230, 235, 255, 0.9)'
-    context.lineWidth = 3
+    context.fillStyle = barGradient
     context.shadowColor = '#d9e0ff'
-    context.shadowBlur = 26
+    context.shadowBlur = 42
+    context.fill()
+    context.shadowBlur = 0
+    context.strokeStyle = '#ffffff'
+    context.lineWidth = Math.max(2, radius * 0.08)
     context.stroke()
+
+    for (let ring = 0; ring < 2; ring += 1) {
+      const ringProgress = Math.min(
+        1,
+        impactProgress + ring * 0.18,
+      )
+      const ringWidth =
+        bottom.trackWidth * (0.74 + ringProgress * 0.24)
+      context.beginPath()
+      context.roundRect(
+        bottom.center - ringWidth / 2,
+        bottom.hitY - barHeight * (0.7 + ringProgress),
+        ringWidth,
+        barHeight * (1.4 + ringProgress * 1.4),
+        barHeight,
+      )
+      context.strokeStyle =
+        ring === 0
+          ? 'rgba(255,255,255,0.82)'
+          : 'rgba(151,169,255,0.48)'
+      context.lineWidth = Math.max(1.5, radius * 0.05)
+      context.stroke()
+    }
+
+    for (let spark = 0; spark < 9; spark += 1) {
+      const sparkX =
+        bottom.center - barWidth * 0.43 + (barWidth * 0.86 * spark) / 8
+      const sparkHeight =
+        radius * (0.7 + ((spark * 5) % 4) * 0.25) *
+        (0.7 + impactProgress * 1.6)
+      context.beginPath()
+      context.moveTo(sparkX, barY)
+      context.lineTo(
+        sparkX + ((spark % 3) - 1) * radius * 0.16,
+        barY - sparkHeight,
+      )
+      context.strokeStyle =
+        spark % 2 === 0 ? '#ffffff' : 'rgba(153,171,255,0.9)'
+      context.lineWidth = Math.max(1, radius * 0.055)
+      context.stroke()
+    }
   } else {
     for (const lane of frame.hitFlash.lanes) {
       const x = laneX(width, height, lane, 1)
-      const radius = receptorRadius(bottom)
       const color = LANE_COLORS[lane]
-      const bloomRadius = radius * (1.05 + impactProgress * 1.35)
+      const lift = Math.sin(impactProgress * Math.PI) * radius * 0.42
+      const impactY = bottom.hitY - lift
+      const bloomRadius = radius * (1.35 + impactProgress * 1.85)
+
+      const plume = context.createLinearGradient(
+        0,
+        impactY - radius * 3.6,
+        0,
+        impactY + radius * 0.25,
+      )
+      plume.addColorStop(0, `${color}00`)
+      plume.addColorStop(0.52, `${color}3d`)
+      plume.addColorStop(1, '#ffffff')
+      context.beginPath()
+      context.moveTo(x - radius * 0.62, impactY)
+      context.quadraticCurveTo(
+        x - radius * 0.42,
+        impactY - radius * 2.1,
+        x,
+        impactY - radius * (3.2 + impactProgress),
+      )
+      context.quadraticCurveTo(
+        x + radius * 0.42,
+        impactY - radius * 2.1,
+        x + radius * 0.62,
+        impactY,
+      )
+      context.closePath()
+      context.fillStyle = plume
+      context.fill()
 
       const bloom = context.createRadialGradient(
         x,
-        bottom.hitY,
+        impactY,
         0,
         x,
-        bottom.hitY,
+        impactY,
         bloomRadius,
       )
       bloom.addColorStop(0, 'rgba(255,255,255,0.94)')
-      bloom.addColorStop(0.24, color)
+      bloom.addColorStop(0.18, color)
       bloom.addColorStop(1, `${color}00`)
       context.beginPath()
       context.ellipse(
         x,
-        bottom.hitY,
+        impactY,
         bloomRadius,
-        bloomRadius * 0.72,
+        bloomRadius * 0.68,
         0,
         0,
         Math.PI * 2,
@@ -918,19 +1044,64 @@ function drawHitEffects(
       context.fillStyle = bloom
       context.fill()
 
-      for (let spark = 0; spark < 6; spark += 1) {
-        const angle = -Math.PI * 0.92 + (spark / 5) * Math.PI * 0.84
-        const distance = radius * (0.55 + impactProgress * (1.5 + spark * 0.1))
+      const coreScale = 1.34 - impactProgress * 0.28
+      context.beginPath()
+      context.ellipse(
+        x,
+        impactY,
+        radius * coreScale,
+        radius * coreScale * 0.52,
+        0,
+        0,
+        Math.PI * 2,
+      )
+      context.fillStyle = color
+      context.shadowColor = color
+      context.shadowBlur = radius * 1.3
+      context.fill()
+      context.shadowBlur = 0
+
+      context.beginPath()
+      context.ellipse(
+        x,
+        impactY - radius * 0.12,
+        radius * coreScale * 0.62,
+        radius * coreScale * 0.23,
+        0,
+        0,
+        Math.PI * 2,
+      )
+      context.fillStyle = 'rgba(255,255,255,0.94)'
+      context.fill()
+
+      context.beginPath()
+      context.ellipse(
+        x,
+        bottom.hitY,
+        radius * (1.15 + impactProgress * 1.8),
+        radius * (0.58 + impactProgress * 0.82),
+        0,
+        0,
+        Math.PI * 2,
+      )
+      context.strokeStyle = `${color}d6`
+      context.lineWidth = Math.max(1.5, radius * 0.075)
+      context.stroke()
+
+      for (let spark = 0; spark < 11; spark += 1) {
+        const angle = -Math.PI * 0.96 + (spark / 10) * Math.PI * 0.92
+        const distance =
+          radius * (0.7 + impactProgress * (1.8 + spark * 0.09))
         const startX = x + Math.cos(angle) * radius * 0.42
-        const startY = bottom.hitY + Math.sin(angle) * radius * 0.32
+        const startY = impactY + Math.sin(angle) * radius * 0.32
         context.beginPath()
         context.moveTo(startX, startY)
         context.lineTo(
           x + Math.cos(angle) * distance,
-          bottom.hitY + Math.sin(angle) * distance,
+          impactY + Math.sin(angle) * distance,
         )
         context.strokeStyle = spark % 2 === 0 ? '#ffffff' : color
-        context.lineWidth = Math.max(1, radius * 0.08)
+        context.lineWidth = Math.max(1, radius * 0.065)
         context.stroke()
       }
     }

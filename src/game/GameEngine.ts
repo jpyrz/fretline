@@ -472,7 +472,7 @@ export class GameEngine {
       lanes: note.lanes,
       open: note.open,
       startedAt: rawSongTime,
-      expiresAt: rawSongTime + 0.22,
+      expiresAt: rawSongTime + 0.26,
     }
     this.advanceMissCursor()
     this.pushStats()
