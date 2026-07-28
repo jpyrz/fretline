@@ -1,35 +1,65 @@
 .page {
   min-height: 100svh;
-  padding: 0 1rem 1rem;
+  padding: 0 clamp(0.55rem, 1.5vw, 1.25rem) 1rem;
+  color: #f3f9fc;
   background:
-    radial-gradient(circle at 50% 20%, rgba(62, 69, 149, 0.16), transparent 42rem),
-    #06070d;
+    linear-gradient(180deg, rgba(5, 27, 38, 0.5), rgba(12, 11, 24, 0.9)),
+    radial-gradient(circle at 52% 12%, rgba(29, 131, 175, 0.42), transparent 42rem),
+    radial-gradient(circle at 78% 100%, rgba(93, 42, 124, 0.22), transparent 38rem),
+    #05080e;
 }
 
 .header {
   display: grid;
   width: min(1440px, 100%);
-  min-height: 66px;
-  grid-template-columns: 1fr auto 1fr;
+  min-height: 64px;
   align-items: center;
   margin: 0 auto;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(216, 239, 251, 0.12);
+  grid-template-columns: 1fr auto 1fr;
 
   > a {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
     justify-self: start;
-    color: var(--muted);
+    gap: 0.6rem;
+    padding: 0 0.8rem;
+    border: 1px solid rgba(220, 240, 251, 0.14);
+    border-radius: 3px;
+    color: rgba(235, 247, 253, 0.78);
+    font-size: 0.76rem;
     font-weight: 700;
-  }
-
-  .songTitle {
-    display: grid;
-    text-align: center;
+    background: rgba(4, 13, 19, 0.48);
 
     span {
-      color: var(--muted);
-      font-size: 0.7rem;
-      text-transform: uppercase;
+      font-size: 1rem;
     }
+  }
+}
+
+.songTitle {
+  display: grid;
+  min-width: 0;
+  text-align: center;
+
+  span,
+  strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    color: rgba(224, 241, 249, 0.5);
+    font-size: 0.62rem;
+    font-weight: 750;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    font-size: 0.9rem;
   }
 }
 
@@ -37,34 +67,35 @@
   display: flex;
   align-items: center;
   justify-self: end;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .sessionButton {
-  min-height: 34px;
-  padding: 0.4rem 0.65rem;
-  border: 1px solid rgba(167, 174, 232, 0.2);
-  border-radius: 9px;
-  color: var(--muted);
+  min-height: 36px;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(214, 239, 251, 0.15);
+  border-radius: 3px;
+  color: rgba(236, 248, 253, 0.78);
   cursor: pointer;
   font-size: 0.72rem;
   font-weight: 750;
-  background: rgba(143, 152, 225, 0.07);
+  text-transform: uppercase;
+  background: rgba(15, 56, 73, 0.36);
 
-  &:hover {
-    color: var(--text);
-    border-color: rgba(167, 174, 232, 0.38);
+  &:hover,
+  &:focus-visible {
+    color: #15313d;
+    background: #dfecef;
   }
 }
 
 .clock {
   display: flex;
   align-items: center;
-  justify-self: end;
   gap: 0.5rem;
-  color: var(--muted);
-  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  font-size: 0.68rem;
+  color: rgba(221, 239, 248, 0.48);
+  font-family: ui-monospace, monospace;
+  font-size: 0.62rem;
   text-transform: uppercase;
 
   i {
@@ -72,25 +103,26 @@
     height: 0.48rem;
     border-radius: 50%;
     background: var(--green);
-    box-shadow: 0 0 14px var(--green);
+    box-shadow: 0 0 13px var(--green);
   }
 
   &[data-paused='true'] i {
     background: var(--yellow);
-    box-shadow: 0 0 14px rgba(255, 211, 78, 0.7);
+    box-shadow: 0 0 13px rgba(255, 211, 78, 0.75);
   }
 }
 
 .gameLayout {
   display: grid;
   width: min(1440px, 100%);
-  grid-template-columns: minmax(500px, 1fr) minmax(260px, 330px);
-  gap: 1rem;
-  margin: 1rem auto 0;
+  margin: 0.8rem auto 0;
+  grid-template-columns: minmax(500px, 1fr) minmax(255px, 320px);
+  gap: 0.75rem;
 }
 
 .highwayWrap {
   position: relative;
+  min-width: 0;
 }
 
 .overlay {
@@ -98,28 +130,38 @@
   top: 50%;
   left: 50%;
   display: flex;
-  width: min(520px, calc(100% - 2rem));
+  width: min(530px, calc(100% - 1.5rem));
+  max-height: calc(100% - 1.5rem);
+  overflow-y: auto;
   flex-direction: column;
   align-items: center;
-  padding: clamp(1.4rem, 4vw, 2.5rem);
-  border: 1px solid rgba(174, 181, 239, 0.2);
-  border-radius: 22px;
+  padding: clamp(1.3rem, 4vw, 2.4rem);
+  border: 1px solid rgba(211, 237, 250, 0.16);
+  border-radius: 3px;
   text-align: center;
-  background: rgba(8, 10, 20, 0.88);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(18px);
+  background:
+    linear-gradient(180deg, rgba(13, 56, 73, 0.92), rgba(5, 15, 22, 0.96)),
+    #07131b;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(14px);
   transform: translate(-50%, -50%);
 
   h1 {
     margin: 0 0 0.75rem;
     font-size: clamp(2rem, 5vw, 3.4rem);
+    font-weight: 520;
+    text-transform: uppercase;
   }
 
   > p:not(.error, :global(.eyebrow)) {
-    max-width: 410px;
+    max-width: 420px;
     margin-bottom: 1.5rem;
-    color: var(--muted);
+    color: rgba(224, 241, 249, 0.58);
     line-height: 1.6;
+  }
+
+  :global(.button) {
+    border-radius: 3px;
   }
 }
 
@@ -127,33 +169,28 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  gap: 0.55rem;
+}
+
+.resultsOverlay h1 {
+  display: flex;
+  align-items: baseline;
   gap: 0.65rem;
 }
 
-.resultsOverlay {
-  max-height: calc(100% - 2rem);
-  overflow-y: auto;
-
-  h1 {
-    display: flex;
-    align-items: baseline;
-    gap: 0.65rem;
-  }
-}
-
 .resultRank {
-  color: var(--accent-bright);
+  color: #a7e6ff;
   font-size: 1.25em;
-  text-shadow: 0 0 24px rgba(142, 152, 255, 0.5);
+  text-shadow: 0 0 24px rgba(109, 211, 255, 0.5);
 }
 
 .fullCombo {
   margin: -0.35rem 0 1rem;
   padding: 0.4rem 0.7rem;
   border: 1px solid rgba(91, 214, 111, 0.32);
-  border-radius: 999px;
+  border-radius: 3px;
   color: var(--green);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   background: rgba(91, 214, 111, 0.08);
@@ -162,29 +199,29 @@
 .resultsGrid {
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
   margin-bottom: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  background: rgba(218, 240, 251, 0.08);
 
   > div {
     display: grid;
     min-width: 0;
     gap: 0.25rem;
     padding: 0.7rem;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.045);
+    background: rgba(4, 14, 20, 0.76);
   }
 
   span {
-    color: var(--muted);
-    font-size: 0.66rem;
+    color: rgba(221, 239, 248, 0.48);
+    font-size: 0.6rem;
     text-transform: uppercase;
   }
 
   strong {
     overflow: hidden;
-    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
-    font-size: 0.9rem;
+    font-family: ui-monospace, monospace;
+    font-size: 0.86rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -197,7 +234,7 @@
   margin-bottom: 1.5rem;
   padding: 0.9rem 1.1rem;
   border: 1px solid rgba(91, 214, 111, 0.28);
-  border-radius: 12px;
+  border-radius: 3px;
   background: rgba(91, 214, 111, 0.08);
 
   strong {
@@ -205,50 +242,51 @@
   }
 
   span {
-    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-family: ui-monospace, monospace;
     font-size: 1.05rem;
   }
 
   small {
-    color: var(--muted);
+    color: rgba(222, 240, 248, 0.52);
   }
 }
 
 .error {
   margin-bottom: 1.4rem;
-  color: #ff9ba6;
+  color: #ffabb5;
 }
 
 .telemetry {
   display: grid;
   align-content: start;
-  gap: 1rem;
+  gap: 0.6rem;
 }
 
 .scoreCard,
 .accuracyCard,
 .sessionCard {
-  padding: 1.25rem;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(16, 19, 34, 0.78);
+  border: 1px solid rgba(215, 239, 251, 0.11);
+  border-radius: 3px;
+  background: rgba(5, 19, 27, 0.72);
 }
 
 .scoreCard {
+  padding: 1rem;
+
   > p {
-    margin-bottom: 0.2rem;
-    color: var(--muted);
-    font-size: 0.72rem;
+    margin-bottom: 0.15rem;
+    color: #91dffb;
+    font-size: 0.62rem;
     font-weight: 800;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
   }
 
   > strong {
     display: block;
-    margin-bottom: 1rem;
-    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
-    font-size: clamp(2.2rem, 4vw, 3.4rem);
+    margin-bottom: 0.7rem;
+    font-family: ui-monospace, monospace;
+    font-size: clamp(2rem, 3.5vw, 3rem);
     font-weight: 500;
     letter-spacing: -0.06em;
   }
@@ -256,18 +294,19 @@
   > div {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    gap: 1px;
+    background: rgba(216, 239, 251, 0.08);
 
     span {
       display: flex;
       justify-content: space-between;
-      padding: 0.75rem;
-      border-radius: 10px;
-      color: var(--muted);
-      background: rgba(255, 255, 255, 0.04);
+      padding: 0.65rem;
+      color: rgba(223, 240, 248, 0.52);
+      font-size: 0.72rem;
+      background: rgba(17, 57, 73, 0.42);
 
       b {
-        color: var(--text);
+        color: white;
       }
     }
   }
@@ -275,89 +314,259 @@
 
 .accuracyCard {
   display: grid;
-  gap: 1rem;
+  gap: 0.9rem;
+  padding: 1rem;
 }
 
 .cardHeading {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
 
   h2 {
     margin: 0;
-    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
-    font-size: 1.8rem;
+    font-family: ui-monospace, monospace;
+    font-size: 1.65rem;
     font-weight: 500;
   }
 
   > span {
-    padding: 0.4rem 0.6rem;
-    border-radius: 8px;
-    color: var(--muted);
-    font-size: 0.72rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid rgba(215, 239, 251, 0.08);
+    border-radius: 3px;
+    color: rgba(222, 240, 248, 0.5);
+    font-size: 0.66rem;
     font-weight: 800;
-    background: rgba(255, 255, 255, 0.06);
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.03);
 
     &[data-status='good'] {
       color: var(--green);
-      background: rgba(91, 214, 111, 0.1);
+      background: rgba(91, 214, 111, 0.08);
     }
 
     &[data-status='warn'] {
       color: var(--yellow);
-      background: rgba(255, 211, 78, 0.1);
+      background: rgba(255, 211, 78, 0.08);
     }
   }
 }
 
 .sessionCard {
+  padding: 1rem;
+
   dl {
     display: grid;
-    gap: 0.7rem;
-    margin: 1rem 0 0;
+    gap: 0;
+    margin: 0.8rem 0 0;
   }
 
   dl div {
     display: flex;
+    min-height: 36px;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding-bottom: 0.65rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 1px solid rgba(216, 239, 251, 0.07);
   }
 
   dt {
-    color: var(--muted);
+    color: rgba(222, 240, 248, 0.5);
+    font-size: 0.72rem;
   }
 
   dd {
     margin: 0;
-    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
   }
 }
 
-@media (max-width: 900px) {
+.pauseScreen {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  inset: 0;
+  padding: clamp(1.5rem, 5vw, 5rem);
+  grid-template-columns: minmax(260px, 1fr) minmax(300px, 390px);
+  gap: clamp(2rem, 8vw, 8rem);
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.72), rgba(1, 6, 10, 0.58)),
+    rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.pauseSongInfo {
+  max-width: 430px;
+
+  > p {
+    margin: 0 0 0.35rem;
+    color: #8bdefc;
+    font-size: 0.68rem;
+    font-weight: 850;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 4.2rem);
+    font-weight: 580;
+    line-height: 0.98;
+  }
+
+  > strong {
+    display: block;
+    margin-top: 0.5rem;
+    color: rgba(230, 243, 250, 0.72);
+    font-size: clamp(1rem, 2vw, 1.35rem);
+  }
+
+  dl {
+    display: grid;
+    margin: 1.4rem 0 0;
+    border-top: 1px solid rgba(222, 241, 251, 0.15);
+  }
+
+  dl div {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(222, 241, 251, 0.1);
+  }
+
+  dt {
+    color: rgba(226, 241, 249, 0.5);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
+
+  dd {
+    margin: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    text-align: right;
+  }
+}
+
+.pauseMenu {
+  display: grid;
+  align-self: center;
+
+  h1 {
+    margin: 0 0 0.5rem;
+    font-size: clamp(3rem, 7vw, 5.2rem);
+    font-weight: 520;
+    line-height: 0.9;
+    text-transform: uppercase;
+  }
+
+  nav {
+    display: grid;
+    gap: 2px;
+
+    button,
+    a {
+      display: flex;
+      min-height: 47px;
+      align-items: center;
+      padding: 0 0.85rem;
+      border: 1px solid rgba(215, 239, 251, 0.08);
+      border-radius: 2px;
+      color: rgba(236, 247, 252, 0.78);
+      font: inherit;
+      font-size: 1rem;
+      text-align: left;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: rgba(5, 17, 24, 0.88);
+
+      &:hover,
+      &:focus-visible,
+      &[data-primary='true'] {
+        color: #18313d;
+        background: linear-gradient(90deg, #edf4f6, #bdd7df);
+      }
+    }
+  }
+
+  > small {
+    margin-top: 0.8rem;
+    color: rgba(226, 241, 248, 0.48);
+    text-align: right;
+  }
+
+  kbd {
+    padding: 0.15rem 0.35rem;
+    border: 1px solid rgba(220, 240, 251, 0.16);
+    border-radius: 3px;
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+.pauseHints {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-around;
+  margin-bottom: 3px;
+  border: 1px solid rgba(218, 240, 251, 0.08);
+  background: rgba(4, 11, 16, 0.88);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: rgba(235, 246, 252, 0.64);
+    font-size: 0.68rem;
+  }
+
+  i {
+    width: 0.72rem;
+    height: 0.72rem;
+    border: 1px solid rgba(255, 255, 255, 0.48);
+    border-radius: 3px;
+    box-shadow: 0 0 10px currentColor;
+  }
+
+  [data-color='green'] { color: var(--green); background: var(--green); }
+  [data-color='red'] { color: var(--red); background: var(--red); }
+}
+
+@media (max-width: 980px) {
   .gameLayout {
     grid-template-columns: 1fr;
   }
 
   .telemetry {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 700px) {
   .page {
-    padding-inline: 0.5rem;
+    padding-inline: 0.45rem;
   }
 
   .header {
     min-height: 58px;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.6rem;
 
-    .songTitle {
-      justify-self: end;
-      text-align: right;
+    > a {
+      padding-inline: 0.65rem;
+      font-size: 0.7rem;
     }
+  }
+
+  .songTitle {
+    justify-self: end;
+    text-align: right;
   }
 
   .headerActions {
@@ -365,28 +574,119 @@
   }
 
   .gameLayout {
-    margin-top: 0.5rem;
+    margin-top: 0.45rem;
   }
 
   .telemetry {
     grid-template-columns: 1fr;
   }
 
-  .scoreCard {
-    > div {
-      grid-template-columns: 1fr 1fr;
-    }
+  .scoreCard > div {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .overlay {
+    width: calc(100% - 1rem);
+    padding: 1.1rem;
   }
 
   .overlayActions {
     width: 100%;
 
-    button {
+    button,
+    a {
       width: 100%;
     }
   }
 
   .resultsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pauseScreen {
+    overflow-y: auto;
+    padding: 0.8rem;
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+    align-content: end;
+    background: rgba(0, 0, 0, 0.76);
+    backdrop-filter: none;
+  }
+
+  .pauseSongInfo {
+    width: 100%;
+    max-width: none;
+    padding: 0.8rem;
+    border: 1px solid rgba(218, 240, 251, 0.1);
+    background: rgba(5, 17, 24, 0.86);
+
+    h2 {
+      font-size: clamp(1.4rem, 8vw, 2rem);
+    }
+
+    > strong {
+      font-size: 0.88rem;
+    }
+
+    dl {
+      display: grid;
+      margin-top: 0.8rem;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      border: 0;
+      background: rgba(218, 240, 251, 0.08);
+    }
+
+    dl div {
+      display: grid;
+      min-height: 52px;
+      padding: 0.45rem;
+      border: 0;
+      background: rgba(7, 27, 37, 0.92);
+    }
+
+    dd {
+      overflow: hidden;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .pauseMenu {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid rgba(218, 240, 251, 0.11);
+    background: rgba(5, 15, 22, 0.94);
+
+    h1 {
+      font-size: 2.4rem;
+    }
+
+    nav button,
+    nav a {
+      min-height: 44px;
+    }
+
+    > small {
+      display: none;
+    }
+  }
+}
+
+@media (max-height: 720px) and (min-width: 701px) {
+  .pauseSongInfo dl div {
+    min-height: 36px;
+  }
+
+  .pauseMenu {
+    h1 {
+      font-size: 3.4rem;
+    }
+
+    nav button,
+    nav a {
+      min-height: 41px;
+    }
   }
 }

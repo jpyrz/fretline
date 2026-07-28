@@ -184,29 +184,23 @@ export function PlayView() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <Link to="/" onClick={stopSession}>← Setup</Link>
+        <Link to="/" onClick={stopSession}>
+          <span aria-hidden="true">←</span>
+          Main menu
+        </Link>
         <div className={styles.songTitle}>
           <span>{song.chart.metadata.artist}</span>
           <strong>{song.chart.metadata.name}</strong>
         </div>
         <div className={styles.headerActions}>
           {(phase === 'playing' || phase === 'paused') && (
-            <>
-              <button
-                type="button"
-                className={styles.sessionButton}
-                onClick={restartSession}
-              >
-                Restart
-              </button>
-              <button
-                type="button"
-                className={styles.sessionButton}
-                onClick={togglePause}
-              >
-                {phase === 'paused' ? 'Resume' : 'Pause'}
-              </button>
-            </>
+            <button
+              type="button"
+              className={styles.sessionButton}
+              onClick={togglePause}
+            >
+              {phase === 'paused' ? 'Resume' : 'Pause'}
+            </button>
           )}
           <span className={styles.clock} data-paused={phase === 'paused'}>
             {phase === 'paused' ? 'Paused' : 'Audio clock'} <i />
@@ -349,39 +343,6 @@ export function PlayView() {
             </div>
           )}
 
-          {phase === 'paused' && (
-            <div className={styles.overlay}>
-              <p className="eyebrow">Session paused</p>
-              <h1>Take a breath</h1>
-              <p>
-                Your exact song position is saved. Resume with P, Escape, or
-                the button below.
-              </p>
-              <div className={styles.overlayActions}>
-                <button
-                  type="button"
-                  className="button primary"
-                  onClick={togglePause}
-                >
-                  Resume
-                </button>
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={restartSession}
-                >
-                  Restart song
-                </button>
-                <Link
-                  to="/"
-                  className="button ghost"
-                  onClick={stopSession}
-                >
-                  Quit to setup
-                </Link>
-              </div>
-            </div>
-          )}
         </div>
 
         <aside className={styles.telemetry}>
@@ -464,6 +425,78 @@ export function PlayView() {
           </section>
         </aside>
       </section>
+
+      {phase === 'paused' && (
+        <div className={styles.pauseScreen} role="dialog" aria-modal="true">
+          <section className={styles.pauseSongInfo}>
+            <p>Now playing</p>
+            <h2>{song.chart.metadata.name}</h2>
+            <strong>{song.chart.metadata.artist}</strong>
+            <dl>
+              <div>
+                <dt>Chart</dt>
+                <dd>
+                  {song.chart.trackName
+                    .replace(/^Easy/, 'Easy · ')
+                    .replace(/^Medium/, 'Medium · ')
+                    .replace(/^Hard/, 'Hard · ')
+                    .replace(/^Expert/, 'Expert · ')
+                    .replace('Single', 'Guitar')
+                    .replace('DoubleGuitar', 'Co-op Guitar')
+                    .replace('DoubleBass', 'Bass')
+                    .replace('DoubleRhythm', 'Rhythm')}
+                </dd>
+              </div>
+              <div>
+                <dt>Score</dt>
+                <dd>{stats.score.toLocaleString()}</dd>
+              </div>
+              <div>
+                <dt>Notes hit</dt>
+                <dd>
+                  {stats.hits}/{song.chart.notes.length}
+                </dd>
+              </div>
+              <div>
+                <dt>Best streak</dt>
+                <dd>{stats.bestStreak}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className={styles.pauseMenu}>
+            <h1>Paused</h1>
+            <div className={styles.pauseHints}>
+              <span><i data-color="green" /> Select</span>
+              <span><i data-color="red" /> Back</span>
+            </div>
+            <nav aria-label="Pause menu">
+              <button
+                type="button"
+                data-primary="true"
+                onClick={togglePause}
+              >
+                Resume
+              </button>
+              <button type="button" onClick={restartSession}>
+                Restart song
+              </button>
+              <Link to="/songs" onClick={stopSession}>
+                Song selection
+              </Link>
+              <Link to="/settings" onClick={stopSession}>
+                Settings
+              </Link>
+              <Link to="/" onClick={stopSession}>
+                Main menu
+              </Link>
+            </nav>
+            <small>
+              Press <kbd>Esc</kbd> or <kbd>P</kbd> to resume
+            </small>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
