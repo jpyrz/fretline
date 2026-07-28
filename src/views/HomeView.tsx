@@ -4,12 +4,10 @@ import { ControllerSetup } from '../components/ControllerSetup'
 import {
   authorizeGoogleDrive,
   connectGoogleDrive,
+  importGoogleDriveSelection,
   isGoogleDriveConfigured,
-  loadDriveLibrarySource,
   prepareGoogleDrive,
-  saveDriveLibrarySource,
-  syncGoogleDriveLibrary,
-  type DriveLibrarySource,
+  syncGoogleDriveSongs,
 } from '../lib/googleDrive'
 import { importCloneHeroFolder, loadBundledSong } from '../lib/songImport'
 import { useAppState } from '../state/AppState'
@@ -38,12 +36,12 @@ export function HomeView() {
   } = useAppState()
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
-  const [driveSource, setDriveSource] = useState<DriveLibrarySource | null>(
-    loadDriveLibrarySource,
-  )
   const [driveStatus, setDriveStatus] = useState('')
   const driveConfigured = isGoogleDriveConfigured()
   const [driveReady, setDriveReady] = useState(!driveConfigured)
+  const driveSongCount = songs.filter(
+    (candidate) => candidate.source?.type === 'google-drive',
+  ).length
 
   useEffect(() => {
     if (!driveConfigured) return
@@ -103,56 +101,62 @@ export function HomeView() {
     }
   }
 
-  const syncDrive = async (chooseFolder = false) => {
+  const importDriveSong = async () => {
     setImporting(true)
     setError('')
-    setDriveStatus(
-      chooseFolder || !driveSource
-        ? 'Opening Google Drive…'
-        : `Connecting to ${driveSource.name}…`,
-    )
+    setDriveStatus('Opening Google Drive…')
 
     try {
-      let source = driveSource
-      let accessToken: string
-      if (chooseFolder || !source) {
-        const connection = await connectGoogleDrive()
-        if (!connection.source) {
-          setDriveStatus('')
-          return
-        }
-        source = connection.source
-        accessToken = connection.accessToken
-        saveDriveLibrarySource(source)
-        setDriveSource(source)
-      } else {
-        accessToken = await authorizeGoogleDrive()
+      const connection = await connectGoogleDrive()
+      if (!connection.files) {
+        setDriveStatus('')
+        return
       }
 
-      const result = await syncGoogleDriveLibrary(
-        source,
+      const result = await importGoogleDriveSelection(
+        connection.files,
+        connection.accessToken,
+        songs,
+        (progress) => setDriveStatus(progress.message),
+      )
+      if (result.song) {
+        await addSongs([result.song])
+        setDriveStatus(
+          `Added ${result.song.chart.metadata.name} from Google Drive.`,
+        )
+      } else {
+        setDriveStatus('That Drive song is already up to date.')
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Google Drive sync failed.',
+      )
+      setDriveStatus('')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const syncDriveSongs = async () => {
+    setImporting(true)
+    setError('')
+    setDriveStatus('Connecting to Google Drive…')
+
+    try {
+      const accessToken = await authorizeGoogleDrive()
+      const result = await syncGoogleDriveSongs(
         accessToken,
         songs,
         (progress) => setDriveStatus(progress.message),
       )
       await addSongs(result.songs)
-
-      if (result.discovered === 0) {
-        setDriveStatus(
-          `No song folders with both a .chart file and supported audio were found in ${source.name}.`,
-        )
-      } else if (result.songs.length === 0) {
-        setDriveStatus(
-          `${source.name} is up to date · ${result.unchanged} songs checked.`,
-        )
-      } else {
-        setDriveStatus(
-          `Added or updated ${result.songs.length} songs from ${source.name}` +
-            (result.unchanged > 0
-              ? ` · ${result.unchanged} already current.`
-              : '.'),
-        )
-      }
+      setDriveStatus(
+        result.songs.length > 0
+          ? `Updated ${result.songs.length} Drive ${result.songs.length === 1 ? 'song' : 'songs'} · ${result.unchanged} already current.`
+          : `${result.checked} Drive ${result.checked === 1 ? 'song is' : 'songs are'} up to date.`,
+      )
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -320,28 +324,26 @@ export function HomeView() {
                     ? undefined
                     : 'Google Drive credentials have not been configured for this site.'
                 }
-                onClick={() => void syncDrive(false)}
+                onClick={() => void importDriveSong()}
               >
                 {!driveReady && driveConfigured
                   ? 'Loading Google Drive…'
-                  : driveSource
-                    ? 'Sync Google Drive'
-                    : 'Connect Google Drive'}
+                  : 'Add Drive song'}
               </button>
-              {driveSource && driveConfigured && (
+              {driveSongCount > 0 && driveConfigured && (
                 <button
                   type="button"
                   className="button ghost"
                   disabled={importing || !libraryReady}
-                  onClick={() => void syncDrive(true)}
+                  onClick={() => void syncDriveSongs()}
                 >
-                  Change Drive folder
+                  Sync Drive songs
                 </button>
               )}
             </div>
             <small>
               {driveConfigured
-                ? 'Local and Drive imports are copied into this browser for smooth offline playback. Removing one does not touch its original folder.'
+                ? 'For Drive: open one song folder, select notes.chart and every audio file together, then choose Select. Files are copied into this browser for smooth offline playback.'
                 : 'Local imports stay in this browser. Google Drive will become available after its site credentials are configured.'}
             </small>
           </div>

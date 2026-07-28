@@ -44,8 +44,7 @@ export interface LocalSong {
   folderName?: string
   source?: {
     type: 'google-drive'
-    rootFolderId: string
-    folderId: string
+    fileIds: string[]
     fingerprint: string
   }
 }
