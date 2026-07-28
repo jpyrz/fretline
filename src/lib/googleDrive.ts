@@ -1,8 +1,12 @@
 import { importCloneHeroFolder } from './songImport'
 import type { LocalSong } from '../types/game'
 
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 const DRIVE_API_ROOT = 'https://www.googleapis.com/drive/v3'
+const DRIVE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
+const SOURCE_STORAGE_KEY = 'fretline:google-drive-source'
+const SOURCE_SCOPE_VERSION = 2
+const MAX_DRIVE_ITEMS = 5000
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
 const CHART_EXTENSION = /\.chart$/i
 
@@ -10,6 +14,12 @@ interface GoogleDriveConfig {
   clientId: string
   apiKey: string
   appId: string
+}
+
+export interface DriveLibrarySource {
+  id: string
+  name: string
+  scopeVersion: 2
 }
 
 export interface DriveFileMetadata {
@@ -20,10 +30,21 @@ export interface DriveFileMetadata {
   size?: string
 }
 
+interface DriveDirectory {
+  id: string
+  name: string
+  path: string
+  files: DriveFileMetadata[]
+}
+
+interface DriveListResponse {
+  nextPageToken?: string
+  files?: DriveFileMetadata[]
+}
+
 interface PickerDocument {
   id?: string
   name?: string
-  mimeType?: string
 }
 
 interface PickerResponse {
@@ -69,23 +90,15 @@ interface GoogleApiWindow extends Window {
         PICKED: string
         CANCEL: string
       }
-      DocsViewMode: {
-        LIST: string
-      }
-      Feature: {
-        MULTISELECT_ENABLED: string
-      }
       ViewId: {
-        DOCS: string
+        FOLDERS: string
       }
       DocsView: new (viewId: string) => {
         setIncludeFolders: (include: boolean) => unknown
         setSelectFolderEnabled: (enabled: boolean) => unknown
-        setMode: (mode: string) => unknown
       }
       PickerBuilder: new () => {
         addView: (view: unknown) => unknown
-        enableFeature: (feature: string) => unknown
         setAppId: (appId: string) => unknown
         setDeveloperKey: (apiKey: string) => unknown
         setOAuthToken: (token: string) => unknown
@@ -101,18 +114,13 @@ interface GoogleApiWindow extends Window {
 }
 
 export interface DriveSyncProgress {
-  phase: 'checking' | 'downloading'
+  phase: 'scanning' | 'downloading'
   message: string
-}
-
-export interface DriveImportResult {
-  song: LocalSong | null
-  unchanged: boolean
 }
 
 export interface DriveSyncResult {
   songs: LocalSong[]
-  checked: number
+  discovered: number
   unchanged: number
 }
 
@@ -128,6 +136,27 @@ function getConfig(): GoogleDriveConfig | null {
 
 export function isGoogleDriveConfigured(): boolean {
   return getConfig() !== null
+}
+
+export function loadDriveLibrarySource(): DriveLibrarySource | null {
+  try {
+    const stored = localStorage.getItem(SOURCE_STORAGE_KEY)
+    if (!stored) return null
+    const value = JSON.parse(stored) as Partial<DriveLibrarySource>
+    return (
+      typeof value.id === 'string' &&
+      typeof value.name === 'string' &&
+      value.scopeVersion === SOURCE_SCOPE_VERSION
+    )
+      ? { id: value.id, name: value.name, scopeVersion: 2 }
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function saveDriveLibrarySource(source: DriveLibrarySource): void {
+  localStorage.setItem(SOURCE_STORAGE_KEY, JSON.stringify(source))
 }
 
 function loadScript(id: string, source: string): Promise<void> {
@@ -238,29 +267,27 @@ export async function prepareGoogleDrive(): Promise<void> {
   await loadGoogleScripts()
 }
 
-async function pickSongFiles(
+async function pickFolder(
   googleWindow: GoogleApiWindow,
   config: GoogleDriveConfig,
   accessToken: string,
-): Promise<PickerDocument[] | null> {
+): Promise<DriveLibrarySource | null> {
   const picker = googleWindow.google?.picker
   if (!picker) throw new Error('Google Drive Picker is unavailable.')
 
   return new Promise((resolve, reject) => {
     try {
-      const view = new picker.DocsView(picker.ViewId.DOCS)
+      const view = new picker.DocsView(picker.ViewId.FOLDERS)
       view.setIncludeFolders(true)
-      view.setSelectFolderEnabled(false)
-      view.setMode(picker.DocsViewMode.LIST)
+      view.setSelectFolderEnabled(true)
 
       const builder = new picker.PickerBuilder()
       builder.addView(view)
-      builder.enableFeature(picker.Feature.MULTISELECT_ENABLED)
       builder.setAppId(config.appId)
       builder.setDeveloperKey(config.apiKey)
       builder.setOAuthToken(accessToken)
       builder.setOrigin(window.location.origin)
-      builder.setTitle('Select notes.chart and all audio files for one song')
+      builder.setTitle('Choose the Drive folder containing your song folders')
       builder.setCallback((data) => {
         if (data.action === picker.Action.CANCEL) {
           resolve(null)
@@ -268,15 +295,16 @@ async function pickSongFiles(
         }
         if (data.action !== picker.Action.PICKED) return
 
-        const selected = (data.docs ?? []).filter(
-          (document): document is PickerDocument & { id: string } =>
-            typeof document.id === 'string',
-        )
-        if (selected.length === 0) {
-          reject(new Error('Google Drive did not return any files.'))
+        const selected = data.docs?.[0]
+        if (!selected?.id) {
+          reject(new Error('Google Drive did not return a folder.'))
           return
         }
-        resolve(selected)
+        resolve({
+          id: selected.id,
+          name: selected.name || 'Google Drive charts',
+          scopeVersion: 2,
+        })
       })
       builder.build().setVisible(true)
     } catch (reason) {
@@ -290,7 +318,7 @@ async function pickSongFiles(
 }
 
 export async function connectGoogleDrive(): Promise<{
-  files: PickerDocument[] | null
+  source: DriveLibrarySource | null
   accessToken: string
 }> {
   const config = getConfig()
@@ -301,8 +329,8 @@ export async function connectGoogleDrive(): Promise<{
   }
   const googleWindow = await loadGoogleScripts()
   const accessToken = await requestDriveToken(googleWindow, config, true)
-  const files = await pickSongFiles(googleWindow, config, accessToken)
-  return { files, accessToken }
+  const source = await pickFolder(googleWindow, config, accessToken)
+  return { source, accessToken }
 }
 
 export async function authorizeGoogleDrive(): Promise<string> {
@@ -335,25 +363,82 @@ async function driveRequest<T>(
     throw new Error(
       detail ||
         (response.status === 401 || response.status === 403
-          ? 'Google Drive access expired or a selected file is no longer available to Fretline.'
+          ? 'Google Drive access expired or this folder is no longer available.'
           : `Google Drive returned ${response.status}.`),
     )
   }
   return response.json() as Promise<T>
 }
 
-async function getDriveFileMetadata(
+async function listChildren(
   accessToken: string,
-  fileId: string,
-): Promise<DriveFileMetadata> {
-  const parameters = new URLSearchParams({
-    fields: 'id,name,mimeType,modifiedTime,size',
-    supportsAllDrives: 'true',
-  })
-  return driveRequest<DriveFileMetadata>(
-    accessToken,
-    `/files/${encodeURIComponent(fileId)}?${parameters}`,
-  )
+  folderId: string,
+): Promise<DriveFileMetadata[]> {
+  const files: DriveFileMetadata[] = []
+  let pageToken = ''
+
+  do {
+    const parameters = new URLSearchParams({
+      q: `'${folderId.replaceAll("'", "\\'")}' in parents and trashed = false`,
+      fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,size)',
+      pageSize: '1000',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+    })
+    if (pageToken) parameters.set('pageToken', pageToken)
+    const page = await driveRequest<DriveListResponse>(
+      accessToken,
+      `/files?${parameters}`,
+    )
+    files.push(...(page.files ?? []))
+    pageToken = page.nextPageToken ?? ''
+  } while (pageToken)
+
+  return files
+}
+
+async function scanDriveTree(
+  accessToken: string,
+  root: DriveLibrarySource,
+  onProgress?: (progress: DriveSyncProgress) => void,
+): Promise<DriveDirectory[]> {
+  const queue: DriveDirectory[] = [
+    { id: root.id, name: root.name, path: root.name, files: [] },
+  ]
+  const directories: DriveDirectory[] = []
+  let itemCount = 0
+
+  while (queue.length > 0) {
+    const directory = queue.shift()
+    if (!directory) break
+    onProgress?.({
+      phase: 'scanning',
+      message: `Scanning ${directory.path}…`,
+    })
+    const children = await listChildren(accessToken, directory.id)
+    itemCount += children.length
+    if (itemCount > MAX_DRIVE_ITEMS) {
+      throw new Error(
+        `This Drive folder contains more than ${MAX_DRIVE_ITEMS.toLocaleString()} items. Choose a smaller charts folder.`,
+      )
+    }
+
+    directory.files = children.filter(
+      (child) => child.mimeType !== DRIVE_FOLDER_MIME_TYPE,
+    )
+    directories.push(directory)
+    for (const child of children) {
+      if (child.mimeType !== DRIVE_FOLDER_MIME_TYPE) continue
+      queue.push({
+        id: child.id,
+        name: child.name,
+        path: `${directory.path}/${child.name}`,
+        files: [],
+      })
+    }
+  }
+
+  return directories
 }
 
 function isSongFile(file: DriveFileMetadata): boolean {
@@ -392,141 +477,96 @@ async function downloadDriveFile(
   })
 }
 
-async function ensureStorageCapacity(files: DriveFileMetadata[]): Promise<void> {
-  const requiredBytes = files.reduce(
-    (total, file) => total + Number(file.size ?? 0),
-    0,
-  )
-  if (requiredBytes === 0 || !navigator.storage?.estimate) return
-
-  const estimate = await navigator.storage.estimate()
-  const available =
-    estimate.quota !== undefined
-      ? estimate.quota - (estimate.usage ?? 0)
-      : undefined
-  if (available !== undefined && requiredBytes > available * 0.9) {
-    throw new Error(
-      `This song needs about ${formatBytes(requiredBytes)}, but this browser has only about ${formatBytes(available)} available.`,
-    )
-  }
-  await navigator.storage.persist?.()
-}
-
-async function importDriveFiles(
-  metadata: DriveFileMetadata[],
-  accessToken: string,
-  existingSongs: LocalSong[],
-  onProgress?: (progress: DriveSyncProgress) => void,
-): Promise<DriveImportResult> {
-  const files = metadata.filter(isSongFile)
-  const chartFile =
-    files.find((file) => file.name.toLowerCase() === 'notes.chart') ??
-    files.find((file) => CHART_EXTENSION.test(file.name))
-  if (!chartFile) {
-    throw new Error(
-      'Select notes.chart together with the song audio files. Selecting only the folder does not share its contents with Fretline.',
-    )
-  }
-  if (!files.some((file) => AUDIO_EXTENSIONS.test(file.name))) {
-    throw new Error(
-      'Select song.ogg, MP3, WAV, or the other audio stems together with notes.chart.',
-    )
-  }
-
-  const fingerprint = createDriveFingerprint(files)
-  const songId = `google-drive:${chartFile.id}`
-  const existing = existingSongs.find(
-    (song) =>
-      song.id === songId &&
-      song.source?.type === 'google-drive' &&
-      song.source.fingerprint === fingerprint,
-  )
-  if (existing) return { song: null, unchanged: true }
-
-  await ensureStorageCapacity(files)
-  const downloaded: File[] = []
-  for (const [index, file] of files.entries()) {
-    onProgress?.({
-      phase: 'downloading',
-      message: `Downloading ${file.name} (${index + 1} of ${files.length})…`,
-    })
-    downloaded.push(await downloadDriveFile(accessToken, file))
-  }
-
-  const imported = await importCloneHeroFolder(downloaded)
-  return {
-    song: {
-      ...imported,
-      id: songId,
-      folderName: `Google Drive · ${imported.chart.metadata.name}`,
-      source: {
-        type: 'google-drive',
-        fileIds: files.map((file) => file.id),
-        fingerprint,
-      },
-    },
-    unchanged: false,
-  }
-}
-
-export async function importGoogleDriveSelection(
-  selected: PickerDocument[],
-  accessToken: string,
-  existingSongs: LocalSong[],
-  onProgress?: (progress: DriveSyncProgress) => void,
-): Promise<DriveImportResult> {
-  onProgress?.({
-    phase: 'checking',
-    message: 'Checking the selected Drive files…',
-  })
-  const metadata = await Promise.all(
-    selected
-      .filter(
-        (document): document is PickerDocument & { id: string } =>
-          typeof document.id === 'string',
-      )
-      .map((document) => getDriveFileMetadata(accessToken, document.id)),
-  )
-  return importDriveFiles(metadata, accessToken, existingSongs, onProgress)
-}
-
-export async function syncGoogleDriveSongs(
+export async function syncGoogleDriveLibrary(
+  source: DriveLibrarySource,
   accessToken: string,
   existingSongs: LocalSong[],
   onProgress?: (progress: DriveSyncProgress) => void,
 ): Promise<DriveSyncResult> {
-  const driveSongs = existingSongs.filter(
-    (song) =>
-      song.source?.type === 'google-drive' &&
-      Array.isArray(song.source.fileIds) &&
-      song.source.fileIds.length > 0,
-  )
+  const directories = await scanDriveTree(accessToken, source, onProgress)
+  const songDirectories = directories.filter((directory) => {
+    const hasChart = directory.files.some((file) =>
+      CHART_EXTENSION.test(file.name),
+    )
+    const hasAudio = directory.files.some((file) =>
+      AUDIO_EXTENSIONS.test(file.name),
+    )
+    return hasChart && hasAudio
+  })
   const songs: LocalSong[] = []
   let unchanged = 0
+  let requiredBytes = 0
 
-  for (const [index, existing] of driveSongs.entries()) {
+  for (const directory of songDirectories) {
+    const songFiles = directory.files.filter(isSongFile)
+    const fingerprint = createDriveFingerprint(songFiles)
+    const existing = existingSongs.some(
+      (song) =>
+        song.source?.type === 'google-drive' &&
+        song.source.folderId === directory.id &&
+        song.source.fingerprint === fingerprint,
+    )
+    if (!existing) {
+      requiredBytes += songFiles.reduce(
+        (total, file) => total + Number(file.size ?? 0),
+        0,
+      )
+    }
+  }
+
+  if (requiredBytes > 0 && navigator.storage?.estimate) {
+    const estimate = await navigator.storage.estimate()
+    const available =
+      estimate.quota !== undefined
+        ? estimate.quota - (estimate.usage ?? 0)
+        : undefined
+    if (available !== undefined && requiredBytes > available * 0.9) {
+      throw new Error(
+        `These songs need about ${formatBytes(requiredBytes)}, but this browser has only about ${formatBytes(available)} available.`,
+      )
+    }
+    await navigator.storage.persist?.()
+  }
+
+  for (const [index, directory] of songDirectories.entries()) {
+    const songFiles = directory.files.filter(isSongFile)
+    const fingerprint = createDriveFingerprint(songFiles)
+    const existing = existingSongs.find(
+      (song) =>
+        song.source?.type === 'google-drive' &&
+        song.source.folderId === directory.id &&
+        song.source.fingerprint === fingerprint,
+    )
+    if (existing) {
+      unchanged += 1
+      continue
+    }
+
     onProgress?.({
-      phase: 'checking',
-      message: `Checking ${existing.chart.metadata.name} (${index + 1} of ${driveSongs.length})…`,
+      phase: 'downloading',
+      message: `Downloading ${directory.name} (${index + 1} of ${songDirectories.length})…`,
     })
-    const metadata = await Promise.all(
-      existing.source?.fileIds.map((fileId) =>
-        getDriveFileMetadata(accessToken, fileId),
-      ) ?? [],
-    )
-    const result = await importDriveFiles(
-      metadata,
-      accessToken,
-      existingSongs,
-      onProgress,
-    )
-    if (result.song) songs.push(result.song)
-    if (result.unchanged) unchanged += 1
+    const files: File[] = []
+    for (const file of songFiles) {
+      files.push(await downloadDriveFile(accessToken, file))
+    }
+    const imported = await importCloneHeroFolder(files)
+    songs.push({
+      ...imported,
+      id: `google-drive:${directory.id}`,
+      folderName: directory.path,
+      source: {
+        type: 'google-drive',
+        rootFolderId: source.id,
+        folderId: directory.id,
+        fingerprint,
+      },
+    })
   }
 
   return {
     songs,
-    checked: driveSongs.length,
+    discovered: songDirectories.length,
     unchanged,
   }
 }
