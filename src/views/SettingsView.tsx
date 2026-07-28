@@ -1,10 +1,38 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ControllerSetup } from '../components/ControllerSetup'
 import { useAppState } from '../state/AppState'
 import styles from './SettingsView.module.scss'
 
+type SettingsSection = 'gameplay' | 'controller' | 'keyboard'
+
+const SECTION_COPY: Record<
+  SettingsSection,
+  { label: string; title: string; description: string }
+> = {
+  gameplay: {
+    label: 'Gameplay',
+    title: 'Timing & highway',
+    description:
+      'Tune input timing, visual placement, and highway speed for every song.',
+  },
+  controller: {
+    label: 'Controller',
+    title: 'Guitar controller',
+    description:
+      'Map a browser gamepad or connect directly to a supported USB receiver.',
+  },
+  keyboard: {
+    label: 'Keyboard',
+    title: 'Keyboard fallback',
+    description:
+      'Review the built-in keyboard controls available whenever a guitar is not connected.',
+  },
+}
+
 export function SettingsView() {
   const navigate = useNavigate()
+  const [section, setSection] = useState<SettingsSection>('gameplay')
   const {
     calibration,
     setCalibration,
@@ -13,118 +41,171 @@ export function SettingsView() {
     controllerMapping,
     setControllerMapping,
   } = useAppState()
+  const activeCopy = SECTION_COPY[section]
 
   return (
     <main className={styles.page}>
-      <header className={styles.header}>
+      <header className={styles.mobileHeader}>
         <button type="button" onClick={() => navigate('/')}>
           <span aria-hidden="true">←</span>
           Main menu
         </button>
-        <div>
-          <p>Fretline</p>
-          <strong>Settings</strong>
-        </div>
+        <strong>Settings</strong>
       </header>
 
-      <section className={styles.intro}>
-        <p>Gameplay setup</p>
-        <h1>Settings</h1>
-        <span>Saved automatically on this device.</span>
-      </section>
-
-      <div className={styles.settingsGrid}>
-        <section className={styles.timingPanel}>
-          <div>
-            <p>Timing & highway</p>
-            <h2>Dial in the feel</h2>
-            <span>
-              These values affect every song and stay local to this browser.
-            </span>
-          </div>
-
-          <label>
-            <span>
-              Input correction
-              <strong>{calibration.inputOffsetMs} ms</strong>
-            </span>
-            <small>Moves scored strums earlier or later.</small>
-            <input
-              type="range"
-              min="-200"
-              max="200"
-              step="1"
-              value={calibration.inputOffsetMs}
-              onChange={(event) =>
-                setCalibration({
-                  ...calibration,
-                  inputOffsetMs: Number(event.target.value),
-                })
-              }
-            />
-          </label>
-
-          <label>
-            <span>
-              Visual correction
-              <strong>{calibration.videoOffsetMs} ms</strong>
-            </span>
-            <small>Moves notes relative to the hit line.</small>
-            <input
-              type="range"
-              min="-100"
-              max="100"
-              step="1"
-              value={calibration.videoOffsetMs}
-              onChange={(event) =>
-                setCalibration({
-                  ...calibration,
-                  videoOffsetMs: Number(event.target.value),
-                })
-              }
-            />
-          </label>
-
-          <label>
-            <span>
-              Highway speed
-              <strong>{highwaySettings.noteSpeed}</strong>
-            </span>
-            <small>Higher values create more space between notes.</small>
-            <input
-              type="range"
-              min="6"
-              max="18"
-              step="1"
-              value={highwaySettings.noteSpeed}
-              onChange={(event) =>
-                setHighwaySettings({
-                  noteSpeed: Number(event.target.value),
-                })
-              }
-            />
-          </label>
-        </section>
-
-        <ControllerSetup
-          mapping={controllerMapping}
-          onChange={setControllerMapping}
-        />
-
-        <section className={styles.keyboardPanel}>
-          <div>
-            <p>Keyboard fallback</p>
-            <h2>Hold, then strum</h2>
-          </div>
-          <div className={styles.keys}>
-            {['A', 'S', 'D', 'F', 'G'].map((key, index) => (
-              <kbd key={key} data-lane={index}>{key}</kbd>
+      <div className={styles.settingsShell}>
+        <aside className={styles.categoryPanel}>
+          <h1>Settings</h1>
+          <nav aria-label="Settings categories">
+            {(Object.keys(SECTION_COPY) as SettingsSection[]).map((key) => (
+              <button
+                type="button"
+                key={key}
+                data-active={section === key}
+                onClick={() => setSection(key)}
+              >
+                {SECTION_COPY[key].label}
+              </button>
             ))}
+            <button type="button" onClick={() => navigate('/')}>
+              Back
+            </button>
+          </nav>
+          <div className={styles.categoryInfo}>
+            <span aria-hidden="true">i</span>
+            <strong>{activeCopy.title}</strong>
+            <p>{activeCopy.description}</p>
           </div>
-          <p>
-            Hold the matching fret keys and press <kbd>Space</kbd>,{' '}
-            <kbd>Enter</kbd>, or an arrow key to strum.
-          </p>
+        </aside>
+
+        <section className={styles.contentPanel}>
+          <div className={styles.commandBar}>
+            <button type="button" onClick={() => navigate('/')}>
+              <i data-color="green" />
+              Continue
+            </button>
+            <button type="button" onClick={() => navigate('/')}>
+              <i data-color="red" />
+              Back
+            </button>
+          </div>
+
+          <div className={styles.sectionHeading}>
+            <p>{activeCopy.label}</p>
+            <h2>{activeCopy.title}</h2>
+            <span>{activeCopy.description}</span>
+          </div>
+
+          {section === 'gameplay' && (
+            <div className={styles.settingList}>
+              <label className={styles.settingRow}>
+                <span>
+                  <strong>Input correction</strong>
+                  <small>Moves scored strums earlier or later.</small>
+                </span>
+                <input
+                  type="range"
+                  min="-200"
+                  max="200"
+                  step="1"
+                  value={calibration.inputOffsetMs}
+                  onChange={(event) =>
+                    setCalibration({
+                      ...calibration,
+                      inputOffsetMs: Number(event.target.value),
+                    })
+                  }
+                />
+                <output>{calibration.inputOffsetMs} ms</output>
+              </label>
+
+              <label className={styles.settingRow}>
+                <span>
+                  <strong>Visual correction</strong>
+                  <small>Moves notes relative to the hit line.</small>
+                </span>
+                <input
+                  type="range"
+                  min="-100"
+                  max="100"
+                  step="1"
+                  value={calibration.videoOffsetMs}
+                  onChange={(event) =>
+                    setCalibration({
+                      ...calibration,
+                      videoOffsetMs: Number(event.target.value),
+                    })
+                  }
+                />
+                <output>{calibration.videoOffsetMs} ms</output>
+              </label>
+
+              <label className={styles.settingRow}>
+                <span>
+                  <strong>Highway speed</strong>
+                  <small>Higher values create more space between notes.</small>
+                </span>
+                <input
+                  type="range"
+                  min="6"
+                  max="18"
+                  step="1"
+                  value={highwaySettings.noteSpeed}
+                  onChange={(event) =>
+                    setHighwaySettings({
+                      noteSpeed: Number(event.target.value),
+                    })
+                  }
+                />
+                <output>{highwaySettings.noteSpeed}</output>
+              </label>
+
+              <div className={styles.savedRow}>
+                <span>
+                  <strong>Save behavior</strong>
+                  <small>Settings are stored only in this browser.</small>
+                </span>
+                <b>Automatic</b>
+              </div>
+            </div>
+          )}
+
+          {section === 'controller' && (
+            <div className={styles.controllerPane}>
+              <ControllerSetup
+                mapping={controllerMapping}
+                onChange={setControllerMapping}
+              />
+            </div>
+          )}
+
+          {section === 'keyboard' && (
+            <div className={styles.keyboardPane}>
+              <div className={styles.keys}>
+                {['A', 'S', 'D', 'F', 'G'].map((key, index) => (
+                  <kbd key={key} data-lane={index}>{key}</kbd>
+                ))}
+              </div>
+              <div className={styles.keyboardRows}>
+                <div>
+                  <span>Green, red, yellow, blue, orange</span>
+                  <strong>A · S · D · F · G</strong>
+                </div>
+                <div>
+                  <span>Strum</span>
+                  <strong>Space · Enter · Arrow keys</strong>
+                </div>
+                <div>
+                  <span>Pause</span>
+                  <strong>Escape</strong>
+                </div>
+              </div>
+              <p>
+                Hold one or more fret keys, then press a strum key. Keyboard
+                controls remain active even when a guitar is mapped.
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </main>
