@@ -48,19 +48,42 @@ export type GamepadBinding =
   | { type: 'button'; index: number }
   | { type: 'axis'; index: number; direction: -1 | 1; rest?: number }
 
-export interface ControllerMapping {
+export interface HidBinding {
+  type: 'hid'
+  reportId: number
+  byteIndex: number
+  mask: number
+  activeValue: number
+}
+
+export interface HidDeviceIdentity {
+  vendorId: number
+  productId: number
+  productName: string
+}
+
+type FiveFrets<T> = [T, T, T, T, T]
+
+export interface GamepadControllerMapping {
+  source?: 'gamepad'
   gamepadId: string
   gamepadIndex: number
-  frets: [
-    GamepadBinding,
-    GamepadBinding,
-    GamepadBinding,
-    GamepadBinding,
-    GamepadBinding,
-  ]
+  frets: FiveFrets<GamepadBinding>
   strumUp: GamepadBinding
   strumDown: GamepadBinding
 }
+
+export interface HidControllerMapping {
+  source: 'hid'
+  device: HidDeviceIdentity
+  frets: FiveFrets<HidBinding>
+  strumUp: HidBinding
+  strumDown: HidBinding
+}
+
+export type ControllerMapping =
+  | GamepadControllerMapping
+  | HidControllerMapping
 
 export interface CalibrationSettings {
   inputOffsetMs: number

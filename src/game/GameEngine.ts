@@ -1,6 +1,11 @@
 import { secondsToTick } from '../lib/chartParser'
 import { gamepadBindingActive } from '../lib/controllerInput'
 import {
+  directHidSnapshot,
+  reconnectDirectHidDevice,
+} from '../lib/directHidController'
+import { hidBindingActive } from '../lib/hidInput'
+import {
   canFretHit,
   HIT_WINDOW_MS,
   lanesMatchWithActiveSustains,
@@ -110,6 +115,9 @@ export class GameEngine {
     this.chart = options.chart
     this.calibration = options.calibration
     this.controllerMapping = options.controllerMapping
+    if (this.controllerMapping?.source === 'hid') {
+      void reconnectDirectHidDevice(this.controllerMapping.device)
+    }
     this.onFrame = options.onFrame
     this.onStats = options.onStats
     this.onFinish = options.onFinish
@@ -301,11 +309,39 @@ export class GameEngine {
 
   private readGamepad(now: number): void {
     if (!this.controllerMapping) return
+    if (this.controllerMapping.source === 'hid') {
+      const snapshot = directHidSnapshot(this.controllerMapping.device)
+      const previousLanes = this.gamepadLanes
+      this.gamepadLanes = this.controllerMapping.frets
+        .map((binding, index) =>
+          hidBindingActive(snapshot.reports, binding)
+            ? (index as Lane)
+            : null,
+        )
+        .filter((lane): lane is Lane => lane !== null)
+      const fretsChanged =
+        previousLanes.length !== this.gamepadLanes.length ||
+        previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
+      const strumming =
+        hidBindingActive(snapshot.reports, this.controllerMapping.strumUp) ||
+        hidBindingActive(snapshot.reports, this.controllerMapping.strumDown)
+      const timestamp = snapshot.timestamp || now
+
+      if (strumming && !this.previousGamepadStrum) {
+        this.strum(timestamp)
+      } else if (fretsChanged) {
+        this.fretChange(timestamp)
+      }
+      this.previousGamepadStrum = strumming
+      return
+    }
+
+    const mapping = this.controllerMapping
     const gamepads = navigator.getGamepads?.() ?? []
     const gamepad =
-      gamepads[this.controllerMapping.gamepadIndex] ??
+      gamepads[mapping.gamepadIndex] ??
       [...gamepads].find(
-        (candidate) => candidate?.id === this.controllerMapping?.gamepadId,
+        (candidate) => candidate?.id === mapping.gamepadId,
       )
     if (!gamepad) {
       this.gamepadLanes = []
@@ -314,7 +350,7 @@ export class GameEngine {
     }
 
     const previousLanes = this.gamepadLanes
-    this.gamepadLanes = this.controllerMapping.frets
+    this.gamepadLanes = mapping.frets
       .map((binding, index) =>
         gamepadBindingActive(gamepad, binding) ? (index as Lane) : null,
       )
@@ -324,8 +360,8 @@ export class GameEngine {
       previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
 
     const strumming =
-      gamepadBindingActive(gamepad, this.controllerMapping.strumUp) ||
-      gamepadBindingActive(gamepad, this.controllerMapping.strumDown)
+      gamepadBindingActive(gamepad, mapping.strumUp) ||
+      gamepadBindingActive(gamepad, mapping.strumDown)
 
     if (strumming && !this.previousGamepadStrum) {
       const timestamp =
