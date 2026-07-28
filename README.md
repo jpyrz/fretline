@@ -60,6 +60,32 @@ selected song and chart are available after a reload. Nothing is uploaded.
 Removing a library entry deletes Fretline's browser copy without changing the
 original folder. Calibration and controller mappings are also saved locally.
 
+## Google Drive library
+
+Google Drive can be used as an import and sync source. Fretline downloads each
+compatible song completely, validates it with the normal Clone Hero importer,
+and stores it in IndexedDB before play. Gameplay never streams charts or audio
+from Drive, so network conditions cannot change timing. Synced songs remain
+available offline unless the browser clears its site storage.
+
+To enable the Drive buttons for a deployment:
+
+1. Create a Google Cloud project and enable the Google Drive API and Google
+   Picker API.
+2. Configure the OAuth consent screen and create a Web application OAuth
+   client. Add the local and deployed site origins as authorized JavaScript
+   origins.
+3. Create a browser API key restricted to those origins and APIs.
+4. Copy `.env.example` to `.env.local` for development, or add the same three
+   values as Netlify environment variables:
+   `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY`, and
+   `VITE_GOOGLE_APP_ID`. The app ID is the numeric Google Cloud project number.
+
+Fretline requests the narrow `drive.file` scope and never stores the short-lived
+Google access token. A user may therefore be asked to reconnect when syncing
+again. The selected Drive folder ID is saved locally; song content stays in the
+same on-device library as regular folder imports.
+
 ## Validate
 
 ```bash

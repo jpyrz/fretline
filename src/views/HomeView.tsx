@@ -1,6 +1,16 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ControllerSetup } from '../components/ControllerSetup'
+import {
+  authorizeGoogleDrive,
+  connectGoogleDrive,
+  isGoogleDriveConfigured,
+  loadDriveLibrarySource,
+  prepareGoogleDrive,
+  saveDriveLibrarySource,
+  syncGoogleDriveLibrary,
+  type DriveLibrarySource,
+} from '../lib/googleDrive'
 import { importCloneHeroFolder, loadBundledSong } from '../lib/songImport'
 import { useAppState } from '../state/AppState'
 import styles from './HomeView.module.scss'
@@ -12,6 +22,7 @@ export function HomeView() {
     song,
     songs,
     setSong,
+    addSongs,
     selectSong,
     removeSong,
     selectTrack,
@@ -27,6 +38,27 @@ export function HomeView() {
   } = useAppState()
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
+  const [driveSource, setDriveSource] = useState<DriveLibrarySource | null>(
+    loadDriveLibrarySource,
+  )
+  const [driveStatus, setDriveStatus] = useState('')
+  const driveConfigured = isGoogleDriveConfigured()
+  const [driveReady, setDriveReady] = useState(!driveConfigured)
+
+  useEffect(() => {
+    if (!driveConfigured) return
+    let active = true
+    void prepareGoogleDrive()
+      .then(() => {
+        if (active) setDriveReady(true)
+      })
+      .catch(() => {
+        if (active) setDriveReady(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [driveConfigured])
 
   const openFolderPicker = () => {
     if (inputRef.current) {
@@ -66,6 +98,68 @@ export function HomeView() {
       setError(
         reason instanceof Error ? reason.message : 'Sample song failed to load.',
       )
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const syncDrive = async (chooseFolder = false) => {
+    setImporting(true)
+    setError('')
+    setDriveStatus(
+      chooseFolder || !driveSource
+        ? 'Opening Google Drive…'
+        : `Connecting to ${driveSource.name}…`,
+    )
+
+    try {
+      let source = driveSource
+      let accessToken: string
+      if (chooseFolder || !source) {
+        const connection = await connectGoogleDrive()
+        if (!connection.source) {
+          setDriveStatus('')
+          return
+        }
+        source = connection.source
+        accessToken = connection.accessToken
+        saveDriveLibrarySource(source)
+        setDriveSource(source)
+      } else {
+        accessToken = await authorizeGoogleDrive()
+      }
+
+      const result = await syncGoogleDriveLibrary(
+        source,
+        accessToken,
+        songs,
+        (progress) => setDriveStatus(progress.message),
+      )
+      await addSongs(result.songs)
+
+      if (result.discovered === 0) {
+        setDriveStatus(
+          `No song folders with both a .chart file and supported audio were found in ${source.name}.`,
+        )
+      } else if (result.songs.length === 0) {
+        setDriveStatus(
+          `${source.name} is up to date · ${result.unchanged} songs checked.`,
+        )
+      } else {
+        setDriveStatus(
+          `Added or updated ${result.songs.length} songs from ${source.name}` +
+            (result.unchanged > 0
+              ? ` · ${result.unchanged} already current.`
+              : '.'),
+        )
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Google Drive sync failed.',
+      )
+      setDriveStatus('')
     } finally {
       setImporting(false)
     }
@@ -141,6 +235,8 @@ export function HomeView() {
                         ? '120'
                         : librarySong.id === 'bundled-techno-chiptale'
                           ? 'CC0'
+                          : librarySong.source?.type === 'google-drive'
+                            ? 'GD'
                           : 'CH'}
                     </span>
                     <small>
@@ -210,12 +306,52 @@ export function HomeView() {
                   ? 'Select free sample'
                   : 'Add free sample'}
               </button>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={
+                  importing ||
+                  !libraryReady ||
+                  !driveConfigured ||
+                  !driveReady
+                }
+                title={
+                  driveConfigured
+                    ? undefined
+                    : 'Google Drive credentials have not been configured for this site.'
+                }
+                onClick={() => void syncDrive(false)}
+              >
+                {!driveReady && driveConfigured
+                  ? 'Loading Google Drive…'
+                  : driveSource
+                    ? 'Sync Google Drive'
+                    : 'Connect Google Drive'}
+              </button>
+              {driveSource && driveConfigured && (
+                <button
+                  type="button"
+                  className="button ghost"
+                  disabled={importing || !libraryReady}
+                  onClick={() => void syncDrive(true)}
+                >
+                  Change Drive folder
+                </button>
+              )}
             </div>
             <small>
-              Imported audio is stored only in this browser. Removing a song
-              does not touch its original folder.
+              {driveConfigured
+                ? 'Local and Drive imports are copied into this browser for smooth offline playback. Removing one does not touch its original folder.'
+                : 'Local imports stay in this browser. Google Drive will become available after its site credentials are configured.'}
             </small>
           </div>
+
+          {driveStatus && (
+            <p className={styles.driveStatus} aria-live="polite">
+              <span aria-hidden="true">G</span>
+              {driveStatus}
+            </p>
+          )}
 
           {song.charts.length > 1 && (
             <label className={styles.trackPicker}>

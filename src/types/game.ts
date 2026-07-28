@@ -42,6 +42,12 @@ export interface LocalSong {
   charts: ParsedChart[]
   audioFiles: File[]
   folderName?: string
+  source?: {
+    type: 'google-drive'
+    rootFolderId: string
+    folderId: string
+    fingerprint: string
+  }
 }
 
 export type GamepadBinding =

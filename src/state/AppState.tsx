@@ -25,6 +25,7 @@ interface AppStateValue {
   song: LocalSong
   songs: LocalSong[]
   setSong: (song: LocalSong) => void
+  addSongs: (songs: LocalSong[]) => Promise<void>
   selectSong: (songId: string) => void
   removeSong: (songId: string) => void
   selectTrack: (trackName: string) => void
@@ -161,6 +162,33 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const addSongs = useCallback(async (nextSongs: LocalSong[]) => {
+    if (nextSongs.length === 0) return
+    setLibrarySaving(true)
+    setLibraryError('')
+
+    try {
+      await Promise.all(nextSongs.map((nextSong) => persistSong(nextSong)))
+      setSongs((current) =>
+        nextSongs.reduce(
+          (library, nextSong) => upsertSong(library, nextSong),
+          current,
+        ),
+      )
+      setCurrentSong(nextSongs[0])
+      localStorage.setItem(SELECTED_SONG_KEY, nextSongs[0].id)
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'The imported songs could not be saved in this browser.'
+      setLibraryError(message)
+      throw reason
+    } finally {
+      setLibrarySaving(false)
+    }
+  }, [])
+
   const removeSong = useCallback((songId: string) => {
     setSongs((current) => current.filter((song) => song.id !== songId))
     setCurrentSong((current) => {
@@ -217,6 +245,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       song,
       songs,
       setSong,
+      addSongs,
       selectSong,
       removeSong,
       selectTrack,
@@ -235,6 +264,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       song,
       songs,
       setSong,
+      addSongs,
       selectSong,
       removeSong,
       selectTrack,

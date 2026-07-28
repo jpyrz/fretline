@@ -287,6 +287,33 @@
   background: rgba(255, 79, 100, 0.08);
 }
 
+.driveStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(114, 184, 255, 0.2);
+  border-radius: 12px;
+  color: #c9ddff;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  background: rgba(56, 126, 235, 0.08);
+
+  span {
+    display: grid;
+    width: 1.55rem;
+    height: 1.55rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 6px;
+    color: #0b1320;
+    font-size: 0.72rem;
+    font-weight: 900;
+    background: linear-gradient(145deg, #8fd3ff, #6f8dff);
+  }
+}
+
 .instructions {
   display: flex;
   flex-direction: column;
