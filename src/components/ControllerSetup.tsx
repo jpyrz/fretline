@@ -5,7 +5,11 @@ import {
   reconnectDirectHidDevice,
   requestDirectHidDevice,
 } from '../lib/directHidController'
-import { activeHidBindings } from '../lib/hidInput'
+import {
+  activeHidBindings,
+  changedHidBytes,
+  hidByteKey,
+} from '../lib/hidInput'
 import type {
   ControllerMapping,
   GamepadBinding,
@@ -23,6 +27,10 @@ const STEPS = [
   'Strum up',
   'Strum down',
 ]
+
+const HID_MOTION_CALIBRATION_MS = 2500
+const HID_SETTLE_MS = 350
+const HID_CAPTURE_HOLD_MS = 35
 
 type CapturedBinding = GamepadBinding | HidBinding
 type MappingSource = 'gamepad' | 'hid'
@@ -65,8 +73,15 @@ export function ControllerSetup({
   const armed = useRef(false)
   const axisBaseline = useRef<number[]>([])
   const hidBaseline = useRef<Map<number, Uint8Array>>(new Map())
+  const hidMotionReference = useRef<Map<number, Uint8Array>>(new Map())
+  const ignoredHidBytes = useRef<Set<string>>(new Set())
   const lastAxes = useRef<number[]>([])
   const lastHidTimestamp = useRef(0)
+  const hidMotionCalibrationStartedAt = useRef(0)
+  const pendingHidBinding = useRef<{
+    key: string
+    startedAt: number
+  } | null>(null)
   const neutralFrames = useRef(0)
   const baselineReady = useRef(false)
   const mappingActive =
@@ -113,7 +128,11 @@ export function ControllerSetup({
     )
     armed.current = false
     hidBaseline.current = new Map()
+    hidMotionReference.current = new Map()
+    ignoredHidBytes.current = new Set()
     lastHidTimestamp.current = 0
+    hidMotionCalibrationStartedAt.current = 0
+    pendingHidBinding.current = null
     neutralFrames.current = 0
     baselineReady.current = false
 
@@ -121,7 +140,7 @@ export function ControllerSetup({
       const selected = await requestDirectHidDevice()
       setHidDevice(selected)
       setMessage(
-        `Connected directly to ${selected.productName}. Press and release any control once, then leave everything released.`,
+        `Connected directly to ${selected.productName}. Press and release any control once, then hold the guitar still.`,
       )
     } catch (reason: unknown) {
       setMappingSource(null)
@@ -294,24 +313,60 @@ export function ControllerSetup({
       }
 
       if (!baselineReady.current) {
-        if (snapshot.timestamp !== lastHidTimestamp.current) {
+        const now = performance.now()
+
+        if (hidMotionCalibrationStartedAt.current === 0) {
           lastHidTimestamp.current = snapshot.timestamp
-          neutralFrames.current = 0
-        } else {
-          neutralFrames.current += 1
+
+          if (now - snapshot.timestamp >= HID_SETTLE_MS) {
+            hidMotionReference.current = cloneReports(snapshot.reports)
+            ignoredHidBytes.current = new Set()
+            hidMotionCalibrationStartedAt.current = now
+            setMessage(
+              'Now gently tilt and move the guitar for 3 seconds. Do not press frets or strum.',
+            )
+          } else {
+            setMessage(
+              'Release every control and hold the guitar still for a moment.',
+            )
+          }
+
+          frame = requestAnimationFrame(poll)
+          return
         }
 
-        if (
-          neutralFrames.current >= 12 &&
-          performance.now() - snapshot.timestamp >= 180
+        if (snapshot.timestamp !== lastHidTimestamp.current) {
+          lastHidTimestamp.current = snapshot.timestamp
+          changedHidBytes(
+            snapshot.reports,
+            hidMotionReference.current,
+          ).forEach((key) => ignoredHidBytes.current.add(key))
+        }
+
+        const calibrationElapsed =
+          now - hidMotionCalibrationStartedAt.current
+        if (calibrationElapsed < HID_MOTION_CALIBRATION_MS) {
+          const seconds = Math.max(
+            1,
+            Math.ceil(
+              (HID_MOTION_CALIBRATION_MS - calibrationElapsed) / 1000,
+            ),
+          )
+          setMessage(
+            `Gently tilt and move the guitar—no buttons or strumming. ${seconds}s`,
+          )
+        } else if (
+          now - snapshot.timestamp >= HID_SETTLE_MS ||
+          calibrationElapsed >= HID_MOTION_CALIBRATION_MS + 2500
         ) {
           hidBaseline.current = cloneReports(snapshot.reports)
           baselineReady.current = true
           armed.current = true
-          setMessage(`Press ${STEPS[captured.length]}.`)
+          pendingHidBinding.current = null
+          setMessage(`Press and briefly hold ${STEPS[captured.length]}.`)
         } else {
           setMessage(
-            'Direct input detected. Release every control to calibrate it.',
+            'Motion learned. Hold the guitar still to finish calibration.',
           )
         }
 
@@ -322,16 +377,39 @@ export function ControllerSetup({
       const active = activeHidBindings(
         snapshot.reports,
         hidBaseline.current,
+        ignoredHidBytes.current,
       )
       if (active.length === 0) {
         armed.current = true
-        setMessage(`Press ${STEPS[captured.length]}.`)
+        pendingHidBinding.current = null
+        setMessage(`Press and briefly hold ${STEPS[captured.length]}.`)
       } else if (armed.current) {
         const binding = active[0]
+        const bindingKey = `${hidByteKey(
+          binding.reportId,
+          binding.byteIndex,
+        )}:${binding.mask}:${binding.activeValue}`
+        const pending = pendingHidBinding.current
+
+        if (!pending || pending.key !== bindingKey) {
+          pendingHidBinding.current = {
+            key: bindingKey,
+            startedAt: performance.now(),
+          }
+          setMessage(`Keep holding ${STEPS[captured.length]}…`)
+          frame = requestAnimationFrame(poll)
+          return
+        }
+
+        if (performance.now() - pending.startedAt < HID_CAPTURE_HOLD_MS) {
+          frame = requestAnimationFrame(poll)
+          return
+        }
+
         armed.current = false
+        pendingHidBinding.current = null
         const next = [...captured, binding]
         setCaptured(next)
-
         if (next.length === STEPS.length) {
           const bindings = next as [
             HidBinding,
