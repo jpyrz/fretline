@@ -33,6 +33,10 @@ interface NoteRenderState {
 
 const MAX_HIGHWAY_WIDTH = 760
 const PERSPECTIVE_POWER = 1.68
+// Draw the road well beyond the visible canvas. This keeps the highway,
+// lane guides, and side rails continuous below the receptor row even on
+// unusually tall or high-DPI displays.
+const SURFACE_END_PROGRESS = 1.18
 
 export function travelSecondsForNoteSpeed(noteSpeed: number): number {
   const normalizedSpeed = Math.max(6, Math.min(18, noteSpeed))
@@ -69,7 +73,7 @@ function highwayPoint(
   progress: number,
 ): HighwayPoint {
   const topY = height * 0.04
-  const hitY = height * 0.835
+  const hitY = height * 0.89
   const projected = projectHighwayProgress(progress)
   const center = width / 2
   const trackWidth = highwayTrackWidth(width, progress)
@@ -112,10 +116,10 @@ function trackPath(
   bottom: HighwayPoint,
 ): void {
   context.beginPath()
-  context.moveTo(trackEdge(top, -1), top.topY)
-  context.lineTo(trackEdge(top, 1), top.topY)
-  context.lineTo(trackEdge(bottom, 1), bottom.hitY)
-  context.lineTo(trackEdge(bottom, -1), bottom.hitY)
+  context.moveTo(trackEdge(top, -1), top.y)
+  context.lineTo(trackEdge(top, 1), top.y)
+  context.lineTo(trackEdge(bottom, 1), bottom.y)
+  context.lineTo(trackEdge(bottom, -1), bottom.y)
   context.closePath()
 }
 
@@ -203,7 +207,7 @@ function drawHighwaySurface(
   height: number,
 ): void {
   const top = highwayPoint(width, height, 0)
-  const bottom = highwayPoint(width, height, 1)
+  const bottom = highwayPoint(width, height, SURFACE_END_PROGRESS)
 
   const background = context.createRadialGradient(
     width / 2,
@@ -223,21 +227,21 @@ function drawHighwaySurface(
   trackPath(context, top, bottom)
   context.clip()
 
-  const surface = context.createLinearGradient(0, top.topY, 0, bottom.hitY)
+  const surface = context.createLinearGradient(0, top.y, 0, bottom.y)
   surface.addColorStop(0, '#11151c')
   surface.addColorStop(0.46, '#17191d')
   surface.addColorStop(1, '#090a0c')
   context.fillStyle = surface
   context.fillRect(
     trackEdge(bottom, -1),
-    top.topY,
+    top.y,
     bottom.trackWidth,
-    bottom.hitY - top.topY,
+    bottom.y - top.y,
   )
 
-  for (let band = 0; band < 13; band += 1) {
-    const startProgress = band / 13
-    const endProgress = (band + 1) / 13
+  for (let band = 0; band < 14; band += 1) {
+    const startProgress = (band / 14) * SURFACE_END_PROGRESS
+    const endProgress = ((band + 1) / 14) * SURFACE_END_PROGRESS
     const start = highwayPoint(width, height, startProgress)
     const end = highwayPoint(width, height, endProgress)
     context.beginPath()
@@ -257,7 +261,7 @@ function drawHighwaySurface(
     const x = trackEdge(bottom, -1) + (bottom.trackWidth * streak) / 21
     const opacity = 0.012 + ((streak * 7) % 5) * 0.004
     context.fillStyle = `rgba(222, 228, 238, ${opacity})`
-    context.fillRect(x, top.topY, 1, bottom.hitY - top.topY)
+    context.fillRect(x, top.y, 1, bottom.y - top.y)
   }
 
   const vignette = context.createRadialGradient(
@@ -277,8 +281,11 @@ function drawHighwaySurface(
   for (let laneNumber = 0; laneNumber < 5; laneNumber += 1) {
     const lane = laneNumber as Lane
     context.beginPath()
-    context.moveTo(laneX(width, height, lane, 0), top.topY)
-    context.lineTo(laneX(width, height, lane, 1), bottom.hitY)
+    context.moveTo(laneX(width, height, lane, 0), top.y)
+    context.lineTo(
+      laneX(width, height, lane, SURFACE_END_PROGRESS),
+      bottom.y,
+    )
     context.strokeStyle = 'rgba(207, 214, 226, 0.2)'
     context.lineWidth = 1.25
     context.shadowColor = 'rgba(255,255,255,0.22)'
@@ -289,20 +296,20 @@ function drawHighwaySurface(
 
   for (const side of [-1, 1] as const) {
     context.beginPath()
-    context.moveTo(trackEdge(top, side), top.topY)
-    context.lineTo(trackEdge(bottom, side), bottom.hitY)
+    context.moveTo(trackEdge(top, side), top.y)
+    context.lineTo(trackEdge(bottom, side), bottom.y)
     context.strokeStyle = 'rgba(4, 5, 8, 0.96)'
     context.lineWidth = 12
     context.stroke()
 
     context.beginPath()
-    context.moveTo(trackEdge(top, side), top.topY)
-    context.lineTo(trackEdge(bottom, side), bottom.hitY)
+    context.moveTo(trackEdge(top, side), top.y)
+    context.lineTo(trackEdge(bottom, side), bottom.y)
     const rail = context.createLinearGradient(
       trackEdge(top, side),
-      top.topY,
+      top.y,
       trackEdge(bottom, side),
-      bottom.hitY,
+      bottom.y,
     )
     rail.addColorStop(0, '#77818c')
     rail.addColorStop(0.45, '#29313a')
@@ -315,8 +322,8 @@ function drawHighwaySurface(
     context.stroke()
 
     context.beginPath()
-    context.moveTo(trackEdge(top, side) - side * 1.4, top.topY)
-    context.lineTo(trackEdge(bottom, side) - side * 1.4, bottom.hitY)
+    context.moveTo(trackEdge(top, side) - side * 1.4, top.y)
+    context.lineTo(trackEdge(bottom, side) - side * 1.4, bottom.y)
     context.strokeStyle = 'rgba(235, 241, 247, 0.48)'
     context.lineWidth = 1
     context.stroke()

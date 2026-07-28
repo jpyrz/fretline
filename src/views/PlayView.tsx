@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { HighwayCanvas } from '../components/HighwayCanvas'
-import { TimingHistogram } from '../components/TimingHistogram'
 import { GameEngine } from '../game/GameEngine'
 import { drawHighway } from '../game/drawHighway'
 import { createCalibrationAudio } from '../lib/calibrationSong'
@@ -91,6 +90,14 @@ export function PlayView() {
     stats.misses === 0 &&
     stats.overstrums === 0 &&
     stats.sustainsBroken === 0
+  const chartProgress =
+    song.chart.notes.length > 0
+      ? Math.min(
+          100,
+          ((stats.hits + stats.misses) / song.chart.notes.length) * 100,
+        )
+      : 0
+  const multiplier = Math.min(4, Math.floor(stats.streak / 10) + 1)
 
   const stopSession = () => {
     engineRef.current?.stop()
@@ -182,8 +189,14 @@ export function PlayView() {
   }
 
   return (
-    <main className={styles.page}>
-      <header className={styles.header}>
+    <main
+      className={styles.page}
+      data-session={phase === 'playing' || phase === 'paused'}
+    >
+      <header
+        className={styles.header}
+        data-hidden={phase === 'playing' || phase === 'paused'}
+      >
         <Link to="/" onClick={stopSession}>
           <span aria-hidden="true">←</span>
           Main menu
@@ -345,85 +358,30 @@ export function PlayView() {
 
         </div>
 
-        <aside className={styles.telemetry}>
-          <section className={styles.scoreCard}>
-            <p>Score</p>
-            <strong>{stats.score.toLocaleString()}</strong>
-            <div>
-              <span>
-                Streak <b>{stats.streak}</b>
-              </span>
-              <span>
-                Best <b>{stats.bestStreak}</b>
-              </span>
-            </div>
-          </section>
-
-          <section className={styles.accuracyCard}>
-            <div className={styles.cardHeading}>
-              <div>
-                <p className="eyebrow">Latest strum</p>
-                <h2>
-                  {stats.lastErrorMs === null
-                    ? '—'
-                    : `${stats.lastErrorMs >= 0 ? '+' : ''}${stats.lastErrorMs.toFixed(1)} ms`}
-                </h2>
-              </div>
-              <span
-                data-status={
-                  stats.lastErrorMs === null
-                    ? 'idle'
-                    : Math.abs(stats.lastErrorMs) < 35
-                      ? 'good'
-                      : 'warn'
-                }
-              >
-                {stats.lastErrorMs === null
-                  ? 'Waiting'
-                  : stats.lastErrorMs < -8
-                    ? 'Early'
-                    : stats.lastErrorMs > 8
-                      ? 'Late'
-                      : 'Perfect'}
-              </span>
-            </div>
-            <TimingHistogram records={stats.records} />
-          </section>
-
-          <section className={styles.sessionCard}>
-            <p className="eyebrow">Session</p>
-            <dl>
-              <div>
-                <dt>Hits</dt>
-                <dd>{stats.hits}</dd>
-              </div>
-              <div>
-                <dt>Misses</dt>
-                <dd>{stats.misses}</dd>
-              </div>
-              <div>
-                <dt>Overstrums</dt>
-                <dd>{stats.overstrums}</dd>
-              </div>
-              <div>
-                <dt>Sustain points</dt>
-                <dd>{stats.sustainPoints.toLocaleString()}</dd>
-              </div>
-              <div>
-                <dt>Holds completed</dt>
-                <dd>{stats.sustainsCompleted}</dd>
-              </div>
-              <div>
-                <dt>Broken holds</dt>
-                <dd>{stats.sustainsBroken}</dd>
-              </div>
-              <div>
-                <dt>Input correction</dt>
-                <dd>{calibration.inputOffsetMs} ms</dd>
-              </div>
-            </dl>
-          </section>
-        </aside>
+        <section className={styles.scoreHud} aria-label="Current score">
+          <div className={styles.scoreValue}>
+            <span>Score</span>
+            <strong>{stats.score.toLocaleString().padStart(6, '0')}</strong>
+          </div>
+          <div className={styles.scoreProgress} aria-hidden="true">
+            <i style={{ width: `${chartProgress}%` }} />
+          </div>
+          <div className={styles.scoreDetails}>
+            <span>
+              Streak <strong>{stats.streak}</strong>
+            </span>
+            <b>×{multiplier}</b>
+          </div>
+          {(phase === 'playing' || phase === 'paused') && (
+            <button
+              type="button"
+              aria-label={phase === 'paused' ? 'Resume song' : 'Pause song'}
+              onClick={togglePause}
+            >
+              {phase === 'paused' ? '▶' : 'Ⅱ'}
+            </button>
+          )}
+        </section>
       </section>
 
       {phase === 'paused' && (
