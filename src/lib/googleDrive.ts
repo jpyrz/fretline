@@ -11,6 +11,7 @@ const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
 const NON_PLAYABLE_AUDIO = /^(preview)\.[^.]+$/i
 const CHART_EXTENSION = /\.(chart|mid)$/i
 const METADATA_FILE = /^song\.ini$/i
+const ARTWORK_FILE = /^(album|cover)\.(png|jpe?g|webp)$/i
 
 interface GoogleDriveConfig {
   clientId: string
@@ -448,7 +449,8 @@ function isSongFile(file: DriveFileMetadata): boolean {
     CHART_EXTENSION.test(file.name) ||
     (AUDIO_EXTENSIONS.test(file.name) &&
       !NON_PLAYABLE_AUDIO.test(file.name)) ||
-    METADATA_FILE.test(file.name)
+    METADATA_FILE.test(file.name) ||
+    ARTWORK_FILE.test(file.name)
   )
 }
 

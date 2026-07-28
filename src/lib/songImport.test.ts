@@ -19,6 +19,25 @@ describe('importCloneHeroFolder', () => {
     expect(song.audioFiles).toEqual([audio])
   })
 
+  it('keeps album artwork and excludes preview audio from gameplay', async () => {
+    const chart = new File([calibrationChartSource], 'notes.chart')
+    const songAudio = new File(['song-audio'], 'song.ogg')
+    const previewAudio = new File(['preview-audio'], 'preview.mp3')
+    const artwork = new File(['cover'], 'album.png', {
+      type: 'image/png',
+    })
+
+    const song = await importCloneHeroFolder([
+      chart,
+      songAudio,
+      previewAudio,
+      artwork,
+    ])
+
+    expect(song.audioFiles).toEqual([songAudio])
+    expect(song.artworkFile).toBe(artwork)
+  })
+
   it('reports a missing chart clearly', async () => {
     const audio = new File(['test-audio'], 'song.ogg', {
       type: 'audio/ogg',

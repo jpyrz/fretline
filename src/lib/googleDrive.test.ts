@@ -20,15 +20,15 @@ describe('createDriveFingerprint', () => {
       modifiedTime: '2026-07-28T10:01:00Z',
       size: '456',
     }
-    const cover: DriveFileMetadata = {
-      id: 'cover-id',
-      name: 'album.png',
-      mimeType: 'image/png',
+    const unrelated: DriveFileMetadata = {
+      id: 'unrelated-id',
+      name: 'lyrics.txt',
+      mimeType: 'text/plain',
       modifiedTime: '2026-07-28T10:02:00Z',
       size: '789',
     }
 
-    expect(createDriveFingerprint([chart, audio, cover])).toBe(
+    expect(createDriveFingerprint([chart, audio, unrelated])).toBe(
       createDriveFingerprint([audio, chart]),
     )
   })
@@ -51,7 +51,7 @@ describe('createDriveFingerprint', () => {
     )
   })
 
-  it('tracks MIDI charts and song.ini but ignores preview audio', () => {
+  it('tracks MIDI charts, metadata, and artwork but ignores preview audio', () => {
     const midi: DriveFileMetadata = {
       id: 'midi-id',
       name: 'notes.mid',
@@ -73,10 +73,24 @@ describe('createDriveFingerprint', () => {
       modifiedTime: '2026-07-28T10:02:00Z',
       size: '789',
     }
+    const artwork: DriveFileMetadata = {
+      id: 'artwork-id',
+      name: 'album.png',
+      mimeType: 'image/png',
+      modifiedTime: '2026-07-28T10:03:00Z',
+      size: '999',
+    }
 
-    expect(createDriveFingerprint([midi, ini, preview])).toContain('midi-id')
-    expect(createDriveFingerprint([midi, ini, preview])).toContain('ini-id')
-    expect(createDriveFingerprint([midi, ini, preview])).not.toContain(
+    const fingerprint = createDriveFingerprint([
+      midi,
+      ini,
+      preview,
+      artwork,
+    ])
+    expect(fingerprint).toContain('midi-id')
+    expect(fingerprint).toContain('ini-id')
+    expect(fingerprint).toContain('artwork-id')
+    expect(fingerprint).not.toContain(
       'preview-id',
     )
   })

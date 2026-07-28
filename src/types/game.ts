@@ -41,6 +41,7 @@ export interface LocalSong {
   chart: ParsedChart
   charts: ParsedChart[]
   audioFiles: File[]
+  artworkFile?: File
   folderName?: string
   source?: {
     type: 'google-drive'

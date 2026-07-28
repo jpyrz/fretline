@@ -5,6 +5,7 @@ import type { LocalSong } from '../types/game'
 
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
 const NON_PLAYABLE_AUDIO = /^(preview)\.[^.]+$/i
+const ARTWORK_FILE = /^(album|cover)\.(png|jpe?g|webp)$/i
 const STEM_ORDER = [
   'song',
   'guitar',
@@ -58,6 +59,9 @@ export async function importCloneHeroFolder(
         !NON_PLAYABLE_AUDIO.test(file.name),
     )
     .sort((a, b) => stemRank(a) - stemRank(b))
+  const artworkFile = folderFiles.find((file) =>
+    ARTWORK_FILE.test(file.name),
+  )
 
   if (audioFiles.length === 0) {
     throw new Error(
@@ -91,6 +95,7 @@ export async function importCloneHeroFolder(
     chart,
     charts,
     audioFiles,
+    artworkFile,
     folderName: folder || 'Selected folder',
   }
 }

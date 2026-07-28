@@ -1,0 +1,56 @@
+.artwork {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1;
+  place-content: center;
+  border: 1px solid rgba(196, 226, 255, 0.28);
+  border-radius: 4px;
+  color: white;
+  text-align: center;
+  background:
+    linear-gradient(145deg, rgba(37, 189, 255, 0.3), transparent 58%),
+    repeating-linear-gradient(
+      -34deg,
+      rgba(255, 255, 255, 0.06) 0 2px,
+      transparent 2px 12px
+    ),
+    #122a3b;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  span {
+    font-size: clamp(2rem, 8vw, 5rem);
+    font-weight: 850;
+    letter-spacing: -0.08em;
+  }
+
+  small {
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  &[data-compact='true'] {
+    width: 3.3rem;
+    flex: 0 0 3.3rem;
+    border-radius: 3px;
+    box-shadow: none;
+
+    span {
+      font-size: 1rem;
+    }
+
+    small {
+      display: none;
+    }
+  }
+}
