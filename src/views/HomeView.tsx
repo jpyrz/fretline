@@ -334,7 +334,7 @@ export function HomeView() {
           </label>
           <label>
             <span>
-              Note speed
+              Highway speed
               <strong>{highwaySettings.noteSpeed}</strong>
             </span>
             <input

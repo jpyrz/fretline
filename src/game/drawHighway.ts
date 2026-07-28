@@ -29,12 +29,38 @@ interface NoteRenderState {
   activeSustain: boolean
   progress: number
   depthAlpha: number
-  size: number
 }
+
+const MAX_HIGHWAY_WIDTH = 760
+const PERSPECTIVE_POWER = 1.68
 
 export function travelSecondsForNoteSpeed(noteSpeed: number): number {
   const normalizedSpeed = Math.max(6, Math.min(18, noteSpeed))
-  return 3 - normalizedSpeed * 0.09
+  return 3 - normalizedSpeed * 0.1
+}
+
+export function projectHighwayProgress(progress: number): number {
+  const bounded = Math.max(-0.08, Math.min(1.16, progress))
+  if (bounded <= 1) {
+    return (
+      Math.sign(bounded) *
+      Math.pow(Math.abs(bounded), PERSPECTIVE_POWER)
+    )
+  }
+  return 1 + (bounded - 1) * PERSPECTIVE_POWER
+}
+
+export function highwayTrackWidth(
+  viewportWidth: number,
+  progress: number,
+): number {
+  const bottomWidth = Math.min(viewportWidth * 0.88, MAX_HIGHWAY_WIDTH)
+  const topWidth = bottomWidth * 0.26
+  const depth = Math.min(
+    1.12,
+    Math.max(0, projectHighwayProgress(progress)),
+  )
+  return topWidth + (bottomWidth - topWidth) * depth
 }
 
 function highwayPoint(
@@ -42,23 +68,27 @@ function highwayPoint(
   height: number,
   progress: number,
 ): HighwayPoint {
-  const topY = height * 0.045
-  const hitY = height * 0.86
-  const bounded = Math.max(-0.08, Math.min(1.16, progress))
-  const eased =
-    bounded <= 1
-      ? Math.sign(bounded) * Math.pow(Math.abs(bounded), 1.08)
-      : 1 + (bounded - 1) * 1.48
+  const topY = height * 0.04
+  const hitY = height * 0.835
+  const projected = projectHighwayProgress(progress)
   const center = width / 2
-  const trackWidth = width * (0.23 + Math.min(1.14, Math.max(0, eased)) * 0.66)
+  const trackWidth = highwayTrackWidth(width, progress)
 
   return {
-    y: topY + eased * (hitY - topY),
+    y: topY + projected * (hitY - topY),
     center,
     trackWidth,
     hitY,
     topY,
   }
+}
+
+function noteRadius(point: HighwayPoint): number {
+  return Math.max(6, Math.min(42, (point.trackWidth / 5) * 0.26))
+}
+
+function receptorRadius(point: HighwayPoint): number {
+  return Math.max(16, Math.min(48, (point.trackWidth / 5) * 0.31))
 }
 
 function laneX(
@@ -361,41 +391,6 @@ function drawBeatLines(
   }
 }
 
-function drawNextNoteRail(
-  context: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  chart: ParsedChart,
-  frame: GameFrame,
-  travelSeconds: number,
-): void {
-  const nextNoteIndex = frame.noteStates.findIndex(
-    (state, index) =>
-      state === 'pending' &&
-      chart.notes[index].timeSeconds >= frame.visualTimeSeconds - 0.16,
-  )
-  if (nextNoteIndex < 0) return
-
-  const note = chart.notes[nextNoteIndex]
-  const progress =
-    1 - (note.timeSeconds - frame.visualTimeSeconds) / travelSeconds
-  if (progress < 0 || progress > 0.98) return
-  const point = highwayPoint(width, height, progress)
-  const alpha = progress < 0.76 ? 0.58 : Math.max(0, (0.98 - progress) * 2.6)
-
-  context.save()
-  context.beginPath()
-  context.moveTo(trackEdge(point, -1), point.y)
-  context.lineTo(trackEdge(point, 1), point.y)
-  context.strokeStyle = `rgba(216, 221, 255, ${alpha})`
-  context.lineWidth = Math.max(1, 1 + progress)
-  context.setLineDash([5, 7])
-  context.shadowColor = 'rgba(146, 157, 255, 0.72)'
-  context.shadowBlur = 8
-  context.stroke()
-  context.restore()
-}
-
 function noteRenderState(
   note: ChartNote,
   noteIndex: number,
@@ -423,6 +418,7 @@ function noteRenderState(
   const visibleProgress = Math.max(0, Math.min(1, progress))
   const missedFade = 1 - Math.min(1, Math.max(0, progress - 1) / 0.055)
   const sustainHeld = activeSustain && sustainState !== 'released'
+  const projectedProgress = projectHighwayProgress(visibleProgress)
   const depthAlpha =
     state === 'miss'
       ? 0.34 * missedFade
@@ -430,7 +426,7 @@ function noteRenderState(
         ? sustainHeld
           ? 1
           : 0.45
-        : 0.42 + visibleProgress * 0.58
+        : 0.38 + projectedProgress * 0.62
 
   return {
     state,
@@ -438,7 +434,6 @@ function noteRenderState(
     activeSustain,
     progress,
     depthAlpha,
-    size: 7 + visibleProgress * 18,
   }
 }
 
@@ -458,6 +453,7 @@ function drawSustainTail(
     1 - (sustainEnd - visualTimeSeconds) / travelSeconds
   const head = highwayPoint(width, height, render.progress)
   const tail = highwayPoint(width, height, Math.max(-0.05, tailProgress))
+  const headSize = noteRadius(head)
   const lanes: Array<Lane | null> = note.open ? [null] : note.lanes
   const held = render.activeSustain && render.sustainState !== 'released'
 
@@ -472,7 +468,7 @@ function drawSustainTail(
     const thickness =
       lane === null
         ? Math.max(9, head.trackWidth * 0.045)
-        : Math.max(5, render.size * 0.42)
+        : Math.max(5, headSize * 0.42)
 
     context.beginPath()
     context.moveTo(tailX, tail.y)
@@ -524,16 +520,17 @@ function drawChordBridge(
     laneX(width, height, lane, render.progress),
   )
   const point = highwayPoint(width, height, render.progress)
+  const size = noteRadius(point)
   context.save()
   context.globalAlpha = render.depthAlpha
   context.beginPath()
-  context.moveTo(Math.min(...positions), point.y + render.size * 0.2)
-  context.lineTo(Math.max(...positions), point.y + render.size * 0.2)
+  context.moveTo(Math.min(...positions), point.y + size * 0.2)
+  context.lineTo(Math.max(...positions), point.y + size * 0.2)
   context.strokeStyle =
     render.state === 'miss'
       ? 'rgba(92, 96, 105, 0.72)'
       : 'rgba(220, 225, 233, 0.72)'
-  context.lineWidth = Math.max(3, render.size * 0.25)
+  context.lineWidth = Math.max(3, size * 0.25)
   context.shadowColor =
     render.state === 'miss' ? 'transparent' : 'rgba(223, 230, 242, 0.32)'
   context.shadowBlur = 6
@@ -745,8 +742,8 @@ function drawStrikeLineAndReceptors(
   context.beginPath()
   context.moveTo(trackEdge(bottom, -1), bottom.hitY)
   context.lineTo(trackEdge(bottom, 1), bottom.hitY)
-  context.strokeStyle = 'rgba(228, 232, 237, 0.75)'
-  context.lineWidth = 4
+  context.strokeStyle = 'rgba(228, 232, 237, 0.58)'
+  context.lineWidth = 3
   context.shadowColor = 'rgba(206, 220, 255, 0.48)'
   context.shadowBlur = 10
   context.stroke()
@@ -759,7 +756,7 @@ function drawStrikeLineAndReceptors(
     const impacting =
       frame.hitFlash?.open === false && frame.hitFlash.lanes.includes(lane)
     const x = laneX(width, height, lane, 1)
-    const radius = Math.min(30, width * 0.044)
+    const radius = receptorRadius(bottom)
     const press = held || impacting ? radius * 0.1 : 0
     const y = bottom.hitY + press
     const color = LANE_COLORS[lane]
@@ -893,7 +890,7 @@ function drawHitEffects(
   } else {
     for (const lane of frame.hitFlash.lanes) {
       const x = laneX(width, height, lane, 1)
-      const radius = Math.min(30, width * 0.044)
+      const radius = receptorRadius(bottom)
       const color = LANE_COLORS[lane]
       const bloomRadius = radius * (1.05 + impactProgress * 1.35)
 
@@ -992,7 +989,6 @@ export function drawHighway(
     frame.visualTimeSeconds,
     travelSeconds,
   )
-  drawNextNoteRail(context, width, height, chart, frame, travelSeconds)
 
   for (let noteIndex = 0; noteIndex < chart.notes.length; noteIndex += 1) {
     const note = chart.notes[noteIndex]
@@ -1009,17 +1005,26 @@ export function drawHighway(
     )
   }
 
+  drawStrikeLineAndReceptors(
+    context,
+    width,
+    height,
+    frame,
+    activeSustainLanes(chart, frame),
+  )
+
   for (let noteIndex = 0; noteIndex < chart.notes.length; noteIndex += 1) {
     const note = chart.notes[noteIndex]
     const render = noteRenderState(note, noteIndex, frame, travelSeconds)
     if (!render) continue
     if (render.activeSustain) continue
     const point = highwayPoint(width, height, render.progress)
+    const size = noteRadius(point)
     context.save()
     context.globalAlpha = render.depthAlpha
 
     if (note.open) {
-      drawOpenGem(context, point, render.size, render.state === 'miss')
+      drawOpenGem(context, point, size, render.state === 'miss')
     } else {
       drawChordBridge(context, width, height, note, render)
       for (const lane of note.lanes) {
@@ -1027,7 +1032,7 @@ export function drawHighway(
           context,
           laneX(width, height, lane, render.progress),
           point.y,
-          render.size,
+          size,
           lane,
           note,
           render.state === 'miss',
@@ -1036,14 +1041,6 @@ export function drawHighway(
     }
     context.restore()
   }
-
-  drawStrikeLineAndReceptors(
-    context,
-    width,
-    height,
-    frame,
-    activeSustainLanes(chart, frame),
-  )
   drawHitEffects(context, width, height, frame)
   drawCountdown(context, width, height, frame.songTimeSeconds)
 

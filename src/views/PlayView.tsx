@@ -232,10 +232,10 @@ export function PlayView() {
                 <p className={styles.error}>{error}</p>
               ) : (
                 <p>
-                  The glowing NEXT rail marks the first note or chord to play.
-                  Lower notes arrive sooner; connected frets are played
-                  together. Standard notes require a strum; center-marked
-                  HOPOs can continue a streak with fret changes, and bright
+                  Notes spread apart as they approach the strike line. Lower
+                  notes arrive sooner; connected frets are played together.
+                  Standard notes require a strum; center-marked HOPOs can
+                  continue a streak with fret changes, and bright
                   center-marked taps need no strum.
                 </p>
               )}
