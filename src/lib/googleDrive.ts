@@ -6,6 +6,7 @@ const DRIVE_API_ROOT = 'https://www.googleapis.com/drive/v3'
 const DRIVE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
 const SOURCE_STORAGE_KEY = 'fretline:google-drive-source'
 const SOURCE_SCOPE_VERSION = 2
+const CHART_IMPORT_VERSION = 2
 const MAX_DRIVE_ITEMS = 5000
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
 const NON_PLAYABLE_AUDIO = /^(preview)\.[^.]+$/i
@@ -457,7 +458,7 @@ function isSongFile(file: DriveFileMetadata): boolean {
 export function createDriveFingerprint(
   files: DriveFileMetadata[],
 ): string {
-  return files
+  const fileFingerprint = files
     .filter(isSongFile)
     .sort((a, b) => a.id.localeCompare(b.id))
     .map(
@@ -465,6 +466,7 @@ export function createDriveFingerprint(
         `${file.id}:${file.modifiedTime ?? ''}:${file.size ?? ''}`,
     )
     .join('|')
+  return `chart-import-v${CHART_IMPORT_VERSION}|${fileFingerprint}`
 }
 
 async function downloadDriveFile(

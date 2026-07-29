@@ -551,8 +551,12 @@ function drawGem(
 ): void {
   const color = missed ? '#62666c' : LANE_COLORS[lane]
   const darkColor = missed ? '#34373b' : `${LANE_COLORS[lane]}a8`
+  const baseAlpha = context.globalAlpha
 
   context.save()
+  if (note.tap && !missed) {
+    context.globalAlpha = baseAlpha * 0.58
+  }
   context.beginPath()
   context.ellipse(
     x,
@@ -633,53 +637,89 @@ function drawGem(
       )
   context.fill()
 
-  const capScale = note.tap ? 0.56 : note.hopo ? 0.34 : 0.5
+  context.globalAlpha = baseAlpha
+
+  if (note.tap && !missed) {
+    context.beginPath()
+    context.ellipse(
+      x,
+      y - radius * 0.04,
+      radius * 1.04,
+      radius * 0.61,
+      0,
+      0,
+      Math.PI * 2,
+    )
+    context.strokeStyle = 'rgba(201, 235, 255, 0.96)'
+    context.lineWidth = Math.max(1.5, radius * 0.105)
+    context.shadowColor = 'rgba(132, 214, 255, 0.95)'
+    context.shadowBlur = radius * 1.15
+    context.stroke()
+    context.shadowBlur = 0
+  }
+
+  const capScale = note.tap ? 0.5 : note.hopo ? 0.28 : 0.58
+  const capHeight = note.tap ? 0.19 : note.hopo ? 0.105 : 0.2
   context.beginPath()
   context.ellipse(
     x,
     y - radius * 0.3,
     radius * capScale,
-    radius * (note.tap ? 0.21 : note.hopo ? 0.12 : 0.17),
+    radius * capHeight,
     0,
     0,
     Math.PI * 2,
   )
-  context.fillStyle = ellipseGradient(
-    context,
-    x,
-    y - radius * 0.32,
-    radius * capScale,
-    missed ? '#9da0a4' : '#ffffff',
-    missed ? '#5e6267' : '#aab0b6',
-  )
-  context.strokeStyle =
-    note.tap && !missed
-      ? 'rgba(222, 235, 255, 0.96)'
-      : 'rgba(255, 255, 255, 0.45)'
-  context.lineWidth = note.tap ? Math.max(1.5, radius * 0.1) : 1
+  context.fillStyle =
+    missed
+      ? ellipseGradient(
+          context,
+          x,
+          y - radius * 0.32,
+          radius * capScale,
+          '#9da0a4',
+          '#5e6267',
+        )
+      : note.hopo || note.tap
+        ? ellipseGradient(
+            context,
+            x,
+            y - radius * 0.32,
+            radius * capScale,
+            '#ffffff',
+            note.tap ? '#b9e8ff' : '#c6cbd0',
+          )
+        : ellipseGradient(
+            context,
+            x,
+            y - radius * 0.28,
+            radius * capScale,
+            '#454b53',
+            '#101318',
+          )
+  context.strokeStyle = missed
+    ? 'rgba(255, 255, 255, 0.32)'
+    : note.tap
+      ? 'rgba(225, 245, 255, 0.98)'
+      : note.hopo
+        ? 'rgba(255, 255, 255, 0.9)'
+        : 'rgba(213, 221, 228, 0.72)'
+  context.lineWidth =
+    note.tap || note.hopo ? Math.max(1.25, radius * 0.085) : 1
   context.shadowColor =
-    note.tap && !missed ? 'rgba(192, 220, 255, 0.92)' : 'transparent'
-  context.shadowBlur = note.tap ? radius : 0
+    !missed && (note.tap || note.hopo)
+      ? note.tap
+        ? 'rgba(138, 220, 255, 0.98)'
+        : 'rgba(255, 255, 255, 0.92)'
+      : 'transparent'
+  context.shadowBlur = note.tap
+    ? radius * 0.95
+    : note.hopo
+      ? radius * 0.7
+      : 0
   context.fill()
   context.stroke()
-
-  if (note.forced && !missed) {
-    context.beginPath()
-    context.ellipse(
-      x,
-      y,
-      radius * 0.84,
-      radius * 0.43,
-      0,
-      0,
-      Math.PI * 2,
-    )
-    context.strokeStyle = 'rgba(255, 255, 255, 0.78)'
-    context.lineWidth = Math.max(1, radius * 0.08)
-    context.setLineDash([radius * 0.24, radius * 0.18])
-    context.stroke()
-    context.setLineDash([])
-  }
+  context.shadowBlur = 0
   context.restore()
 }
 
@@ -687,10 +727,19 @@ function drawOpenGem(
   context: CanvasRenderingContext2D,
   point: HighwayPoint,
   size: number,
+  note: ChartNote,
   missed: boolean,
 ): void {
   const barWidth = point.trackWidth * 0.68
-  const barHeight = Math.max(7, size * 0.7)
+  const barHeight = Math.max(
+    7,
+    size * (note.tap ? 0.55 : note.hopo ? 0.48 : 0.72),
+  )
+  const baseAlpha = context.globalAlpha
+  context.save()
+  if (note.tap && !missed) {
+    context.globalAlpha = baseAlpha * 0.58
+  }
   context.beginPath()
   context.roundRect(
     point.center - barWidth / 2,
@@ -706,13 +755,33 @@ function drawOpenGem(
         point.center,
         point.y,
         barWidth * 0.45,
-        '#ffffff',
-        '#99a0b7',
+        note.hopo || note.tap ? '#f7ecff' : '#c88aff',
+        note.tap ? '#7fd9ff' : '#6d2ca5',
       )
-  context.shadowColor = missed ? 'transparent' : 'rgba(218, 224, 255, 0.72)'
-  context.shadowBlur = size
+  context.shadowColor = missed ? 'transparent' : 'rgba(180, 100, 255, 0.82)'
+  context.shadowBlur = size * 0.9
   context.fill()
   context.shadowBlur = 0
+
+  context.globalAlpha = baseAlpha
+  context.strokeStyle = missed
+    ? 'rgba(255,255,255,0.25)'
+    : note.tap
+      ? 'rgba(180, 231, 255, 0.98)'
+      : note.hopo
+        ? 'rgba(255, 255, 255, 0.94)'
+        : 'rgba(224, 190, 255, 0.82)'
+  context.lineWidth =
+    note.hopo || note.tap ? Math.max(2, size * 0.13) : Math.max(1, size * 0.07)
+  context.shadowColor =
+    !missed && (note.hopo || note.tap)
+      ? note.tap
+        ? 'rgba(112, 210, 255, 0.95)'
+        : 'rgba(255, 255, 255, 0.84)'
+      : 'transparent'
+  context.shadowBlur = note.tap ? size * 1.25 : note.hopo ? size * 0.72 : 0
+  context.stroke()
+  context.restore()
 }
 
 function activeSustainLanes(
@@ -1202,7 +1271,7 @@ export function drawHighway(
     context.globalAlpha = render.depthAlpha
 
     if (note.open) {
-      drawOpenGem(context, point, size, render.state === 'miss')
+      drawOpenGem(context, point, size, note, render.state === 'miss')
     } else {
       drawChordBridge(context, width, height, note, render)
       for (const lane of note.lanes) {

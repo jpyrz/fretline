@@ -89,17 +89,19 @@ function readDifficultyNotes(
     if (event.type !== 'noteOn' && event.type !== 'noteOff') continue
     const noteNumber = event.noteNumber
     const isNoteOn = event.type === 'noteOn' && event.velocity > 0
-    const lane =
+    const classification =
       noteNumber >= baseNote && noteNumber <= baseNote + 4
-        ? noteNumber - baseNote
+        ? { lane: noteNumber - baseNote }
         : noteNumber === baseNote - 1
-          ? 7
+          ? { lane: 7 }
           : noteNumber === baseNote + 5
-            ? 5
+            ? { lane: 5, modifier: 'forceHopo' as const }
             : noteNumber === baseNote + 6
-              ? 6
+              ? { lane: 5, modifier: 'forceStrum' as const }
+              : noteNumber === 104
+                ? { lane: 6, modifier: 'tap' as const }
               : null
-    if (lane === null) continue
+    if (classification === null) continue
 
     if (isNoteOn) {
       const starts = active.get(noteNumber) ?? []
@@ -113,12 +115,40 @@ function readDifficultyNotes(
     if (startTick === undefined) continue
     rawNotes.push({
       tick: startTick,
-      lane,
+      ...classification,
       sustainTicks: Math.max(0, tick - startTick),
     })
   }
 
-  return rawNotes.sort((a, b) => a.tick - b.tick || a.lane - b.lane)
+  const playableNotes = rawNotes.filter(
+    (note) => note.lane <= 4 || note.lane === 7,
+  )
+  const playableTicks = [
+    ...new Set(playableNotes.map((note) => note.tick)),
+  ]
+  const modifiers = rawNotes.filter((note) => note.modifier)
+
+  for (const marker of modifiers) {
+    const markerEnd = marker.tick + marker.sustainTicks
+    for (const tick of playableTicks) {
+      const withinMarker =
+        tick === marker.tick ||
+        (marker.sustainTicks > 0 &&
+          tick > marker.tick &&
+          tick < markerEnd)
+      if (!withinMarker) continue
+      playableNotes.push({
+        tick,
+        lane: marker.lane,
+        sustainTicks: 0,
+        modifier: marker.modifier,
+      })
+    }
+  }
+
+  return playableNotes.sort(
+    (a, b) => a.tick - b.tick || a.lane - b.lane,
+  )
 }
 
 export function parseMidiCharts(
@@ -175,7 +205,12 @@ export function parseMidiCharts(
   })
 
   return availableTracks.map((trackName) => {
-    const notes = groupNotes(trackNotes.get(trackName) ?? [], metadata, tempos)
+    const notes = groupNotes(
+      trackNotes.get(trackName) ?? [],
+      metadata,
+      tempos,
+      Math.floor(metadata.resolution / 3 + 1),
+    )
     const last = notes[notes.length - 1]
     return {
       metadata,

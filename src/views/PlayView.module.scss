@@ -197,6 +197,59 @@
   gap: 0.55rem;
 }
 
+.noteLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: -0.55rem 0 1.4rem;
+
+  span {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0 0.65rem;
+    border: 1px solid rgba(216, 239, 251, 0.1);
+    border-radius: 3px;
+    color: rgba(232, 245, 251, 0.72);
+    font-size: 0.65rem;
+    font-weight: 750;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: rgba(3, 12, 18, 0.42);
+  }
+
+  i {
+    position: relative;
+    display: block;
+    width: 18px;
+    height: 10px;
+    border: 2px solid #32d95b;
+    border-radius: 50%;
+    background: #1a2027;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  }
+
+  [data-note-type='hopo'] i::after {
+    position: absolute;
+    width: 6px;
+    height: 3px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 0 5px white;
+    content: '';
+    inset: 1px auto auto 4px;
+  }
+
+  [data-note-type='tap'] i {
+    opacity: 0.65;
+    border-color: #a7e7ff;
+    background: rgba(50, 217, 91, 0.42);
+    box-shadow: 0 0 7px #8bdfff;
+  }
+}
+
 .resultsOverlay h1 {
   display: flex;
   align-items: baseline;

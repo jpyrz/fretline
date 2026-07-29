@@ -5,6 +5,10 @@ import {
 } from './googleDrive'
 
 describe('createDriveFingerprint', () => {
+  it('includes the chart importer version so parser fixes trigger a resync', () => {
+    expect(createDriveFingerprint([])).toBe('chart-import-v2|')
+  })
+
   it('is stable across Drive listing order and ignores unrelated files', () => {
     const chart: DriveFileMetadata = {
       id: 'chart-id',

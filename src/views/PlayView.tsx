@@ -238,13 +238,17 @@ export function PlayView() {
               {error ? (
                 <p className={styles.error}>{error}</p>
               ) : (
-                <p>
-                  Notes spread apart as they approach the strike line. Lower
-                  notes arrive sooner; connected frets are played together.
-                  Standard notes require a strum; center-marked HOPOs can
-                  continue a streak with fret changes, and bright
-                  center-marked taps need no strum.
-                </p>
+                <>
+                  <p>
+                    Read the gem center: dark caps require a strum, white caps
+                    are HOPOs, and translucent glowing gems are taps.
+                  </p>
+                  <div className={styles.noteLegend} aria-label="Note types">
+                    <span data-note-type="strum"><i /> Strum</span>
+                    <span data-note-type="hopo"><i /> HOPO</span>
+                    <span data-note-type="tap"><i /> Tap</span>
+                  </div>
+                </>
               )}
               <button
                 type="button"

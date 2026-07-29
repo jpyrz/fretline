@@ -72,6 +72,131 @@ function makeMidi(): Uint8Array {
   return new Uint8Array(writeMidi(midi))
 }
 
+function makeMidiWithModifiers(): Uint8Array {
+  const midi: MidiData = {
+    header: { format: 1, numTracks: 2, ticksPerBeat: 480 },
+    tracks: [
+      [
+        {
+          deltaTime: 0,
+          meta: true,
+          type: 'setTempo',
+          microsecondsPerBeat: 500_000,
+        },
+        { deltaTime: 0, meta: true, type: 'endOfTrack' },
+      ],
+      [
+        {
+          deltaTime: 0,
+          meta: true,
+          type: 'trackName',
+          text: 'PART GUITAR',
+        },
+        {
+          deltaTime: 0,
+          type: 'noteOn',
+          channel: 0,
+          noteNumber: 96,
+          velocity: 100,
+        },
+        {
+          deltaTime: 0,
+          type: 'noteOn',
+          channel: 0,
+          noteNumber: 101,
+          velocity: 100,
+        },
+        {
+          deltaTime: 30,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 96,
+          velocity: 0,
+        },
+        {
+          deltaTime: 0,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 101,
+          velocity: 0,
+        },
+        {
+          deltaTime: 90,
+          type: 'noteOn',
+          channel: 0,
+          noteNumber: 97,
+          velocity: 100,
+        },
+        {
+          deltaTime: 0,
+          type: 'noteOn',
+          channel: 0,
+          noteNumber: 102,
+          velocity: 100,
+        },
+        {
+          deltaTime: 30,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 97,
+          velocity: 0,
+        },
+        {
+          deltaTime: 0,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 102,
+          velocity: 0,
+        },
+        {
+          deltaTime: 90,
+          type: 'noteOn',
+          channel: 0,
+          noteNumber: 98,
+          velocity: 100,
+        },
+        {
+          deltaTime: 30,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 98,
+          velocity: 0,
+        },
+        {
+          deltaTime: 90,
+          type: 'noteOn',
+          channel: 0,
+          noteNumber: 104,
+          velocity: 100,
+        },
+        {
+          deltaTime: 120,
+          type: 'noteOn',
+          channel: 0,
+          noteNumber: 99,
+          velocity: 100,
+        },
+        {
+          deltaTime: 30,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 99,
+          velocity: 0,
+        },
+        {
+          deltaTime: 90,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 104,
+          velocity: 0,
+        },
+        { deltaTime: 0, meta: true, type: 'endOfTrack' },
+      ],
+    ],
+  }
+  return new Uint8Array(writeMidi(midi))
+}
+
 describe('parseMidiCharts', () => {
   it('converts Clone Hero MIDI difficulties into playable charts', () => {
     const metadata = parseSongIni(`[song]
@@ -96,5 +221,34 @@ delay = 125
     expect(charts[0].notes[0].sustainTicks).toBe(120)
     expect(charts[0].notes[1].hopo).toBe(true)
     expect(charts[1].notes[0].lanes).toEqual([2])
+  })
+
+  it('keeps MIDI force-HOPO, force-strum, and tap markers distinct', () => {
+    const chart = parseMidiCharts(makeMidiWithModifiers())[0]
+
+    expect(chart.notes.map((note) => note.lanes)).toEqual([
+      [0],
+      [1],
+      [2],
+      [3],
+    ])
+    expect(chart.notes.map((note) => note.hopo)).toEqual([
+      true,
+      false,
+      true,
+      true,
+    ])
+    expect(chart.notes.map((note) => note.forced)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ])
+    expect(chart.notes.map((note) => note.tap)).toEqual([
+      false,
+      false,
+      false,
+      true,
+    ])
   })
 })

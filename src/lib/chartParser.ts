@@ -17,6 +17,13 @@ export interface RawNote {
   tick: number
   lane: number
   sustainTicks: number
+  modifier?: 'flip' | 'forceHopo' | 'forceStrum' | 'tap'
+}
+
+interface ClassifiedChartNote extends ChartNote {
+  flip: boolean
+  forceHopo: boolean
+  forceStrum: boolean
 }
 
 function cleanValue(value: string): string {
@@ -178,6 +185,7 @@ export function groupNotes(
   rawNotes: RawNote[],
   metadata: ChartMetadata,
   tempos: TempoEvent[],
+  hopoThresholdTicks = Math.floor((65 / 192) * metadata.resolution),
 ): ChartNote[] {
   const byTick = new Map<number, RawNote[]>()
   for (const note of rawNotes) {
@@ -186,7 +194,7 @@ export function groupNotes(
     byTick.set(note.tick, group)
   }
 
-  const notes: ChartNote[] = []
+  const notes: ClassifiedChartNote[] = []
   for (const [tick, group] of [...byTick.entries()].sort(
     ([a], [b]) => a - b,
   )) {
@@ -206,6 +214,23 @@ export function groupNotes(
       metadata.offsetSeconds,
     )
 
+    const flip = group.some(
+      (note) =>
+        note.modifier === 'flip' ||
+        (note.modifier === undefined && note.lane === 5),
+    )
+    const forceHopo = group.some(
+      (note) => note.modifier === 'forceHopo',
+    )
+    const forceStrum = group.some(
+      (note) => note.modifier === 'forceStrum',
+    )
+    const tap = group.some(
+      (note) =>
+        note.modifier === 'tap' ||
+        (note.modifier === undefined && note.lane === 6),
+    )
+
     notes.push({
       tick,
       timeSeconds,
@@ -220,8 +245,11 @@ export function groupNotes(
           metadata.offsetSeconds,
         ) - timeSeconds,
       hopo: false,
-      forced: group.some((note) => note.lane === 5),
-      tap: group.some((note) => note.lane === 6),
+      forced: flip || forceHopo || forceStrum,
+      tap,
+      forceHopo,
+      forceStrum,
+      flip,
     })
   }
 
@@ -234,11 +262,27 @@ export function groupNotes(
       !previous.open &&
       previous.lanes.length === 1 &&
       note.lanes[0] !== previous.lanes[0] &&
-      note.tick - previous.tick <= metadata.resolution / 3
+      note.tick - previous.tick <= hopoThresholdTicks
+
+    const {
+      forceHopo,
+      forceStrum,
+      flip,
+      ...chartNote
+    } = note
+    const hopo = chartNote.tap
+      ? true
+      : forceStrum
+        ? false
+        : forceHopo
+          ? true
+          : flip
+            ? !naturalHopo
+            : naturalHopo
 
     return {
-      ...note,
-      hopo: note.tap || (note.forced ? !naturalHopo : naturalHopo),
+      ...chartNote,
+      hopo,
     }
   })
 }
