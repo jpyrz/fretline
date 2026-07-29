@@ -60,10 +60,7 @@ export function highwayTrackWidth(
 ): number {
   const bottomWidth = Math.min(viewportWidth * 0.88, MAX_HIGHWAY_WIDTH)
   const topWidth = bottomWidth * 0.26
-  const depth = Math.min(
-    1.12,
-    Math.max(0, projectHighwayProgress(progress)),
-  )
+  const depth = Math.max(0, projectHighwayProgress(progress))
   return topWidth + (bottomWidth - topWidth) * depth
 }
 
@@ -95,15 +92,14 @@ function receptorRadius(point: HighwayPoint): number {
   return Math.max(16, Math.min(48, (point.trackWidth / 5) * 0.31))
 }
 
-function laneX(
-  width: number,
-  height: number,
+export function highwayLaneX(
+  viewportWidth: number,
   lane: Lane,
   progress: number,
 ): number {
-  const point = highwayPoint(width, height, progress)
-  const laneWidth = point.trackWidth / 5
-  return point.center - point.trackWidth / 2 + laneWidth * (lane + 0.5)
+  const trackWidth = highwayTrackWidth(viewportWidth, progress)
+  const laneWidth = trackWidth / 5
+  return viewportWidth / 2 - trackWidth / 2 + laneWidth * (lane + 0.5)
 }
 
 function trackEdge(point: HighwayPoint, side: -1 | 1): number {
@@ -281,9 +277,9 @@ function drawHighwaySurface(
   for (let laneNumber = 0; laneNumber < 5; laneNumber += 1) {
     const lane = laneNumber as Lane
     context.beginPath()
-    context.moveTo(laneX(width, height, lane, 0), top.y)
+    context.moveTo(highwayLaneX(width, lane, 0), top.y)
     context.lineTo(
-      laneX(width, height, lane, SURFACE_END_PROGRESS),
+      highwayLaneX(width, lane, SURFACE_END_PROGRESS),
       bottom.y,
     )
     context.strokeStyle = 'rgba(207, 214, 226, 0.2)'
@@ -464,9 +460,9 @@ function drawSustainTail(
   for (const lane of lanes) {
     const color = lane === null ? '#e7e9ff' : LANE_COLORS[lane]
     const headX =
-      lane === null ? head.center : laneX(width, height, lane, render.progress)
+      lane === null ? head.center : highwayLaneX(width, lane, render.progress)
     const tailX =
-      lane === null ? tail.center : laneX(width, height, lane, tailProgress)
+      lane === null ? tail.center : highwayLaneX(width, lane, tailProgress)
     const thickness =
       lane === null
         ? Math.max(9, head.trackWidth * 0.045)
@@ -519,7 +515,7 @@ function drawChordBridge(
 ): void {
   if (note.lanes.length < 2) return
   const positions = note.lanes.map((lane) =>
-    laneX(width, height, lane, render.progress),
+    highwayLaneX(width, lane, render.progress),
   )
   const point = highwayPoint(width, height, render.progress)
   const size = noteRadius(point)
@@ -826,7 +822,7 @@ function drawStrikeLineAndReceptors(
     const sustaining = sustainingLanes.has(lane)
     const impacting =
       frame.hitFlash?.open === false && frame.hitFlash.lanes.includes(lane)
-    const x = laneX(width, height, lane, 1)
+    const x = highwayLaneX(width, lane, 1)
     const radius = receptorRadius(bottom)
     const press = held || impacting ? radius * 0.1 : 0
     const y = bottom.hitY + press
@@ -1063,7 +1059,7 @@ function drawHitEffects(
     }
   } else {
     for (const lane of frame.hitFlash.lanes) {
-      const x = laneX(width, height, lane, 1)
+      const x = highwayLaneX(width, lane, 1)
       const color = LANE_COLORS[lane]
       const lift = Math.sin(impactProgress * Math.PI) * radius * 0.42
       const impactY = bottom.hitY - lift
@@ -1277,7 +1273,7 @@ export function drawHighway(
       for (const lane of note.lanes) {
         drawGem(
           context,
-          laneX(width, height, lane, render.progress),
+          highwayLaneX(width, lane, render.progress),
           point.y,
           size,
           lane,

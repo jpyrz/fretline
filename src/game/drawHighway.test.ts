@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  highwayLaneX,
   highwayTrackWidth,
   projectHighwayProgress,
   travelSecondsForNoteSpeed,
@@ -33,5 +34,26 @@ describe('highway perspective', () => {
     expect(highwayTrackWidth(1400, 1)).toBe(760)
     expect(highwayTrackWidth(400, 1)).toBeCloseTo(352)
     expect(highwayTrackWidth(1000, 0)).toBeCloseTo(197.6)
+  })
+
+  it('keeps lane guides centered through notes and receptors', () => {
+    const viewportWidth = 1000
+    const surfaceProgress = 1.16
+    const surfaceDepth = projectHighwayProgress(surfaceProgress)
+
+    for (const lane of [0, 1, 2, 3, 4] as const) {
+      const topX = highwayLaneX(viewportWidth, lane, 0)
+      const bottomX = highwayLaneX(viewportWidth, lane, surfaceProgress)
+
+      for (const progress of [0.2, 0.5, 0.8, 1]) {
+        const guideDepth = projectHighwayProgress(progress) / surfaceDepth
+        const guideX = topX + (bottomX - topX) * guideDepth
+
+        expect(guideX).toBeCloseTo(
+          highwayLaneX(viewportWidth, lane, progress),
+          6,
+        )
+      }
+    }
   })
 })
