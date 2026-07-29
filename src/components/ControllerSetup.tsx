@@ -17,6 +17,7 @@ import type {
   HidDeviceIdentity,
 } from '../types/game'
 import styles from './ControllerSetup.module.scss'
+import { ControllerInputTest } from './ControllerInputTest'
 
 const STEPS = [
   'Green fret',
@@ -524,26 +525,29 @@ export function ControllerSetup({
       </div>
 
       {mapping ? (
-        <div className={styles.connected}>
-          <span className={styles.statusDot} />
-          <div>
-            <strong>
-              {mapping.source === 'hid'
-                ? mapping.device.productName
-                : mapping.gamepadId}
-            </strong>
-            <small>
-              Green is {bindingLabel(mapping.frets[0])}; strum up is{' '}
-              {bindingLabel(mapping.strumUp)}; down is{' '}
-              {bindingLabel(mapping.strumDown)}; Start is{' '}
-              {mapping.start
-                ? bindingLabel(mapping.start)
-                : mapping.source === 'hid'
-                  ? 'not mapped—remap to enable pause'
-                  : 'standard Start or remap'}
-            </small>
+        <>
+          <div className={styles.connected}>
+            <span className={styles.statusDot} />
+            <div>
+              <strong>
+                {mapping.source === 'hid'
+                  ? mapping.device.productName
+                  : mapping.gamepadId}
+              </strong>
+              <small>
+                Green is {bindingLabel(mapping.frets[0])}; strum up is{' '}
+                {bindingLabel(mapping.strumUp)}; down is{' '}
+                {bindingLabel(mapping.strumDown)}; Start is{' '}
+                {mapping.start
+                  ? bindingLabel(mapping.start)
+                  : mapping.source === 'hid'
+                    ? 'not mapped—remap to enable pause'
+                    : 'standard Start or remap'}
+              </small>
+            </div>
           </div>
-        </div>
+          {!mappingActive && <ControllerInputTest mapping={mapping} />}
+        </>
       ) : (
         <p className={styles.unmapped}>Keyboard only until a guitar is mapped.</p>
       )}
