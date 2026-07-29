@@ -14,6 +14,7 @@ import {
   loadPersistedSongs,
   persistSong,
 } from '../lib/songLibrary'
+import type { PlayPreferences } from '../lib/trackSelection'
 import type {
   CalibrationSettings,
   ControllerMapping,
@@ -37,12 +38,15 @@ interface AppStateValue {
   setCalibration: (calibration: CalibrationSettings) => void
   highwaySettings: HighwaySettings
   setHighwaySettings: (settings: HighwaySettings) => void
+  playPreferences: PlayPreferences
+  setPlayPreferences: (preferences: PlayPreferences) => void
   controllerMapping: ControllerMapping | null
   setControllerMapping: (mapping: ControllerMapping | null) => void
 }
 
 const SETTINGS_KEY = 'fretline:calibration'
 const HIGHWAY_KEY = 'fretline:highway'
+const PLAY_PREFERENCES_KEY = 'fretline:play-preferences'
 const CONTROLLER_KEY = 'fretline:controller'
 const SELECTED_SONG_KEY = 'fretline:selected-song'
 
@@ -53,6 +57,11 @@ const defaultCalibration: CalibrationSettings = {
 
 const defaultHighwaySettings: HighwaySettings = {
   noteSpeed: 12,
+}
+
+const defaultPlayPreferences: PlayPreferences = {
+  difficulty: 'Expert',
+  instrumentId: 'Single',
 }
 
 function loadStored<T>(key: string, fallback: T): T {
@@ -86,6 +95,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   )
   const [highwaySettings, setHighwaySettings] = useState<HighwaySettings>(() =>
     loadStored(HIGHWAY_KEY, defaultHighwaySettings),
+  )
+  const [playPreferences, setPlayPreferences] = useState<PlayPreferences>(() =>
+    loadStored(PLAY_PREFERENCES_KEY, defaultPlayPreferences),
   )
   const [controllerMapping, setControllerMapping] =
     useState<ControllerMapping | null>(() =>
@@ -130,6 +142,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(HIGHWAY_KEY, JSON.stringify(highwaySettings))
   }, [highwaySettings])
+
+  useEffect(() => {
+    localStorage.setItem(
+      PLAY_PREFERENCES_KEY,
+      JSON.stringify(playPreferences),
+    )
+  }, [playPreferences])
 
   useEffect(() => {
     if (controllerMapping) {
@@ -257,6 +276,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setCalibration,
       highwaySettings,
       setHighwaySettings,
+      playPreferences,
+      setPlayPreferences,
       controllerMapping,
       setControllerMapping,
     }),
@@ -273,6 +294,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       libraryError,
       calibration,
       highwaySettings,
+      playPreferences,
       controllerMapping,
     ],
   )

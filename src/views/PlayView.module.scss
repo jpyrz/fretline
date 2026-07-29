@@ -150,6 +150,55 @@
   min-height: 0;
 }
 
+.loadingOverlay {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 50%;
+  width: min(900px, calc(100% - 2rem));
+  color: white;
+  text-align: center;
+  text-shadow:
+    0 3px 18px rgba(0, 0, 0, 0.95),
+    0 0 42px rgba(226, 38, 54, 0.42);
+  transform: translate(-50%, -50%);
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.65rem, 4.5vw, 4.4rem);
+    font-weight: 760;
+    letter-spacing: -0.04em;
+  }
+}
+
+.loadingDots {
+  display: inline-block;
+  width: 3ch;
+  text-align: left;
+
+  &::after {
+    content: '.';
+    animation: loadingDots 1.05s steps(1, end) infinite;
+  }
+}
+
+@keyframes loadingDots {
+  0%,
+  24% {
+    content: '.';
+  }
+
+  25%,
+  57% {
+    content: '..';
+  }
+
+  58%,
+  100% {
+    content: '...';
+  }
+}
+
 .overlay {
   position: absolute;
   top: 50%;

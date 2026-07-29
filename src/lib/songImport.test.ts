@@ -38,6 +38,19 @@ describe('importCloneHeroFolder', () => {
     expect(song.artworkFile).toBe(artwork)
   })
 
+  it('reads the preferred preview position from song.ini', async () => {
+    const chart = new File([calibrationChartSource], 'notes.chart')
+    const audio = new File(['song-audio'], 'song.ogg')
+    const ini = new File(
+      ['[song]\nname = Preview test\npreview_start_time = 42000'],
+      'song.ini',
+    )
+
+    const song = await importCloneHeroFolder([chart, audio, ini])
+
+    expect(song.previewStartSeconds).toBe(42)
+  })
+
   it('reports a missing chart clearly', async () => {
     const audio = new File(['test-audio'], 'song.ogg', {
       type: 'audio/ogg',

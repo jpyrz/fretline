@@ -1,9 +1,12 @@
 import type { ChartMetadata } from '../types/game'
 
-export type SongIniMetadata = Pick<
-  ChartMetadata,
-  'name' | 'artist' | 'charter' | 'offsetSeconds'
->
+export interface SongIniMetadata
+  extends Pick<
+    ChartMetadata,
+    'name' | 'artist' | 'charter' | 'offsetSeconds'
+  > {
+  previewStartSeconds?: number
+}
 
 function cleanValue(value: string): string {
   const trimmed = value.trim()
@@ -35,11 +38,16 @@ export function parseSongIni(source: string): SongIniMetadata {
   }
 
   const delayMs = Number(values.get('delay') ?? 0)
+  const previewStartMs = Number(values.get('preview_start_time'))
   return {
     name: values.get('name') || 'Untitled chart',
     artist: values.get('artist') || 'Unknown artist',
     charter:
       values.get('charter') || values.get('frets') || 'Unknown charter',
     offsetSeconds: Number.isFinite(delayMs) ? delayMs / 1000 : 0,
+    previewStartSeconds:
+      Number.isFinite(previewStartMs) && previewStartMs >= 0
+        ? previewStartMs / 1000
+        : undefined,
   }
 }

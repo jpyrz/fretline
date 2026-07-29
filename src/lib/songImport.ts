@@ -95,6 +95,7 @@ export async function importCloneHeroFolder(
     chart,
     charts,
     audioFiles,
+    previewStartSeconds: iniMetadata?.previewStartSeconds,
     artworkFile,
     folderName: folder || 'Selected folder',
   }

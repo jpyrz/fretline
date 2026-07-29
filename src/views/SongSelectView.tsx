@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlbumArtwork } from '../components/AlbumArtwork'
+import { useSongPreview } from '../hooks/useSongPreview'
 import {
   authorizeGoogleDrive,
   connectGoogleDrive,
@@ -11,24 +12,32 @@ import {
   syncGoogleDriveLibrary,
   type DriveLibrarySource,
 } from '../lib/googleDrive'
+import {
+  discardPreparedGameplayAudioContext,
+  prepareGameplayAudioContext,
+} from '../lib/songAudio'
+import { pickLoadingPhrase } from '../lib/loadingPhrases'
 import { importCloneHeroFolder, loadBundledSong } from '../lib/songImport'
+import {
+  DIFFICULTIES,
+  instrumentChoices,
+  preferredInstrument,
+  preferredTrack,
+  trackLabel,
+  type Difficulty,
+  type InstrumentChoice,
+  type TrackChoice,
+} from '../lib/trackSelection'
 import { useAppState } from '../state/AppState'
 import type { LocalSong } from '../types/game'
 import styles from './SongSelectView.module.scss'
 
 type SortMode = 'title' | 'artist'
-
-function trackLabel(trackName: string): string {
-  return trackName
-    .replace(/^Easy/, 'Easy · ')
-    .replace(/^Medium/, 'Medium · ')
-    .replace(/^Hard/, 'Hard · ')
-    .replace(/^Expert/, 'Expert · ')
-    .replace('DoubleGuitar', 'Co-op Guitar')
-    .replace('DoubleBass', 'Bass')
-    .replace('DoubleRhythm', 'Rhythm')
-    .replace('Single', 'Guitar')
-}
+type SetupStep =
+  | 'browse'
+  | 'configure'
+  | 'instrument'
+  | 'difficulty'
 
 function songSearchText(song: LocalSong): string {
   return `${song.chart.metadata.name} ${song.chart.metadata.artist} ${song.chart.metadata.charter}`.toLowerCase()
@@ -44,10 +53,12 @@ export function SongSelectView() {
     addSongs,
     selectSong,
     removeSong,
-    selectTrack,
     libraryReady,
     librarySaving,
     libraryError,
+    playPreferences,
+    setPlayPreferences,
+    selectTrack,
   } = useAppState()
   const [query, setQuery] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('title')
@@ -60,13 +71,22 @@ export function SongSelectView() {
   )
   const driveConfigured = isGoogleDriveConfigured()
   const [driveReady, setDriveReady] = useState(!driveConfigured)
+  const [highlightedSongId, setHighlightedSongId] = useState<string | null>(
+    song.kind === 'folder' ? song.id : null,
+  )
+  const [setupStep, setSetupStep] = useState<SetupStep>('browse')
+  const [selectedInstrumentId, setSelectedInstrumentId] = useState(
+    playPreferences.instrumentId,
+  )
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(
+    playPreferences.difficulty,
+  )
+  const gameplayHandoffRef = useRef(false)
 
   const playableSongs = useMemo(
     () => songs.filter((candidate) => candidate.kind === 'folder'),
     [songs],
   )
-  const selectedSong =
-    song.kind === 'folder' ? song : playableSongs[0] ?? null
   const visibleSongs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return playableSongs
@@ -87,12 +107,51 @@ export function SongSelectView() {
         return first.localeCompare(second)
       })
   }, [playableSongs, query, sortMode])
+  const selectedSong =
+    playableSongs.find((candidate) => candidate.id === highlightedSongId) ??
+    (song.kind === 'folder'
+      ? playableSongs.find((candidate) => candidate.id === song.id)
+      : null) ??
+    visibleSongs[0] ??
+    playableSongs[0] ??
+    null
+  const instruments = useMemo(
+    () => (selectedSong ? instrumentChoices(selectedSong) : []),
+    [selectedSong],
+  )
+  const selectedInstrument =
+    instruments.find(
+      (instrument) => instrument.id === selectedInstrumentId,
+    ) ?? preferredInstrument(instruments, playPreferences.instrumentId)
+  const selectedTrack = selectedInstrument
+    ? selectedInstrument.tracks.find(
+        (track) => track.difficulty === selectedDifficulty,
+      ) ?? preferredTrack(selectedInstrument, playPreferences.difficulty)
+    : null
+  const previewStatus = useSongPreview(
+    selectedSong,
+    Boolean(selectedSong),
+  )
 
   useEffect(() => {
-    if (libraryReady && song.kind !== 'folder' && playableSongs[0]) {
-      selectSong(playableSongs[0].id)
+    if (
+      libraryReady &&
+      visibleSongs.length > 0 &&
+      !visibleSongs.some((candidate) => candidate.id === highlightedSongId)
+    ) {
+      setHighlightedSongId(visibleSongs[0].id)
     }
-  }, [libraryReady, playableSongs, selectSong, song.kind])
+  }, [highlightedSongId, libraryReady, visibleSongs])
+
+  useEffect(() => {
+    if (setupStep === 'browse') return
+    const frame = requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>('[data-controller-default]')
+        ?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [selectedDifficulty, selectedInstrumentId, setupStep])
 
   useEffect(() => {
     if (!driveConfigured) return
@@ -105,6 +164,15 @@ export function SongSelectView() {
       active = false
     }
   }, [driveConfigured])
+
+  useEffect(
+    () => () => {
+      if (!gameplayHandoffRef.current) {
+        discardPreparedGameplayAudioContext()
+      }
+    },
+    [],
+  )
 
   const openFolderPicker = () => {
     if (!inputRef.current) return
@@ -208,10 +276,234 @@ export function SongSelectView() {
     }
   }
 
-  const playSelected = () => {
-    if (!selectedSong) return
-    selectSong(selectedSong.id)
-    navigate('/play')
+  const openSetup = (targetSong: LocalSong | null = selectedSong) => {
+    if (!targetSong) return
+    const availableInstruments = instrumentChoices(targetSong)
+    const instrument = preferredInstrument(
+      availableInstruments,
+      playPreferences.instrumentId,
+    )
+    if (!instrument) {
+      setError('This song does not contain a supported five-fret track.')
+      return
+    }
+    const track = preferredTrack(instrument, playPreferences.difficulty)
+
+    setHighlightedSongId(targetSong.id)
+    selectSong(targetSong.id)
+    setSelectedInstrumentId(instrument.id)
+    setSelectedDifficulty(track.difficulty)
+    setSetupStep('configure')
+  }
+
+  const chooseInstrument = (instrument: InstrumentChoice) => {
+    const track = preferredTrack(instrument, playPreferences.difficulty)
+    setSelectedInstrumentId(instrument.id)
+    setSelectedDifficulty(track.difficulty)
+    setSetupStep('configure')
+  }
+
+  const chooseDifficulty = (track: TrackChoice) => {
+    setSelectedDifficulty(track.difficulty)
+    setSetupStep('configure')
+  }
+
+  const closeSetup = () => {
+    if (setupStep === 'instrument' || setupStep === 'difficulty') {
+      setSetupStep('configure')
+    } else {
+      setSetupStep('browse')
+    }
+  }
+
+  const beginLoading = (track: TrackChoice) => {
+    if (!selectedSong || !selectedInstrument) return
+    setSelectedDifficulty(track.difficulty)
+    const preferredDifficultyAvailable = selectedInstrument.tracks.some(
+      (candidate) =>
+        candidate.difficulty === playPreferences.difficulty,
+    )
+    setPlayPreferences({
+      difficulty: preferredDifficultyAvailable
+        ? track.difficulty
+        : playPreferences.difficulty,
+      instrumentId: selectedInstrument.id,
+    })
+    selectTrack(track.chart.trackName)
+    gameplayHandoffRef.current = false
+    prepareGameplayAudioContext()
+    gameplayHandoffRef.current = true
+    navigate('/play', {
+      state: {
+        autoStart: true,
+        loadingPhrase: pickLoadingPhrase(),
+      },
+    })
+  }
+
+  if (setupStep !== 'browse' && selectedSong) {
+    return (
+      <main className={styles.setupPage} data-step={setupStep}>
+        <div className={styles.setupBackdrop} aria-hidden="true">
+          <AlbumArtwork song={selectedSong} />
+        </div>
+
+        <header className={styles.setupHeader}>
+          <button
+            type="button"
+            data-controller-back
+            onClick={closeSetup}
+          >
+            <span aria-hidden="true">←</span>
+            {setupStep === 'configure' ? 'Song library' : 'Back'}
+          </button>
+          <div className={styles.setupTitle}>
+            <h1>{selectedSong.chart.metadata.name}</h1>
+            <p>{selectedSong.chart.metadata.artist}</p>
+            <small data-preview-status={previewStatus}>
+              {previewStatus === 'playing'
+                ? '● Preview playing'
+                : previewStatus === 'loading'
+                  ? 'Preparing preview…'
+                  : previewStatus === 'waiting'
+                    ? 'Press a key to hear preview'
+                    : 'Fretline setlist'}
+            </small>
+          </div>
+          <span className={styles.setupVersion}>Fretline</span>
+        </header>
+
+        <section className={styles.playerSetup} aria-label="Player setup">
+            <div className={styles.playerCard}>
+              <div className={styles.playerName}>Guest</div>
+              <div className={styles.playerSummary}>
+                <i aria-hidden="true">♬</i>
+                <span>
+                  <strong>{selectedTrack?.difficulty}</strong>
+                  <small>{selectedInstrument?.label}</small>
+                </span>
+              </div>
+
+              {setupStep === 'configure' && (
+                <div className={styles.playerMenu}>
+                  <button
+                    type="button"
+                    data-controller-nav-item
+                    data-controller-default
+                    onClick={() => {
+                      if (selectedTrack) beginLoading(selectedTrack)
+                    }}
+                  >
+                    <span>Ready</span>
+                    <b aria-hidden="true">→</b>
+                  </button>
+                  <button
+                    type="button"
+                    data-controller-nav-item
+                    onClick={() => setSetupStep('instrument')}
+                  >
+                    <span>Instrument</span>
+                    <strong>{selectedInstrument?.label}</strong>
+                  </button>
+                  <button
+                    type="button"
+                    data-controller-nav-item
+                    onClick={() => setSetupStep('difficulty')}
+                  >
+                    <span>Difficulty</span>
+                    <strong>{selectedTrack?.difficulty}</strong>
+                  </button>
+                  <div className={styles.disabledMenuRow} aria-disabled="true">
+                    <span>Modifiers</span>
+                    <strong>None</strong>
+                  </div>
+                </div>
+              )}
+
+              {setupStep === 'instrument' && (
+                <div className={styles.inlinePicker}>
+                  <p>Instrument</p>
+                  {instruments.map((instrument) => {
+                    const active = instrument.id === selectedInstrument?.id
+                    return (
+                      <button
+                        type="button"
+                        key={instrument.id}
+                        data-controller-nav-item
+                        data-controller-default={active || undefined}
+                        data-active={active}
+                        onClick={() => chooseInstrument(instrument)}
+                      >
+                        <span>
+                          <strong>{instrument.label}</strong>
+                          <small>
+                            {instrument.tracks.length}{' '}
+                            {instrument.tracks.length === 1
+                              ? 'difficulty'
+                              : 'difficulties'}{' '}
+                            charted
+                          </small>
+                        </span>
+                        <b aria-hidden="true">{active ? '●' : '○'}</b>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {setupStep === 'difficulty' && selectedInstrument && (
+                <div className={styles.inlinePicker}>
+                  <p>Difficulty</p>
+                  {DIFFICULTIES.map((difficulty, index) => {
+                    const track = selectedInstrument.tracks.find(
+                      (candidate) => candidate.difficulty === difficulty,
+                    )
+                    const active = difficulty === selectedTrack?.difficulty
+                    return (
+                      <button
+                        type="button"
+                        key={difficulty}
+                        disabled={!track}
+                        data-controller-nav-item={track ? true : undefined}
+                        data-controller-default={
+                          track && active ? true : undefined
+                        }
+                        data-active={active}
+                        onClick={() => {
+                          if (track) chooseDifficulty(track)
+                        }}
+                      >
+                        <span>
+                          <strong>{difficulty}</strong>
+                          <small>
+                            {track
+                              ? `${track.chart.notes.length.toLocaleString()} notes`
+                              : 'Not charted'}
+                          </small>
+                        </span>
+                        <b aria-label={`${index + 1} of 4 intensity`}>
+                          {Array.from({ length: 4 }, (_, meterIndex) => (
+                            <i
+                              key={meterIndex}
+                              data-filled={meterIndex <= index}
+                            />
+                          ))}
+                        </b>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+        </section>
+
+        <footer className={styles.setupControls}>
+          <span><i data-color="green" /> Select</span>
+          <span><i data-color="red" /> Back</span>
+          <span><b>↕</b> Strum to navigate</span>
+        </footer>
+      </main>
+    )
   }
 
   return (
@@ -354,12 +646,9 @@ export function SongSelectView() {
                   data-controller-default={selected || undefined}
                   data-controller-nav-item
                   data-controller-activate="play-song"
-                  onClick={() => selectSong(candidate.id)}
-                  onFocus={() => selectSong(candidate.id)}
-                  onDoubleClick={() => {
-                    selectSong(candidate.id)
-                    navigate('/play')
-                  }}
+                  onClick={() => setHighlightedSongId(candidate.id)}
+                  onFocus={() => setHighlightedSongId(candidate.id)}
+                  onDoubleClick={() => openSetup(candidate)}
                 >
                   <span className={styles.rowNumber}>
                     {String(index + 1).padStart(2, '0')}
@@ -424,27 +713,31 @@ export function SongSelectView() {
                   </dd>
                 </div>
               </dl>
-              <label className={styles.trackPicker}>
-                <span>Difficulty & instrument</span>
-                <select
-                  value={selectedSong.chart.trackName}
-                  onChange={(event) => selectTrack(event.target.value)}
-                >
-                  {selectedSong.charts.map((chart) => (
-                    <option key={chart.trackName} value={chart.trackName}>
-                      {trackLabel(chart.trackName)} · {chart.notes.length} notes
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div
+                className={styles.previewStatus}
+                data-status={previewStatus}
+              >
+                <i aria-hidden="true" />
+                <span>
+                  {previewStatus === 'playing'
+                    ? 'Preview playing'
+                    : previewStatus === 'loading'
+                      ? 'Preparing preview'
+                      : previewStatus === 'waiting'
+                        ? 'Press a key to hear preview'
+                        : previewStatus === 'error'
+                          ? 'Preview unavailable'
+                          : trackLabel(selectedSong.chart.trackName)}
+                </span>
+              </div>
               <div className={styles.previewActions}>
                 <button
                   type="button"
                   className={styles.playButton}
                   data-controller-target="play-song"
-                  onClick={playSelected}
+                  onClick={() => openSetup()}
                 >
-                  Play song
+                  Choose part
                   <span aria-hidden="true">→</span>
                 </button>
                 {selectedSong.id !== 'bundled-techno-chiptale' && (

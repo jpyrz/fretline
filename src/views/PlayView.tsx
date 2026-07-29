@@ -5,15 +5,18 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { HighwayCanvas } from '../components/HighwayCanvas'
 import { GameEngine } from '../game/GameEngine'
 import { drawHighway } from '../game/drawHighway'
 import { createCalibrationAudio } from '../lib/calibrationSong'
 import { median } from '../lib/scoring'
-import { decodeAudioFiles } from '../lib/songImport'
+import {
+  decodeSongAudio,
+  takePreparedGameplayAudioContext,
+} from '../lib/songAudio'
 import { useAppState } from '../state/AppState'
-import type { SessionStats } from '../types/game'
+import type { GameFrame, SessionStats } from '../types/game'
 import styles from './PlayView.module.scss'
 
 type Phase =
@@ -39,6 +42,7 @@ const emptyStats: SessionStats = {
 }
 
 export function PlayView() {
+  const location = useLocation()
   const {
     song,
     calibration,
@@ -46,10 +50,20 @@ export function PlayView() {
     highwaySettings,
     controllerMapping,
   } = useAppState()
+  const autoStartRequested =
+    song.kind === 'folder' && location.state?.autoStart === true
+  const loadingPhrase =
+    typeof location.state?.loadingPhrase === 'string'
+      ? location.state.loadingPhrase
+      : 'Warming up the amp'
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const engineRef = useRef<GameEngine | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
-  const [phase, setPhase] = useState<Phase>('ready')
+  const autoStartedRef = useRef(false)
+  const [phase, setPhase] = useState<Phase>(
+    autoStartRequested ? 'loading' : 'ready',
+  )
+  const immersiveLoading = autoStartRequested && phase === 'loading'
   const [stats, setStats] = useState<SessionStats>(emptyStats)
   const [error, setError] = useState('')
   const [runInputOffsetMs, setRunInputOffsetMs] = useState(
@@ -104,6 +118,18 @@ export function PlayView() {
         )
       : 0
   const multiplier = Math.min(4, Math.floor(stats.streak / 10) + 1)
+  const loadingFrame = useMemo<GameFrame>(
+    () => ({
+      songTimeSeconds: -10,
+      visualTimeSeconds: -10,
+      heldLanes: [],
+      noteStates: song.chart.notes.map(() => 'pending'),
+      sustainStates: song.chart.notes.map(() => 'none'),
+      stats: emptyStats,
+      hitFlash: null,
+    }),
+    [song.chart.notes],
+  )
 
   const stopSession = () => {
     engineRef.current?.stop()
@@ -114,6 +140,30 @@ export function PlayView() {
 
   useEffect(() => stopSession, [])
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!immersiveLoading || !canvas) return
+    const drawLoadingHighway = () =>
+      drawHighway(
+        canvas,
+        song.chart,
+        loadingFrame,
+        highwaySettings.noteSpeed,
+      )
+    const frame = requestAnimationFrame(drawLoadingHighway)
+    const observer = new ResizeObserver(drawLoadingHighway)
+    observer.observe(canvas)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [
+    highwaySettings.noteSpeed,
+    immersiveLoading,
+    loadingFrame,
+    song.chart,
+  ])
+
   const startSession = async () => {
     stopSession()
     setPhase('loading')
@@ -123,13 +173,29 @@ export function PlayView() {
     setAppliedOffsetMs(null)
 
     try {
-      const audioContext = new AudioContext({ latencyHint: 'interactive' })
+      const audioContext =
+        song.kind === 'folder'
+          ? takePreparedGameplayAudioContext() ??
+            new AudioContext({ latencyHint: 'interactive' })
+          : new AudioContext({ latencyHint: 'interactive' })
       audioContextRef.current = audioContext
       await audioContext.resume()
-      const audioBuffers =
+      if (audioContext.state !== 'running') {
+        throw new Error(
+          'The browser paused the audio clock. Press start to try again.',
+        )
+      }
+      const audioBuffersPromise =
         song.kind === 'calibration'
-          ? [createCalibrationAudio(audioContext)]
-          : await decodeAudioFiles(audioContext, song.audioFiles)
+          ? Promise.resolve([createCalibrationAudio(audioContext)])
+          : decodeSongAudio(song)
+      const minimumLoadingTime = autoStartRequested
+        ? new Promise<void>((resolve) => window.setTimeout(resolve, 900))
+        : Promise.resolve()
+      const [audioBuffers] = await Promise.all([
+        audioBuffersPromise,
+        minimumLoadingTime,
+      ])
 
       const engine = new GameEngine({
         audioContext,
@@ -171,6 +237,17 @@ export function PlayView() {
       setPhase('error')
     }
   }
+  const startSessionEvent = useEffectEvent(startSession)
+
+  useEffect(() => {
+    if (!autoStartRequested || autoStartedRef.current) return
+    const frame = requestAnimationFrame(() => {
+      if (autoStartedRef.current) return
+      autoStartedRef.current = true
+      void startSessionEvent()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [autoStartRequested])
 
   const applySuggestion = () => {
     if (suggestedCorrection === null || appliedOffsetMs !== null) return
@@ -228,12 +305,16 @@ export function PlayView() {
   return (
     <main
       className={styles.page}
-      data-session={phase === 'playing' || phase === 'paused'}
+      data-session={
+        phase === 'playing' || phase === 'paused' || immersiveLoading
+      }
       data-controller-gameplay={phase === 'playing'}
     >
       <header
         className={styles.header}
-        data-hidden={phase === 'playing' || phase === 'paused'}
+        data-hidden={
+          phase === 'playing' || phase === 'paused' || immersiveLoading
+        }
       >
         <Link
           to={song.kind === 'folder' ? '/songs' : '/'}
@@ -267,12 +348,29 @@ export function PlayView() {
         <div className={styles.highwayWrap}>
           <HighwayCanvas ref={canvasRef} />
 
-          {(phase === 'ready' || phase === 'loading' || phase === 'error') && (
+          {immersiveLoading && (
+            <div
+              className={styles.loadingOverlay}
+              role="status"
+              aria-live="polite"
+            >
+              <h1>
+                {loadingPhrase}
+                <span className={styles.loadingDots} aria-hidden="true" />
+              </h1>
+            </div>
+          )}
+
+          {(phase === 'ready' ||
+            (phase === 'loading' && !autoStartRequested) ||
+            phase === 'error') && (
             <div className={styles.overlay}>
               <p className="eyebrow">Timing run</p>
               <h1>
                 {phase === 'loading'
-                  ? 'Decoding audio…'
+                  ? autoStartRequested
+                    ? 'Taking the stage…'
+                    : 'Decoding audio…'
                   : phase === 'error'
                     ? 'Could not start'
                     : 'Ready when you are'}
@@ -409,6 +507,7 @@ export function PlayView() {
 
         </div>
 
+        {!immersiveLoading && (
         <section className={styles.scoreHud} aria-label="Current score">
           <div className={styles.scoreValue}>
             <span>Score</span>
@@ -433,6 +532,7 @@ export function PlayView() {
             </button>
           )}
         </section>
+        )}
       </section>
 
       {phase === 'paused' && (
