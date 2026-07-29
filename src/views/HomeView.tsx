@@ -71,6 +71,7 @@ export function HomeView() {
           <button
             type="button"
             data-controller-default
+            data-controller-nav-item
             onClick={() => navigate('/songs')}
           >
             <span>Quick Play</span>
@@ -80,11 +81,19 @@ export function HomeView() {
                 : 'Loading library…'}
             </small>
           </button>
-          <button type="button" onClick={openTimingLab}>
+          <button
+            type="button"
+            data-controller-nav-item
+            onClick={openTimingLab}
+          >
             <span>Timing Lab</span>
             <small>Calibrate your setup</small>
           </button>
-          <button type="button" onClick={() => navigate('/settings')}>
+          <button
+            type="button"
+            data-controller-nav-item
+            onClick={() => navigate('/settings')}
+          >
             <span>Settings</span>
             <small>Controls · timing · highway</small>
           </button>

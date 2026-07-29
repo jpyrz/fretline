@@ -43,6 +43,28 @@ function bindingLabel(binding: CapturedBinding): string {
   return `direct input ${binding.reportId}:${binding.byteIndex}`
 }
 
+function sameBinding(
+  left: CapturedBinding,
+  right: CapturedBinding,
+): boolean {
+  if (left.type !== right.type) return false
+  if (left.type === 'button' && right.type === 'button') {
+    return left.index === right.index
+  }
+  if (left.type === 'axis' && right.type === 'axis') {
+    return left.index === right.index && left.direction === right.direction
+  }
+  if (left.type === 'hid' && right.type === 'hid') {
+    return (
+      left.reportId === right.reportId &&
+      left.byteIndex === right.byteIndex &&
+      left.mask === right.mask &&
+      left.activeValue === right.activeValue
+    )
+  }
+  return false
+}
+
 function cloneReports(
   reports: ReadonlyMap<number, Uint8Array>,
 ): Map<number, Uint8Array> {
@@ -253,6 +275,16 @@ export function ControllerSetup({
       } else if (armed.current) {
         const binding = active[0]
         armed.current = false
+        if (
+          captured.length === STEPS.length - 1 &&
+          sameBinding(binding, captured[captured.length - 1])
+        ) {
+          setMessage(
+            'Strum down matched strum up. Release the bar, then press it in the opposite direction.',
+          )
+          frame = requestAnimationFrame(poll)
+          return
+        }
         const next = [...captured, binding]
         setCaptured(next)
         if (next.length === STEPS.length) {
@@ -408,6 +440,16 @@ export function ControllerSetup({
 
         armed.current = false
         pendingHidBinding.current = null
+        if (
+          captured.length === STEPS.length - 1 &&
+          sameBinding(binding, captured[captured.length - 1])
+        ) {
+          setMessage(
+            'Strum down matched strum up. Release the bar, then press it in the opposite direction.',
+          )
+          frame = requestAnimationFrame(poll)
+          return
+        }
         const next = [...captured, binding]
         setCaptured(next)
         if (next.length === STEPS.length) {
@@ -477,8 +519,9 @@ export function ControllerSetup({
                 : mapping.gamepadId}
             </strong>
             <small>
-              Green is {bindingLabel(mapping.frets[0])}; strum is{' '}
-              {bindingLabel(mapping.strumUp)}
+              Green is {bindingLabel(mapping.frets[0])}; strum up is{' '}
+              {bindingLabel(mapping.strumUp)}; down is{' '}
+              {bindingLabel(mapping.strumDown)}
             </small>
           </div>
         </div>

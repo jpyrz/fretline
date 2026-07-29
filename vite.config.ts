@@ -13,8 +13,8 @@ export default defineConfig({
         short_name: 'Fretline',
         description:
           'A local-first five-fret rhythm game timing and calibration prototype.',
-        theme_color: '#070913',
-        background_color: '#070913',
+        theme_color: '#09090c',
+        background_color: '#09090c',
         display: 'standalone',
         start_url: '/',
         icons: [

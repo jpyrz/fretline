@@ -6,6 +6,7 @@ import {
   reconnectDirectHidDevice,
 } from '../lib/directHidController'
 import { hidBindingActive } from '../lib/hidInput'
+import { nextMenuIndex } from '../lib/menuNavigation'
 import { useAppState } from '../state/AppState'
 import type { ControllerMapping } from '../types/game'
 
@@ -41,12 +42,18 @@ const focusableSelector = [
 ].join(',')
 
 function visibleFocusableElements(): HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>(focusableSelector)].filter(
+  const focusable = [
+    ...document.querySelectorAll<HTMLElement>(focusableSelector),
+  ].filter(
     (element) =>
       element.getClientRects().length > 0 &&
       element.getAttribute('aria-hidden') !== 'true' &&
       !element.closest('[hidden], [aria-hidden="true"], [data-controller-ignore]'),
   )
+  const navigationItems = focusable.filter((element) =>
+    element.hasAttribute('data-controller-nav-item'),
+  )
+  return navigationItems.length > 0 ? navigationItems : focusable
 }
 
 function readInput(mapping: ControllerMapping): MenuInputState {
@@ -93,21 +100,18 @@ function focusRelative(direction: -1 | 1): void {
   const activeIndex = focusable.indexOf(
     document.activeElement as HTMLElement,
   )
-  if (activeIndex === -1) {
-    const defaultElement = document.querySelector<HTMLElement>(
-      '[data-controller-default]',
-    )
-    const defaultIndex = defaultElement
-      ? focusable.indexOf(defaultElement)
-      : -1
-    const nextElement = focusable[defaultIndex >= 0 ? defaultIndex : 0]
-    nextElement.focus({ preventScroll: true })
-    nextElement.scrollIntoView({ block: 'nearest' })
-    return
-  }
-
-  const nextIndex =
-    (activeIndex + direction + focusable.length) % focusable.length
+  const defaultElement = document.querySelector<HTMLElement>(
+    '[data-controller-default]',
+  )
+  const defaultIndex = defaultElement
+    ? focusable.indexOf(defaultElement)
+    : -1
+  const nextIndex = nextMenuIndex(
+    focusable.length,
+    activeIndex,
+    defaultIndex,
+    direction,
+  )
   const nextElement = focusable[nextIndex]
   nextElement.focus({ preventScroll: true })
   nextElement.scrollIntoView({ block: 'nearest' })
@@ -180,7 +184,7 @@ export function MenuControllerNavigation() {
   useEffect(() => {
     previousRef.current = emptyInputState()
     repeatAtRef.current = { previous: 0, next: 0 }
-  }, [location.pathname])
+  }, [controllerMapping])
 
   useEffect(() => {
     if (!controllerMapping || location.pathname === '/play') return

@@ -352,6 +352,7 @@ export function SongSelectView() {
                   className={styles.songRow}
                   data-selected={selected}
                   data-controller-default={selected || undefined}
+                  data-controller-nav-item
                   data-controller-activate="play-song"
                   onClick={() => selectSong(candidate.id)}
                   onFocus={() => selectSong(candidate.id)}
