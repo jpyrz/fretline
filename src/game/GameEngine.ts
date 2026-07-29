@@ -5,6 +5,7 @@ import {
   reconnectDirectHidDevice,
 } from '../lib/directHidController'
 import { hidBindingActive } from '../lib/hidInput'
+import { keyboardEventCode } from '../lib/keyboardMapping'
 import {
   canFretHit,
   HIT_WINDOW_MS,
@@ -24,6 +25,7 @@ import type {
   CalibrationSettings,
   ControllerMapping,
   GameFrame,
+  KeyboardMapping,
   Lane,
   ParsedChart,
   SessionStats,
@@ -36,22 +38,12 @@ interface GameEngineOptions {
   chart: ParsedChart
   calibration: CalibrationSettings
   controllerMapping: ControllerMapping | null
+  keyboardMapping: KeyboardMapping
   onFrame: (frame: GameFrame) => void
   onStats: (stats: SessionStats) => void
   onFinish: (stats: SessionStats) => void
   onPauseChange: (paused: boolean) => void
 }
-
-const KEY_LANES = new Map<string, Lane>([
-  ['KeyA', 0],
-  ['KeyS', 1],
-  ['KeyD', 2],
-  ['KeyF', 3],
-  ['KeyG', 4],
-])
-
-const STRUM_KEYS = new Set(['Space', 'Enter', 'ArrowUp', 'ArrowDown'])
-const PAUSE_KEYS = new Set(['Escape', 'KeyP'])
 
 function freshStats(): SessionStats {
   return {
@@ -82,6 +74,8 @@ export class GameEngine {
   private readonly chart: ParsedChart
   private readonly calibration: CalibrationSettings
   private readonly controllerMapping: ControllerMapping | null
+  private readonly keyboardMapping: KeyboardMapping
+  private readonly keyboardLanesByCode: Map<string, Lane>
   private readonly onFrame: (frame: GameFrame) => void
   private readonly onStats: (stats: SessionStats) => void
   private readonly onFinish: (stats: SessionStats) => void
@@ -115,6 +109,13 @@ export class GameEngine {
     this.chart = options.chart
     this.calibration = options.calibration
     this.controllerMapping = options.controllerMapping
+    this.keyboardMapping = options.keyboardMapping
+    this.keyboardLanesByCode = new Map(
+      options.keyboardMapping.frets.map((code, index) => [
+        code,
+        index as Lane,
+      ]),
+    )
     if (this.controllerMapping?.source === 'hid') {
       void reconnectDirectHidDevice(this.controllerMapping.device)
     }
@@ -237,13 +238,14 @@ export class GameEngine {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (PAUSE_KEYS.has(event.code)) {
+    const code = keyboardEventCode(event)
+    if (code === this.keyboardMapping.pause) {
       event.preventDefault()
       if (!event.repeat) this.togglePause()
       return
     }
 
-    const lane = KEY_LANES.get(event.code)
+    const lane = this.keyboardLanesByCode.get(code)
     if (lane !== undefined) {
       event.preventDefault()
       this.keyboardLanes.add(lane)
@@ -255,14 +257,17 @@ export class GameEngine {
       return
     }
 
-    if (STRUM_KEYS.has(event.code)) {
+    if (
+      code === this.keyboardMapping.strumUp ||
+      code === this.keyboardMapping.strumDown
+    ) {
       event.preventDefault()
       if (!event.repeat) this.strum(normalizePerformanceTimestamp(event.timeStamp))
     }
   }
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
-    const lane = KEY_LANES.get(event.code)
+    const lane = this.keyboardLanesByCode.get(keyboardEventCode(event))
     if (lane !== undefined) {
       event.preventDefault()
       this.keyboardLanes.delete(lane)

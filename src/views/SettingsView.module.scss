@@ -278,69 +278,8 @@
 }
 
 .keyboardPane {
-  display: grid;
   overflow-y: auto;
-  padding: clamp(1rem, 3vw, 2rem);
-  align-content: start;
-  gap: 1.5rem;
-
-  > p {
-    max-width: 48rem;
-    margin: 0;
-    color: rgba(226, 241, 248, 0.58);
-    line-height: 1.6;
-  }
-}
-
-.keys {
-  display: grid;
-  width: min(620px, 100%);
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.65rem;
-
-  kbd {
-    display: grid;
-    aspect-ratio: 1.35;
-    place-items: center;
-    border: 1px solid rgba(224, 242, 251, 0.2);
-    border-bottom-width: 5px;
-    border-radius: 10px;
-    font-size: 1.15rem;
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  [data-lane='0'] { color: var(--green); }
-  [data-lane='1'] { color: var(--red); }
-  [data-lane='2'] { color: var(--yellow); }
-  [data-lane='3'] { color: var(--blue); }
-  [data-lane='4'] { color: var(--orange); }
-}
-
-.keyboardRows {
-  display: grid;
-  border: 1px solid rgba(216, 239, 251, 0.1);
-
-  div {
-    display: flex;
-    min-height: 64px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.8rem 1rem;
-    background: rgba(30, 30, 35, 0.72);
-
-    + div {
-      border-top: 1px solid rgba(216, 239, 251, 0.08);
-    }
-
-    span {
-      color: rgba(229, 243, 250, 0.62);
-    }
-
-    strong {
-      text-align: right;
-    }
-  }
+  padding: 0.35rem;
 }
 
 @media (max-width: 760px) {
@@ -452,28 +391,10 @@
   .savedRow {
     grid-template-columns: 1fr auto;
   }
-
-  .keyboardRows div {
-    align-items: start;
-    flex-direction: column;
-
-    strong {
-      text-align: left;
-    }
-  }
 }
 
 @media (max-width: 430px) {
   .sectionHeading span {
     line-height: 1.4;
-  }
-
-  .keys {
-    gap: 0.35rem;
-
-    kbd {
-      border-radius: 7px;
-      font-size: 0.9rem;
-    }
   }
 }

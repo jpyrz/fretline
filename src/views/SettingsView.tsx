@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ControllerSetup } from '../components/ControllerSetup'
+import { KeyboardSetup } from '../components/KeyboardSetup'
 import { useAppState } from '../state/AppState'
 import styles from './SettingsView.module.scss'
 
@@ -24,9 +25,9 @@ const SECTION_COPY: Record<
   },
   keyboard: {
     label: 'Keyboard',
-    title: 'Keyboard fallback',
+    title: 'Keyboard controls',
     description:
-      'Review the built-in keyboard controls available whenever a guitar is not connected.',
+      'Build a key profile that fits this keyboard and avoids blocked combinations.',
   },
 }
 
@@ -40,6 +41,8 @@ export function SettingsView() {
     setHighwaySettings,
     controllerMapping,
     setControllerMapping,
+    keyboardMapping,
+    setKeyboardMapping,
   } = useAppState()
   const activeCopy = SECTION_COPY[section]
 
@@ -195,29 +198,10 @@ export function SettingsView() {
 
           {section === 'keyboard' && (
             <div className={styles.keyboardPane}>
-              <div className={styles.keys}>
-                {['A', 'S', 'D', 'F', 'G'].map((key, index) => (
-                  <kbd key={key} data-lane={index}>{key}</kbd>
-                ))}
-              </div>
-              <div className={styles.keyboardRows}>
-                <div>
-                  <span>Green, red, yellow, blue, orange</span>
-                  <strong>A · S · D · F · G</strong>
-                </div>
-                <div>
-                  <span>Strum</span>
-                  <strong>Space · Enter · Arrow keys</strong>
-                </div>
-                <div>
-                  <span>Pause</span>
-                  <strong>Escape</strong>
-                </div>
-              </div>
-              <p>
-                Hold one or more fret keys, then press a strum key. Keyboard
-                controls remain active even when a guitar is mapped.
-              </p>
+              <KeyboardSetup
+                mapping={keyboardMapping}
+                onChange={setKeyboardMapping}
+              />
             </div>
           )}
         </section>

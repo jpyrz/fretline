@@ -14,11 +14,13 @@ import {
   loadPersistedSongs,
   persistSong,
 } from '../lib/songLibrary'
+import { normalizeKeyboardMapping } from '../lib/keyboardMapping'
 import type { PlayPreferences } from '../lib/trackSelection'
 import type {
   CalibrationSettings,
   ControllerMapping,
   HighwaySettings,
+  KeyboardMapping,
   LocalSong,
 } from '../types/game'
 
@@ -42,12 +44,15 @@ interface AppStateValue {
   setPlayPreferences: (preferences: PlayPreferences) => void
   controllerMapping: ControllerMapping | null
   setControllerMapping: (mapping: ControllerMapping | null) => void
+  keyboardMapping: KeyboardMapping
+  setKeyboardMapping: (mapping: KeyboardMapping) => void
 }
 
 const SETTINGS_KEY = 'fretline:calibration'
 const HIGHWAY_KEY = 'fretline:highway'
 const PLAY_PREFERENCES_KEY = 'fretline:play-preferences'
 const CONTROLLER_KEY = 'fretline:controller'
+const KEYBOARD_KEY = 'fretline:keyboard'
 const SELECTED_SONG_KEY = 'fretline:selected-song'
 
 const defaultCalibration: CalibrationSettings = {
@@ -103,6 +108,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     useState<ControllerMapping | null>(() =>
       loadStored<ControllerMapping | null>(CONTROLLER_KEY, null),
     )
+  const [keyboardMapping, setKeyboardMapping] = useState<KeyboardMapping>(() =>
+    normalizeKeyboardMapping(loadStored<unknown>(KEYBOARD_KEY, null)),
+  )
 
   useEffect(() => {
     let active = true
@@ -157,6 +165,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(CONTROLLER_KEY)
     }
   }, [controllerMapping])
+
+  useEffect(() => {
+    localStorage.setItem(KEYBOARD_KEY, JSON.stringify(keyboardMapping))
+  }, [keyboardMapping])
 
   const setSong = useCallback((nextSong: LocalSong) => {
     setCurrentSong(nextSong)
@@ -280,6 +292,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setPlayPreferences,
       controllerMapping,
       setControllerMapping,
+      keyboardMapping,
+      setKeyboardMapping,
     }),
     [
       song,
@@ -296,6 +310,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       highwaySettings,
       playPreferences,
       controllerMapping,
+      keyboardMapping,
     ],
   )
 

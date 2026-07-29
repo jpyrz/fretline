@@ -49,6 +49,7 @@ export function PlayView() {
     setCalibration,
     highwaySettings,
     controllerMapping,
+    keyboardMapping,
   } = useAppState()
   const autoStartRequested =
     song.kind === 'folder' && location.state?.autoStart === true
@@ -203,6 +204,7 @@ export function PlayView() {
         chart: song.chart,
         calibration,
         controllerMapping,
+        keyboardMapping,
         onFrame: (frame) => {
           if (canvasRef.current) {
             drawHighway(

@@ -102,6 +102,15 @@ export type ControllerMapping =
   | GamepadControllerMapping
   | HidControllerMapping
 
+export interface KeyboardMapping {
+  frets: FiveFrets<string>
+  strumUp: string
+  strumDown: string
+  select: string
+  back: string
+  pause: string
+}
+
 export interface CalibrationSettings {
   inputOffsetMs: number
   videoOffsetMs: number

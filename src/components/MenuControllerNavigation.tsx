@@ -9,6 +9,7 @@ import {
   reconnectDirectHidDevice,
 } from '../lib/directHidController'
 import { hidBindingActive } from '../lib/hidInput'
+import { keyboardEventCode } from '../lib/keyboardMapping'
 import { nextMenuIndex } from '../lib/menuNavigation'
 import { useAppState } from '../state/AppState'
 import type { ControllerMapping } from '../types/game'
@@ -169,7 +170,7 @@ function runContextAction(action: 'yellow' | 'blue' | 'orange'): boolean {
 }
 
 export function MenuControllerNavigation() {
-  const { controllerMapping } = useAppState()
+  const { controllerMapping, keyboardMapping } = useAppState()
   const location = useLocation()
   const navigate = useNavigate()
   const previousRef = useRef<MenuInputState>(emptyInputState())
@@ -294,38 +295,63 @@ export function MenuControllerNavigation() {
   }, [controllerMapping, location.pathname, navigate])
 
   useEffect(() => {
-    if (location.pathname === '/play') return
-
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (document.querySelector('[data-controller-capturing="true"]')) return
+      if (document.querySelector('[data-controller-gameplay="true"]')) return
       const active = document.activeElement
       const editingText =
         active instanceof HTMLInputElement &&
         !['range', 'button', 'checkbox', 'radio'].includes(active.type)
+      const code = keyboardEventCode(event)
+      if (
+        location.pathname === '/play' &&
+        code === keyboardMapping.pause
+      ) {
+        return
+      }
 
-      if (event.key === 'Escape' && location.pathname !== '/') {
+      if (
+        code === keyboardMapping.back &&
+        location.pathname !== '/' &&
+        !event.repeat
+      ) {
         event.preventDefault()
-        navigate(-1)
+        const backTarget = [
+          ...document.querySelectorAll<HTMLElement>(
+            '[data-controller-back]',
+          ),
+        ].find((target) => target.getClientRects().length > 0)
+        if (backTarget) {
+          backTarget.click()
+        } else {
+          navigate(-1)
+        }
         return
       }
       if (editingText) return
-      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault()
-        focusRelative(event.key === 'ArrowUp' ? -1 : 1)
-      } else if (
-        event.key === 'Enter' &&
-        !(active instanceof HTMLButtonElement) &&
-        !(active instanceof HTMLAnchorElement)
+      if (
+        code === keyboardMapping.strumUp ||
+        code === keyboardMapping.strumDown
       ) {
+        event.preventDefault()
+        focusRelative(code === keyboardMapping.strumUp ? -1 : 1)
+      } else if (code === keyboardMapping.select && !event.repeat) {
+        event.preventDefault()
+        const focusable = visibleFocusableElements()
         const target =
-          document.querySelector<HTMLElement>('[data-controller-default]') ??
-          visibleFocusableElements()[0]
+          active instanceof HTMLElement && focusable.includes(active)
+            ? active
+            : document.querySelector<HTMLElement>(
+                '[data-controller-default]',
+              ) ?? focusable[0]
+        target?.focus({ preventScroll: true })
         target?.click()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [location.pathname, navigate])
+  }, [keyboardMapping, location.pathname, navigate])
 
   return null
 }
