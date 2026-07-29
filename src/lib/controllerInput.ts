@@ -1,4 +1,7 @@
-import type { GamepadBinding } from '../types/game'
+import type {
+  GamepadBinding,
+  GamepadControllerMapping,
+} from '../types/game'
 
 interface GamepadState {
   buttons: readonly Pick<GamepadButton, 'pressed'>[]
@@ -6,9 +9,37 @@ interface GamepadState {
   mapping?: string
 }
 
+interface IdentifiedGamepadState extends GamepadState {
+  id: string
+  index: number
+  timestamp: number
+}
+
+export interface MappedGamepadSnapshot<T extends IdentifiedGamepadState> {
+  gamepad: T
+  frets: boolean[]
+  strumDirections: { up: boolean; down: boolean }
+  start: boolean
+}
+
 const AXIS_THRESHOLD = 0.55
 const MIN_AXIS_TARGET_TOLERANCE = 0.12
 const MAX_AXIS_TARGET_TOLERANCE = 0.3
+
+export function describeGamepadBinding(
+  binding: GamepadBinding,
+  fractionDigits = 2,
+): string {
+  if (binding.type === 'button') return `button ${binding.index}`
+  if (binding.value === undefined) {
+    return `axis ${binding.index} ${binding.direction > 0 ? '+' : '−'}`
+  }
+  const rest =
+    binding.rest === undefined
+      ? ''
+      : ` · rest ${binding.rest.toFixed(fractionDigits)}`
+  return `axis ${binding.index} · target ${binding.value.toFixed(fractionDigits)}${rest}`
+}
 
 export function activeGamepadBindings(
   gamepad: GamepadState,
@@ -61,7 +92,12 @@ export function gamepadBindingActive(
     : delta < -AXIS_THRESHOLD
 }
 
-function repairedStrumDownBinding(
+/**
+ * Mappings saved before exact axis targets were captured only knew polarity.
+ * Preserve those mappings when the strum bar is a conventional bipolar axis.
+ * Current POV-hat mappings bypass this path because they include exact values.
+ */
+function legacyAxisStrumDownBinding(
   strumUp: GamepadBinding,
   strumDown: GamepadBinding,
 ): GamepadBinding {
@@ -146,7 +182,7 @@ export function gamepadStrumDirections(
   )
   if (sameAxisDirection) return sameAxisDirection
 
-  const downBinding = repairedStrumDownBinding(strumUp, strumDown)
+  const downBinding = legacyAxisStrumDownBinding(strumUp, strumDown)
   const mappedUp = gamepadBindingActive(gamepad, strumUp)
   const mappedDown = gamepadBindingActive(gamepad, downBinding)
 
@@ -170,4 +206,32 @@ export function gamepadStartActive(
     gamepad.mapping === 'standard' &&
     Boolean(gamepad.buttons[9]?.pressed)
   )
+}
+
+export function mappedGamepadSnapshot<T extends IdentifiedGamepadState>(
+  mapping: GamepadControllerMapping,
+  gamepads: readonly (T | null)[],
+): MappedGamepadSnapshot<T> | null {
+  const indexedGamepad = gamepads[mapping.gamepadIndex]
+  const gamepad =
+    indexedGamepad?.id === mapping.gamepadId
+      ? indexedGamepad
+      : gamepads.find(
+          (candidate): candidate is T =>
+            candidate?.id === mapping.gamepadId,
+        )
+  if (!gamepad) return null
+
+  return {
+    gamepad,
+    frets: mapping.frets.map((binding) =>
+      gamepadBindingActive(gamepad, binding),
+    ),
+    strumDirections: gamepadStrumDirections(
+      gamepad,
+      mapping.strumUp,
+      mapping.strumDown,
+    ),
+    start: gamepadStartActive(gamepad, mapping.start),
+  }
 }

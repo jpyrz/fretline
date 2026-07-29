@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Link } from 'react-router-dom'
 import { HighwayCanvas } from '../components/HighwayCanvas'
 import { GameEngine } from '../game/GameEngine'
@@ -188,26 +194,26 @@ export function PlayView() {
     engineRef.current?.restart()
   }
 
-  useEffect(() => {
-    const handleControllerAction = (event: Event) => {
-      if (
-        !(event instanceof CustomEvent) ||
-        event.detail?.action !== 'start'
-      ) {
-        return
-      }
-
-      if (phase === 'playing' || phase === 'paused') {
-        togglePause()
-      } else if (
-        phase === 'ready' ||
-        phase === 'error' ||
-        phase === 'finished'
-      ) {
-        void startSession()
-      }
+  const handleControllerAction = useEffectEvent((event: Event) => {
+    if (
+      !(event instanceof CustomEvent) ||
+      event.detail?.action !== 'start'
+    ) {
+      return
     }
 
+    if (phase === 'playing' || phase === 'paused') {
+      togglePause()
+    } else if (
+      phase === 'ready' ||
+      phase === 'error' ||
+      phase === 'finished'
+    ) {
+      void startSession()
+    }
+  })
+
+  useEffect(() => {
     window.addEventListener(
       'fretline:controller-action',
       handleControllerAction,
@@ -217,7 +223,7 @@ export function PlayView() {
         'fretline:controller-action',
         handleControllerAction,
       )
-  })
+  }, [])
 
   return (
     <main

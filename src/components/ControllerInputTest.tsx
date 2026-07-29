@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  describeGamepadBinding,
   exclusiveStrumDirections,
-  gamepadStartActive,
-  gamepadStrumDirections,
+  mappedGamepadSnapshot,
 } from '../lib/controllerInput'
 import { directHidSnapshot } from '../lib/directHidController'
 import { hidBindingActive } from '../lib/hidInput'
-import type { ControllerMapping, GamepadBinding } from '../types/game'
+import type { ControllerMapping } from '../types/game'
 import styles from './ControllerInputTest.module.scss'
 
 interface LiveInputState {
@@ -29,13 +29,19 @@ const disconnectedState: LiveInputState = {
   axes: 'unavailable',
 }
 
-function bindingDescription(binding: GamepadBinding): string {
-  if (binding.type === 'button') return `button ${binding.index}`
-  const target =
-    binding.value === undefined ? '' : ` · target ${binding.value.toFixed(3)}`
-  const rest =
-    binding.rest === undefined ? '' : ` · rest ${binding.rest.toFixed(3)}`
-  return `axis ${binding.index} · ${binding.direction > 0 ? '+' : '−'}${target}${rest}`
+function sameLiveInput(
+  left: LiveInputState,
+  right: LiveInputState,
+): boolean {
+  return (
+    left.connected === right.connected &&
+    left.source === right.source &&
+    left.up === right.up &&
+    left.down === right.down &&
+    left.start === right.start &&
+    left.pressedButtons === right.pressedButtons &&
+    left.axes === right.axes
+  )
 }
 
 function readLiveInput(mapping: ControllerMapping): LiveInputState {
@@ -68,20 +74,9 @@ function readLiveInput(mapping: ControllerMapping): LiveInputState {
   }
 
   const gamepads = navigator.getGamepads?.() ?? []
-  const indexedGamepad = gamepads[mapping.gamepadIndex]
-  const gamepad =
-    indexedGamepad?.id === mapping.gamepadId
-      ? indexedGamepad
-      : [...gamepads].find(
-          (candidate) => candidate?.id === mapping.gamepadId,
-        )
-  if (!gamepad) return disconnectedState
-
-  const directions = gamepadStrumDirections(
-    gamepad,
-    mapping.strumUp,
-    mapping.strumDown,
-  )
+  const snapshot = mappedGamepadSnapshot(mapping, gamepads)
+  if (!snapshot) return disconnectedState
+  const { gamepad } = snapshot
   const pressedButtons = [...gamepad.buttons]
     .flatMap((button, index) => (button.pressed ? [index] : []))
     .join(', ')
@@ -92,9 +87,9 @@ function readLiveInput(mapping: ControllerMapping): LiveInputState {
   return {
     connected: true,
     source: `${gamepad.mapping || 'raw'} mapping · index ${gamepad.index}`,
-    up: directions.up,
-    down: directions.down,
-    start: gamepadStartActive(gamepad, mapping.start),
+    up: snapshot.strumDirections.up,
+    down: snapshot.strumDirections.down,
+    start: snapshot.start,
     pressedButtons: pressedButtons || 'none',
     axes: axes || 'none',
   }
@@ -107,9 +102,15 @@ export function ControllerInputTest({
 }) {
   const [liveInput, setLiveInput] =
     useState<LiveInputState>(disconnectedState)
+  const liveInputRef = useRef(liveInput)
 
   useEffect(() => {
-    const update = () => setLiveInput(readLiveInput(mapping))
+    const update = () => {
+      const nextInput = readLiveInput(mapping)
+      if (sameLiveInput(liveInputRef.current, nextInput)) return
+      liveInputRef.current = nextInput
+      setLiveInput(nextInput)
+    }
     update()
     const interval = window.setInterval(update, 80)
     return () => window.clearInterval(interval)
@@ -144,11 +145,11 @@ export function ControllerInputTest({
           <>
             <div>
               <dt>Saved strum up</dt>
-              <dd>{bindingDescription(mapping.strumUp)}</dd>
+              <dd>{describeGamepadBinding(mapping.strumUp, 3)}</dd>
             </div>
             <div>
               <dt>Saved strum down</dt>
-              <dd>{bindingDescription(mapping.strumDown)}</dd>
+              <dd>{describeGamepadBinding(mapping.strumDown, 3)}</dd>
             </div>
           </>
         )}

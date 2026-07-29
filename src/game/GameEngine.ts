@@ -1,8 +1,5 @@
 import { secondsToTick } from '../lib/chartParser'
-import {
-  gamepadBindingActive,
-  gamepadStrumDirections,
-} from '../lib/controllerInput'
+import { mappedGamepadSnapshot } from '../lib/controllerInput'
 import {
   directHidSnapshot,
   reconnectDirectHidDevice,
@@ -341,46 +338,34 @@ export class GameEngine {
 
     const mapping = this.controllerMapping
     const gamepads = navigator.getGamepads?.() ?? []
-    const indexedGamepad = gamepads[mapping.gamepadIndex]
-    const gamepad =
-      indexedGamepad?.id === mapping.gamepadId
-        ? indexedGamepad
-        : [...gamepads].find(
-            (candidate) => candidate?.id === mapping.gamepadId,
-          )
-    if (!gamepad) {
+    const snapshot = mappedGamepadSnapshot(mapping, gamepads)
+    if (!snapshot) {
       this.gamepadLanes = []
       this.previousGamepadStrum = false
       return
     }
 
     const previousLanes = this.gamepadLanes
-    this.gamepadLanes = mapping.frets
-      .map((binding, index) =>
-        gamepadBindingActive(gamepad, binding) ? (index as Lane) : null,
-      )
+    this.gamepadLanes = snapshot.frets
+      .map((active, index) => (active ? (index as Lane) : null))
       .filter((lane): lane is Lane => lane !== null)
     const fretsChanged =
       previousLanes.length !== this.gamepadLanes.length ||
       previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
 
-    const strumDirections = gamepadStrumDirections(
-      gamepad,
-      mapping.strumUp,
-      mapping.strumDown,
-    )
-    const strumming = strumDirections.up || strumDirections.down
+    const strumming =
+      snapshot.strumDirections.up || snapshot.strumDirections.down
 
     if (strumming && !this.previousGamepadStrum) {
       const timestamp =
-        gamepad.timestamp > 0
-          ? normalizePerformanceTimestamp(gamepad.timestamp)
+        snapshot.gamepad.timestamp > 0
+          ? normalizePerformanceTimestamp(snapshot.gamepad.timestamp)
           : now
       this.strum(timestamp)
     } else if (fretsChanged) {
       const timestamp =
-        gamepad.timestamp > 0
-          ? normalizePerformanceTimestamp(gamepad.timestamp)
+        snapshot.gamepad.timestamp > 0
+          ? normalizePerformanceTimestamp(snapshot.gamepad.timestamp)
           : now
       this.fretChange(timestamp)
     }

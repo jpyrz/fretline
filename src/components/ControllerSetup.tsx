@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { activeGamepadBindings } from '../lib/controllerInput'
+import {
+  activeGamepadBindings,
+  describeGamepadBinding,
+} from '../lib/controllerInput'
 import {
   directHidSnapshot,
   reconnectDirectHidDevice,
@@ -41,12 +44,7 @@ type CapturedBinding = GamepadBinding | HidBinding
 type MappingSource = 'gamepad' | 'hid'
 
 function bindingLabel(binding: CapturedBinding): string {
-  if (binding.type === 'button') return `button ${binding.index}`
-  if (binding.type === 'axis') {
-    return binding.value === undefined
-      ? `axis ${binding.index} ${binding.direction > 0 ? '+' : '−'}`
-      : `axis ${binding.index} at ${binding.value.toFixed(2)}`
-  }
+  if (binding.type !== 'hid') return describeGamepadBinding(binding)
   return `direct input ${binding.reportId}:${binding.byteIndex}`
 }
 

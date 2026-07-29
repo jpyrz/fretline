@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { GamepadBinding } from '../types/game'
+import type {
+  GamepadBinding,
+  GamepadControllerMapping,
+} from '../types/game'
 import {
   activeGamepadBindings,
   exclusiveStrumDirections,
   gamepadBindingActive,
   gamepadStartActive,
   gamepadStrumDirections,
+  mappedGamepadSnapshot,
 } from './controllerInput'
 
 function gamepad(
@@ -173,5 +177,66 @@ describe('controller input', () => {
       up: true,
       down: false,
     })
+  })
+
+  it('finds a remapped controller by id and returns one shared snapshot', () => {
+    const mapping: GamepadControllerMapping = {
+      source: 'gamepad',
+      gamepadId: 'guitar',
+      gamepadIndex: 0,
+      frets: [
+        { type: 'button', index: 0 },
+        { type: 'button', index: 1 },
+        { type: 'button', index: 2 },
+        { type: 'button', index: 3 },
+        { type: 'button', index: 4 },
+      ],
+      strumUp: { type: 'button', index: 12 },
+      strumDown: { type: 'button', index: 13 },
+      start: { type: 'button', index: 9 },
+    }
+    const wrongIndex = {
+      ...gamepad([false], []),
+      id: 'another controller',
+      index: 0,
+      timestamp: 10,
+    }
+    const guitar = {
+      ...gamepad(
+        [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+        ],
+        [],
+      ),
+      id: 'guitar',
+      index: 1,
+      timestamp: 20,
+    }
+
+    const snapshot = mappedGamepadSnapshot(mapping, [
+      wrongIndex,
+      guitar,
+    ])
+
+    expect(snapshot?.gamepad).toBe(guitar)
+    expect(snapshot?.frets).toEqual([true, false, false, false, false])
+    expect(snapshot?.strumDirections).toEqual({
+      up: false,
+      down: true,
+    })
+    expect(snapshot?.start).toBe(true)
   })
 })

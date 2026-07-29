@@ -2,9 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   exclusiveStrumDirections,
-  gamepadBindingActive,
-  gamepadStartActive,
-  gamepadStrumDirections,
+  mappedGamepadSnapshot,
 } from '../lib/controllerInput'
 import {
   directHidSnapshot,
@@ -85,29 +83,18 @@ function readInput(mapping: ControllerMapping): MenuInputState {
   }
 
   const gamepads = navigator.getGamepads?.() ?? []
-  const indexedGamepad = gamepads[mapping.gamepadIndex]
-  const gamepad =
-    indexedGamepad?.id === mapping.gamepadId
-      ? indexedGamepad
-      : [...gamepads].find(
-          (candidate) => candidate?.id === mapping.gamepadId,
-        )
-  if (!gamepad) return emptyInputState()
-  const strumDirections = gamepadStrumDirections(
-    gamepad,
-    mapping.strumUp,
-    mapping.strumDown,
-  )
+  const snapshot = mappedGamepadSnapshot(mapping, gamepads)
+  if (!snapshot) return emptyInputState()
 
   return {
-    previous: strumDirections.up,
-    next: strumDirections.down,
-    confirm: gamepadBindingActive(gamepad, mapping.frets[0]),
-    back: gamepadBindingActive(gamepad, mapping.frets[1]),
-    yellow: gamepadBindingActive(gamepad, mapping.frets[2]),
-    blue: gamepadBindingActive(gamepad, mapping.frets[3]),
-    orange: gamepadBindingActive(gamepad, mapping.frets[4]),
-    start: gamepadStartActive(gamepad, mapping.start),
+    previous: snapshot.strumDirections.up,
+    next: snapshot.strumDirections.down,
+    confirm: snapshot.frets[0],
+    back: snapshot.frets[1],
+    yellow: snapshot.frets[2],
+    blue: snapshot.frets[3],
+    orange: snapshot.frets[4],
+    start: snapshot.start,
   }
 }
 
