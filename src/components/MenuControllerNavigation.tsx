@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  exclusiveStrumDirections,
   gamepadBindingActive,
   gamepadStartActive,
   gamepadStrumDirections,
@@ -65,9 +66,13 @@ function visibleFocusableElements(): HTMLElement[] {
 function readInput(mapping: ControllerMapping): MenuInputState {
   if (mapping.source === 'hid') {
     const { reports } = directHidSnapshot(mapping.device)
+    const strumDirections = exclusiveStrumDirections(
+      hidBindingActive(reports, mapping.strumUp),
+      hidBindingActive(reports, mapping.strumDown),
+    )
     return {
-      previous: hidBindingActive(reports, mapping.strumUp),
-      next: hidBindingActive(reports, mapping.strumDown),
+      previous: strumDirections.up,
+      next: strumDirections.down,
       confirm: hidBindingActive(reports, mapping.frets[0]),
       back: hidBindingActive(reports, mapping.frets[1]),
       yellow: hidBindingActive(reports, mapping.frets[2]),

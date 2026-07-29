@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GamepadBinding } from '../types/game'
 import {
   activeGamepadBindings,
+  exclusiveStrumDirections,
   gamepadBindingActive,
   gamepadStartActive,
   gamepadStrumDirections,
@@ -161,5 +162,16 @@ describe('controller input', () => {
     const buttons = Array.from({ length: 10 }, () => false)
     buttons[9] = true
     expect(gamepadStartActive(gamepad(buttons, [], 'standard'))).toBe(true)
+  })
+
+  it('gives down priority when a raw controller activates both directions', () => {
+    expect(exclusiveStrumDirections(true, true)).toEqual({
+      up: false,
+      down: true,
+    })
+    expect(exclusiveStrumDirections(true, false)).toEqual({
+      up: true,
+      down: false,
+    })
   })
 })

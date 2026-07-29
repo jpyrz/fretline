@@ -147,11 +147,18 @@ export function gamepadStrumDirections(
   if (sameAxisDirection) return sameAxisDirection
 
   const downBinding = repairedStrumDownBinding(strumUp, strumDown)
+  const mappedUp = gamepadBindingActive(gamepad, strumUp)
+  const mappedDown = gamepadBindingActive(gamepad, downBinding)
 
-  return {
-    up: gamepadBindingActive(gamepad, strumUp),
-    down: gamepadBindingActive(gamepad, downBinding),
-  }
+  return exclusiveStrumDirections(mappedUp, mappedDown)
+}
+
+export function exclusiveStrumDirections(
+  up: boolean,
+  down: boolean,
+): { up: boolean; down: boolean } {
+  if (down) return { up: false, down: true }
+  return { up, down: false }
 }
 
 export function gamepadStartActive(

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  exclusiveStrumDirections,
   gamepadStartActive,
   gamepadStrumDirections,
 } from '../lib/controllerInput'
@@ -40,6 +41,10 @@ function bindingDescription(binding: GamepadBinding): string {
 function readLiveInput(mapping: ControllerMapping): LiveInputState {
   if (mapping.source === 'hid') {
     const { reports } = directHidSnapshot(mapping.device)
+    const directions = exclusiveStrumDirections(
+      hidBindingActive(reports, mapping.strumUp),
+      hidBindingActive(reports, mapping.strumDown),
+    )
     const reportText = [...reports]
       .map(
         ([reportId, bytes]) =>
@@ -52,8 +57,8 @@ function readLiveInput(mapping: ControllerMapping): LiveInputState {
     return {
       connected: reports.size > 0,
       source: `Direct HID · ${mapping.device.productName}`,
-      up: hidBindingActive(reports, mapping.strumUp),
-      down: hidBindingActive(reports, mapping.strumDown),
+      up: directions.up,
+      down: directions.down,
       start: mapping.start
         ? hidBindingActive(reports, mapping.start)
         : false,
