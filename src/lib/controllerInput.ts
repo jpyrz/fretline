@@ -7,6 +7,8 @@ interface GamepadState {
 }
 
 const AXIS_THRESHOLD = 0.55
+const MIN_AXIS_TARGET_TOLERANCE = 0.12
+const MAX_AXIS_TARGET_TOLERANCE = 0.3
 
 export function activeGamepadBindings(
   gamepad: GamepadState,
@@ -27,6 +29,7 @@ export function activeGamepadBindings(
         index,
         direction: delta > 0 ? 1 : -1,
         rest,
+        value,
       })
     }
   })
@@ -43,6 +46,15 @@ export function gamepadBindingActive(
   }
 
   const value = gamepad.axes[binding.index] ?? binding.rest ?? 0
+  if (binding.value !== undefined) {
+    const travel = Math.abs(binding.value - (binding.rest ?? 0))
+    const tolerance = Math.min(
+      MAX_AXIS_TARGET_TOLERANCE,
+      Math.max(MIN_AXIS_TARGET_TOLERANCE, travel * 0.25),
+    )
+    return Math.abs(value - binding.value) <= tolerance
+  }
+
   const delta = value - (binding.rest ?? 0)
   return binding.direction === 1
     ? delta > AXIS_THRESHOLD
@@ -57,7 +69,9 @@ function repairedStrumDownBinding(
     strumUp.type === 'axis' &&
     strumDown.type === 'axis' &&
     strumUp.index === strumDown.index &&
-    strumUp.direction === strumDown.direction
+    strumUp.direction === strumDown.direction &&
+    strumUp.value === undefined &&
+    strumDown.value === undefined
   ) {
     return {
       ...strumDown,

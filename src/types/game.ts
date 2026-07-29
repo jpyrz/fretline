@@ -54,7 +54,13 @@ export interface LocalSong {
 
 export type GamepadBinding =
   | { type: 'button'; index: number }
-  | { type: 'axis'; index: number; direction: -1 | 1; rest?: number }
+  | {
+      type: 'axis'
+      index: number
+      direction: -1 | 1
+      rest?: number
+      value?: number
+    }
 
 export interface HidBinding {
   type: 'hid'

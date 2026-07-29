@@ -42,7 +42,9 @@ type MappingSource = 'gamepad' | 'hid'
 function bindingLabel(binding: CapturedBinding): string {
   if (binding.type === 'button') return `button ${binding.index}`
   if (binding.type === 'axis') {
-    return `axis ${binding.index} ${binding.direction > 0 ? '+' : '−'}`
+    return binding.value === undefined
+      ? `axis ${binding.index} ${binding.direction > 0 ? '+' : '−'}`
+      : `axis ${binding.index} at ${binding.value.toFixed(2)}`
   }
   return `direct input ${binding.reportId}:${binding.byteIndex}`
 }
@@ -56,7 +58,11 @@ function sameBinding(
     return left.index === right.index
   }
   if (left.type === 'axis' && right.type === 'axis') {
-    return left.index === right.index && left.direction === right.direction
+    if (left.index !== right.index) return false
+    if (left.value !== undefined && right.value !== undefined) {
+      return Math.abs(left.value - right.value) < 0.08
+    }
+    return left.direction === right.direction
   }
   if (left.type === 'hid' && right.type === 'hid') {
     return (

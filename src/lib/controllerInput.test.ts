@@ -32,7 +32,7 @@ describe('controller input', () => {
 
   it('captures axis movement relative to its calibrated rest value', () => {
     expect(activeGamepadBindings(gamepad([], [1]), [-1])).toEqual([
-      { type: 'axis', index: 0, direction: 1, rest: -1 },
+      { type: 'axis', index: 0, direction: 1, rest: -1, value: 1 },
     ])
   })
 
@@ -89,6 +89,45 @@ describe('controller input', () => {
     expect(
       gamepadStrumDirections(gamepad([], [1]), up, brokenDown),
     ).toEqual({ up: false, down: true })
+  })
+
+  it('distinguishes two POV-hat positions on the same side of neutral', () => {
+    const up: GamepadBinding = {
+      type: 'axis',
+      index: 9,
+      direction: 1,
+      rest: -1,
+      value: -0.2,
+    }
+    const down: GamepadBinding = {
+      type: 'axis',
+      index: 9,
+      direction: 1,
+      rest: -1,
+      value: 0.8,
+    }
+
+    expect(
+      gamepadStrumDirections(
+        gamepad([], [-1, 0, 0, 0, 0, 0, 0, 0, 0, -0.2]),
+        up,
+        down,
+      ),
+    ).toEqual({ up: true, down: false })
+    expect(
+      gamepadStrumDirections(
+        gamepad([], [-1, 0, 0, 0, 0, 0, 0, 0, 0, 0.8]),
+        up,
+        down,
+      ),
+    ).toEqual({ up: false, down: true })
+    expect(
+      gamepadStrumDirections(
+        gamepad([], [-1, 0, 0, 0, 0, 0, 0, 0, 0, -1]),
+        up,
+        down,
+      ),
+    ).toEqual({ up: false, down: false })
   })
 
   it('uses standard Start when an older mapping has no pause binding', () => {
