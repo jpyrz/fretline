@@ -188,18 +188,54 @@ export function PlayView() {
     engineRef.current?.restart()
   }
 
+  useEffect(() => {
+    const handleControllerAction = (event: Event) => {
+      if (
+        !(event instanceof CustomEvent) ||
+        event.detail?.action !== 'start'
+      ) {
+        return
+      }
+
+      if (phase === 'playing' || phase === 'paused') {
+        togglePause()
+      } else if (
+        phase === 'ready' ||
+        phase === 'error' ||
+        phase === 'finished'
+      ) {
+        void startSession()
+      }
+    }
+
+    window.addEventListener(
+      'fretline:controller-action',
+      handleControllerAction,
+    )
+    return () =>
+      window.removeEventListener(
+        'fretline:controller-action',
+        handleControllerAction,
+      )
+  })
+
   return (
     <main
       className={styles.page}
       data-session={phase === 'playing' || phase === 'paused'}
+      data-controller-gameplay={phase === 'playing'}
     >
       <header
         className={styles.header}
         data-hidden={phase === 'playing' || phase === 'paused'}
       >
-        <Link to="/" onClick={stopSession}>
+        <Link
+          to={song.kind === 'folder' ? '/songs' : '/'}
+          data-controller-back
+          onClick={stopSession}
+        >
           <span aria-hidden="true">←</span>
-          Main menu
+          {song.kind === 'folder' ? 'Song selection' : 'Main menu'}
         </Link>
         <div className={styles.songTitle}>
           <span>{song.chart.metadata.artist}</span>
@@ -253,6 +289,8 @@ export function PlayView() {
               <button
                 type="button"
                 className="button primary large"
+                data-controller-default
+                data-controller-nav-item
                 disabled={phase === 'loading'}
                 onClick={() => void startSession()}
               >
@@ -341,6 +379,7 @@ export function PlayView() {
                   <button
                     type="button"
                     className="button primary"
+                    data-controller-nav-item
                     disabled={appliedOffsetMs !== null}
                     onClick={applySuggestion}
                   >
@@ -352,6 +391,8 @@ export function PlayView() {
                 <button
                   type="button"
                   className="button secondary"
+                  data-controller-default
+                  data-controller-nav-item
                   onClick={() => void startSession()}
                 >
                   Run again
@@ -431,30 +472,50 @@ export function PlayView() {
             <div className={styles.pauseHints}>
               <span><i data-color="green" /> Select</span>
               <span><i data-color="red" /> Back</span>
+              <span>Start Resume</span>
             </div>
             <nav aria-label="Pause menu">
               <button
                 type="button"
                 data-primary="true"
+                data-controller-default
+                data-controller-nav-item
+                data-controller-back
                 onClick={togglePause}
               >
                 Resume
               </button>
-              <button type="button" onClick={restartSession}>
+              <button
+                type="button"
+                data-controller-nav-item
+                onClick={restartSession}
+              >
                 Restart song
               </button>
-              <Link to="/songs" onClick={stopSession}>
+              <Link
+                to="/songs"
+                data-controller-nav-item
+                onClick={stopSession}
+              >
                 Song selection
               </Link>
-              <Link to="/settings" onClick={stopSession}>
+              <Link
+                to="/settings"
+                data-controller-nav-item
+                onClick={stopSession}
+              >
                 Settings
               </Link>
-              <Link to="/" onClick={stopSession}>
+              <Link
+                to="/"
+                data-controller-nav-item
+                onClick={stopSession}
+              >
                 Main menu
               </Link>
             </nav>
             <small>
-              Press <kbd>Esc</kbd> or <kbd>P</kbd> to resume
+              Press <kbd>Start</kbd>, <kbd>Esc</kbd>, or <kbd>P</kbd> to resume
             </small>
           </section>
         </div>

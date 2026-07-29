@@ -26,8 +26,12 @@ const STEPS = [
   'Orange fret',
   'Strum up',
   'Strum down',
+  'Start / pause',
 ]
 
+const STRUM_UP_STEP = 5
+const STRUM_DOWN_STEP = 6
+const START_STEP = 7
 const HID_MOTION_CALIBRATION_MS = 2500
 const HID_SETTLE_MS = 350
 const HID_CAPTURE_HOLD_MS = 35
@@ -276,8 +280,8 @@ export function ControllerSetup({
         const binding = active[0]
         armed.current = false
         if (
-          captured.length === STEPS.length - 1 &&
-          sameBinding(binding, captured[captured.length - 1])
+          captured.length === STRUM_DOWN_STEP &&
+          sameBinding(binding, captured[STRUM_UP_STEP])
         ) {
           setMessage(
             'Strum down matched strum up. Release the bar, then press it in the opposite direction.',
@@ -289,6 +293,7 @@ export function ControllerSetup({
         setCaptured(next)
         if (next.length === STEPS.length) {
           const bindings = next as [
+            GamepadBinding,
             GamepadBinding,
             GamepadBinding,
             GamepadBinding,
@@ -310,6 +315,7 @@ export function ControllerSetup({
             ],
             strumUp: bindings[5],
             strumDown: bindings[6],
+            start: bindings[START_STEP],
           })
           setMessage('Mapping saved locally.')
           setMappingSource(null)
@@ -441,8 +447,8 @@ export function ControllerSetup({
         armed.current = false
         pendingHidBinding.current = null
         if (
-          captured.length === STEPS.length - 1 &&
-          sameBinding(binding, captured[captured.length - 1])
+          captured.length === STRUM_DOWN_STEP &&
+          sameBinding(binding, captured[STRUM_UP_STEP])
         ) {
           setMessage(
             'Strum down matched strum up. Release the bar, then press it in the opposite direction.',
@@ -454,6 +460,7 @@ export function ControllerSetup({
         setCaptured(next)
         if (next.length === STEPS.length) {
           const bindings = next as [
+            HidBinding,
             HidBinding,
             HidBinding,
             HidBinding,
@@ -474,6 +481,7 @@ export function ControllerSetup({
             ],
             strumUp: bindings[5],
             strumDown: bindings[6],
+            start: bindings[START_STEP],
           })
           setMessage('Direct controller mapping saved locally.')
           setMappingSource(null)
@@ -521,7 +529,12 @@ export function ControllerSetup({
             <small>
               Green is {bindingLabel(mapping.frets[0])}; strum up is{' '}
               {bindingLabel(mapping.strumUp)}; down is{' '}
-              {bindingLabel(mapping.strumDown)}
+              {bindingLabel(mapping.strumDown)}; Start is{' '}
+              {mapping.start
+                ? bindingLabel(mapping.start)
+                : mapping.source === 'hid'
+                  ? 'not mapped—remap to enable pause'
+                  : 'standard Start or remap'}
             </small>
           </div>
         </div>

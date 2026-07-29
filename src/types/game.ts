@@ -79,6 +79,7 @@ export interface GamepadControllerMapping {
   frets: FiveFrets<GamepadBinding>
   strumUp: GamepadBinding
   strumDown: GamepadBinding
+  start?: GamepadBinding
 }
 
 export interface HidControllerMapping {
@@ -87,6 +88,7 @@ export interface HidControllerMapping {
   frets: FiveFrets<HidBinding>
   strumUp: HidBinding
   strumDown: HidBinding
+  start?: HidBinding
 }
 
 export type ControllerMapping =

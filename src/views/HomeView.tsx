@@ -187,6 +187,7 @@ export function HomeView() {
               <kbd>Strum</kbd><span>Navigate</span>
               <kbd data-fret="green">Green</kbd><span>Select</span>
               <kbd data-fret="red">Red</kbd><span>Back</span>
+              <kbd>Start</kbd><span>Pause</span>
             </>
           ) : (
             <>

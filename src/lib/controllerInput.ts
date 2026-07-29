@@ -3,6 +3,7 @@ import type { GamepadBinding } from '../types/game'
 interface GamepadState {
   buttons: readonly Pick<GamepadButton, 'pressed'>[]
   axes: readonly number[]
+  mapping?: string
 }
 
 const AXIS_THRESHOLD = 0.55
@@ -46,4 +47,52 @@ export function gamepadBindingActive(
   return binding.direction === 1
     ? delta > AXIS_THRESHOLD
     : delta < -AXIS_THRESHOLD
+}
+
+function repairedStrumDownBinding(
+  strumUp: GamepadBinding,
+  strumDown: GamepadBinding,
+): GamepadBinding {
+  if (
+    strumUp.type === 'axis' &&
+    strumDown.type === 'axis' &&
+    strumUp.index === strumDown.index &&
+    strumUp.direction === strumDown.direction
+  ) {
+    return {
+      ...strumDown,
+      direction: strumDown.direction === 1 ? -1 : 1,
+      rest: strumDown.rest ?? strumUp.rest,
+    }
+  }
+  return strumDown
+}
+
+export function gamepadStrumDirections(
+  gamepad: GamepadState,
+  strumUp: GamepadBinding,
+  strumDown: GamepadBinding,
+): { up: boolean; down: boolean } {
+  const downBinding = repairedStrumDownBinding(strumUp, strumDown)
+  const standardMapping = gamepad.mapping === 'standard'
+
+  return {
+    up:
+      gamepadBindingActive(gamepad, strumUp) ||
+      (standardMapping && Boolean(gamepad.buttons[12]?.pressed)),
+    down:
+      gamepadBindingActive(gamepad, downBinding) ||
+      (standardMapping && Boolean(gamepad.buttons[13]?.pressed)),
+  }
+}
+
+export function gamepadStartActive(
+  gamepad: GamepadState,
+  start?: GamepadBinding,
+): boolean {
+  if (start && gamepadBindingActive(gamepad, start)) return true
+  return (
+    gamepad.mapping === 'standard' &&
+    Boolean(gamepad.buttons[9]?.pressed)
+  )
 }

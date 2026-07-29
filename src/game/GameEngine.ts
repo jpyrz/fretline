@@ -1,5 +1,8 @@
 import { secondsToTick } from '../lib/chartParser'
-import { gamepadBindingActive } from '../lib/controllerInput'
+import {
+  gamepadBindingActive,
+  gamepadStrumDirections,
+} from '../lib/controllerInput'
 import {
   directHidSnapshot,
   reconnectDirectHidDevice,
@@ -338,11 +341,13 @@ export class GameEngine {
 
     const mapping = this.controllerMapping
     const gamepads = navigator.getGamepads?.() ?? []
+    const indexedGamepad = gamepads[mapping.gamepadIndex]
     const gamepad =
-      gamepads[mapping.gamepadIndex] ??
-      [...gamepads].find(
-        (candidate) => candidate?.id === mapping.gamepadId,
-      )
+      indexedGamepad?.id === mapping.gamepadId
+        ? indexedGamepad
+        : [...gamepads].find(
+            (candidate) => candidate?.id === mapping.gamepadId,
+          )
     if (!gamepad) {
       this.gamepadLanes = []
       this.previousGamepadStrum = false
@@ -359,9 +364,12 @@ export class GameEngine {
       previousLanes.length !== this.gamepadLanes.length ||
       previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
 
-    const strumming =
-      gamepadBindingActive(gamepad, mapping.strumUp) ||
-      gamepadBindingActive(gamepad, mapping.strumDown)
+    const strumDirections = gamepadStrumDirections(
+      gamepad,
+      mapping.strumUp,
+      mapping.strumDown,
+    )
+    const strumming = strumDirections.up || strumDirections.down
 
     if (strumming && !this.previousGamepadStrum) {
       const timestamp =

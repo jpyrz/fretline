@@ -3,12 +3,19 @@ import type { GamepadBinding } from '../types/game'
 import {
   activeGamepadBindings,
   gamepadBindingActive,
+  gamepadStartActive,
+  gamepadStrumDirections,
 } from './controllerInput'
 
-function gamepad(buttons: boolean[], axes: number[]) {
+function gamepad(
+  buttons: boolean[],
+  axes: number[],
+  mapping?: string,
+) {
   return {
     buttons: buttons.map((pressed) => ({ pressed })),
     axes,
+    mapping,
   }
 }
 
@@ -51,5 +58,42 @@ describe('controller input', () => {
 
     expect(gamepadBindingActive(gamepad([], [0]), binding)).toBe(false)
     expect(gamepadBindingActive(gamepad([], [-1]), binding)).toBe(true)
+  })
+
+  it('uses the standard d-pad as a guitar strum fallback', () => {
+    const buttons = Array.from({ length: 14 }, () => false)
+    const up: GamepadBinding = { type: 'button', index: 20 }
+    const down: GamepadBinding = { type: 'button', index: 21 }
+
+    buttons[12] = true
+    expect(
+      gamepadStrumDirections(gamepad(buttons, [], 'standard'), up, down),
+    ).toEqual({ up: true, down: false })
+
+    buttons[12] = false
+    buttons[13] = true
+    expect(
+      gamepadStrumDirections(gamepad(buttons, [], 'standard'), up, down),
+    ).toEqual({ up: false, down: true })
+  })
+
+  it('repairs an older mapping that saved both axis directions identically', () => {
+    const up: GamepadBinding = {
+      type: 'axis',
+      index: 0,
+      direction: -1,
+      rest: 0,
+    }
+    const brokenDown: GamepadBinding = { ...up }
+
+    expect(
+      gamepadStrumDirections(gamepad([], [1]), up, brokenDown),
+    ).toEqual({ up: false, down: true })
+  })
+
+  it('uses standard Start when an older mapping has no pause binding', () => {
+    const buttons = Array.from({ length: 10 }, () => false)
+    buttons[9] = true
+    expect(gamepadStartActive(gamepad(buttons, [], 'standard'))).toBe(true)
   })
 })

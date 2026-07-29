@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { gamepadBindingActive } from '../lib/controllerInput'
+import {
+  gamepadBindingActive,
+  gamepadStartActive,
+  gamepadStrumDirections,
+} from '../lib/controllerInput'
 import {
   directHidSnapshot,
   reconnectDirectHidDevice,
@@ -18,6 +22,7 @@ type MenuAction =
   | 'yellow'
   | 'blue'
   | 'orange'
+  | 'start'
 
 type MenuInputState = Record<MenuAction, boolean>
 
@@ -29,6 +34,7 @@ const emptyInputState = (): MenuInputState => ({
   yellow: false,
   blue: false,
   orange: false,
+  start: false,
 })
 
 const focusableSelector = [
@@ -67,23 +73,36 @@ function readInput(mapping: ControllerMapping): MenuInputState {
       yellow: hidBindingActive(reports, mapping.frets[2]),
       blue: hidBindingActive(reports, mapping.frets[3]),
       orange: hidBindingActive(reports, mapping.frets[4]),
+      start: mapping.start
+        ? hidBindingActive(reports, mapping.start)
+        : false,
     }
   }
 
   const gamepads = navigator.getGamepads?.() ?? []
+  const indexedGamepad = gamepads[mapping.gamepadIndex]
   const gamepad =
-    gamepads[mapping.gamepadIndex] ??
-    [...gamepads].find((candidate) => candidate?.id === mapping.gamepadId)
+    indexedGamepad?.id === mapping.gamepadId
+      ? indexedGamepad
+      : [...gamepads].find(
+          (candidate) => candidate?.id === mapping.gamepadId,
+        )
   if (!gamepad) return emptyInputState()
+  const strumDirections = gamepadStrumDirections(
+    gamepad,
+    mapping.strumUp,
+    mapping.strumDown,
+  )
 
   return {
-    previous: gamepadBindingActive(gamepad, mapping.strumUp),
-    next: gamepadBindingActive(gamepad, mapping.strumDown),
+    previous: strumDirections.up,
+    next: strumDirections.down,
     confirm: gamepadBindingActive(gamepad, mapping.frets[0]),
     back: gamepadBindingActive(gamepad, mapping.frets[1]),
     yellow: gamepadBindingActive(gamepad, mapping.frets[2]),
     blue: gamepadBindingActive(gamepad, mapping.frets[3]),
     orange: gamepadBindingActive(gamepad, mapping.frets[4]),
+    start: gamepadStartActive(gamepad, mapping.start),
   }
 }
 
@@ -187,14 +206,20 @@ export function MenuControllerNavigation() {
   }, [controllerMapping])
 
   useEffect(() => {
-    if (!controllerMapping || location.pathname === '/play') return
+    if (!controllerMapping) return
 
     let frame = 0
 
     const perform = (action: MenuAction) => {
       if (document.querySelector('[data-controller-capturing="true"]')) return
+      const gameplayActive = Boolean(
+        document.querySelector('[data-controller-gameplay="true"]'),
+      )
+      if (gameplayActive && action !== 'start') return
       document.documentElement.dataset.controllerInput = 'true'
       dispatchControllerAction(action)
+
+      if (action === 'start') return
 
       if (action === 'previous' || action === 'next') {
         focusRelative(action === 'previous' ? -1 : 1)
@@ -221,10 +246,12 @@ export function MenuControllerNavigation() {
       }
 
       if (action === 'back') {
-        const backTarget = document.querySelector<HTMLElement>(
-          '[data-controller-back]',
-        )
-        if (backTarget && backTarget.getClientRects().length > 0) {
+        const backTarget = [
+          ...document.querySelectorAll<HTMLElement>(
+            '[data-controller-back]',
+          ),
+        ].find((target) => target.getClientRects().length > 0)
+        if (backTarget) {
           backTarget.click()
         } else if (location.pathname !== '/') {
           navigate(-1)
@@ -261,6 +288,7 @@ export function MenuControllerNavigation() {
         'yellow',
         'blue',
         'orange',
+        'start',
       ] as const) {
         if (current[action] && !previous[action]) perform(action)
       }
