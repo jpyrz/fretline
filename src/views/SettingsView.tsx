@@ -46,7 +46,11 @@ export function SettingsView() {
   return (
     <main className={styles.page}>
       <header className={styles.mobileHeader}>
-        <button type="button" onClick={() => navigate('/')}>
+        <button
+          type="button"
+          data-controller-back
+          onClick={() => navigate('/')}
+        >
           <span aria-hidden="true">←</span>
           Main menu
         </button>
@@ -62,12 +66,18 @@ export function SettingsView() {
                 type="button"
                 key={key}
                 data-active={section === key}
+                data-controller-default={section === key || undefined}
                 onClick={() => setSection(key)}
+                onFocus={() => setSection(key)}
               >
                 {SECTION_COPY[key].label}
               </button>
             ))}
-            <button type="button" onClick={() => navigate('/')}>
+            <button
+              type="button"
+              data-controller-back
+              onClick={() => navigate('/')}
+            >
               Back
             </button>
           </nav>
@@ -84,7 +94,11 @@ export function SettingsView() {
               <i data-color="green" />
               Continue
             </button>
-            <button type="button" onClick={() => navigate('/')}>
+            <button
+              type="button"
+              data-controller-back
+              onClick={() => navigate('/')}
+            >
               <i data-color="red" />
               Back
             </button>

@@ -5,18 +5,18 @@
   width: 100%;
   aspect-ratio: 1;
   place-content: center;
-  border: 1px solid rgba(196, 226, 255, 0.28);
+  border: 1px solid rgba(244, 242, 239, 0.22);
   border-radius: 4px;
   color: white;
   text-align: center;
   background:
-    linear-gradient(145deg, rgba(37, 189, 255, 0.3), transparent 58%),
+    linear-gradient(145deg, rgba(226, 38, 54, 0.34), transparent 58%),
     repeating-linear-gradient(
       -34deg,
       rgba(255, 255, 255, 0.06) 0 2px,
       transparent 2px 12px
     ),
-    #122a3b;
+    #211216;
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
 
   img {

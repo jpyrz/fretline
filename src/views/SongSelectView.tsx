@@ -217,7 +217,11 @@ export function SongSelectView() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <button type="button" onClick={() => navigate('/')}>
+        <button
+          type="button"
+          data-controller-back
+          onClick={() => navigate('/')}
+        >
           <span aria-hidden="true">←</span>
           Main menu
         </button>
@@ -225,7 +229,9 @@ export function SongSelectView() {
           <p>Quick Play</p>
           <strong>
             {libraryReady
-              ? `${playableSongs.length} songs`
+              ? `${playableSongs.length} ${
+                  playableSongs.length === 1 ? 'song' : 'songs'
+                }`
               : 'Loading songs…'}
           </strong>
         </div>
@@ -244,6 +250,7 @@ export function SongSelectView() {
           <span className="sr-only">Search songs</span>
           <b aria-hidden="true">⌕</b>
           <input
+            data-controller-action="blue"
             value={query}
             placeholder="Search songs, artists, or charters"
             onChange={(event) => setQuery(event.target.value)}
@@ -251,6 +258,7 @@ export function SongSelectView() {
         </label>
         <button
           type="button"
+          data-controller-action="yellow"
           onClick={() =>
             setSortMode((current) =>
               current === 'title' ? 'artist' : 'title',
@@ -261,6 +269,7 @@ export function SongSelectView() {
         </button>
         <button
           type="button"
+          data-controller-action="orange"
           data-active={manageOpen}
           onClick={() => setManageOpen((current) => !current)}
         >
@@ -342,7 +351,10 @@ export function SongSelectView() {
                   key={candidate.id}
                   className={styles.songRow}
                   data-selected={selected}
+                  data-controller-default={selected || undefined}
+                  data-controller-activate="play-song"
                   onClick={() => selectSong(candidate.id)}
+                  onFocus={() => selectSong(candidate.id)}
                   onDoubleClick={() => {
                     selectSong(candidate.id)
                     navigate('/play')
@@ -428,6 +440,7 @@ export function SongSelectView() {
                 <button
                   type="button"
                   className={styles.playButton}
+                  data-controller-target="play-song"
                   onClick={playSelected}
                 >
                   Play song

@@ -1,18 +1,19 @@
 :root {
-  color: #f2f4ff;
-  background: #070913;
+  color: #f4f2ef;
+  background: #09090c;
   font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --background: #070913;
-  --panel: rgba(17, 20, 37, 0.82);
-  --panel-strong: #121526;
-  --line: rgba(162, 169, 224, 0.16);
-  --text: #f2f4ff;
-  --muted: #9298b5;
-  --accent: #8e98ff;
-  --accent-bright: #b7bdff;
+  --background: #09090c;
+  --panel: rgba(23, 23, 28, 0.88);
+  --panel-strong: #17171c;
+  --line: rgba(244, 242, 239, 0.14);
+  --text: #f4f2ef;
+  --muted: #aaa7a6;
+  --accent: #e22636;
+  --accent-bright: #ff5866;
+  --accent-deep: #7e111c;
   --green: #5bd66f;
   --red: #ff4f64;
   --yellow: #ffd34e;
@@ -37,8 +38,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 75% -10%, rgba(92, 101, 211, 0.16), transparent 38rem),
-    radial-gradient(circle at -12% 30%, rgba(89, 45, 152, 0.1), transparent 34rem),
+    radial-gradient(circle at 75% -10%, rgba(226, 38, 54, 0.13), transparent 38rem),
+    radial-gradient(circle at -12% 30%, rgba(126, 17, 28, 0.1), transparent 34rem),
     var(--background);
 }
 
@@ -107,8 +108,13 @@ h3 {
 .button:focus-visible,
 a:focus-visible,
 input:focus-visible {
-  outline: 3px solid rgba(142, 152, 255, 0.58);
+  outline: 3px solid rgba(226, 38, 54, 0.62);
   outline-offset: 3px;
+}
+
+html[data-controller-input='true'] :focus {
+  outline: 3px solid rgba(226, 38, 54, 0.9);
+  outline-offset: 4px;
 }
 
 .button:disabled {
@@ -117,14 +123,14 @@ input:focus-visible {
 }
 
 .button.primary {
-  color: #080a12;
-  background: linear-gradient(135deg, #bfc4ff, #7d88ff);
-  box-shadow: 0 10px 30px rgba(109, 121, 255, 0.24);
+  color: #f8f5f2;
+  background: linear-gradient(135deg, #ed3344, #a81422);
+  box-shadow: 0 10px 30px rgba(186, 23, 37, 0.24);
 }
 
 .button.secondary {
-  border-color: rgba(167, 174, 232, 0.26);
-  background: rgba(143, 152, 225, 0.1);
+  border-color: rgba(226, 38, 54, 0.3);
+  background: rgba(226, 38, 54, 0.1);
 }
 
 .button.ghost {

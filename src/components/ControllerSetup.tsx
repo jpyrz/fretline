@@ -453,7 +453,11 @@ export function ControllerSetup({
   ])
 
   return (
-    <section className={styles.panel} aria-labelledby="controller-title">
+    <section
+      className={styles.panel}
+      aria-labelledby="controller-title"
+      data-controller-capturing={mappingActive}
+    >
       <div>
         <p className={styles.eyebrow}>Input device</p>
         <h2 id="controller-title">Guitar controller</h2>
