@@ -82,21 +82,75 @@ function repairedStrumDownBinding(
   return strumDown
 }
 
+function sameAxisTargetDirection(
+  gamepad: GamepadState,
+  strumUp: GamepadBinding,
+  strumDown: GamepadBinding,
+): { up: boolean; down: boolean } | null {
+  if (
+    strumUp.type !== 'axis' ||
+    strumDown.type !== 'axis' ||
+    strumUp.index !== strumDown.index ||
+    strumUp.value === undefined ||
+    strumDown.value === undefined
+  ) {
+    return null
+  }
+
+  const current =
+    gamepad.axes[strumUp.index] ??
+    strumUp.rest ??
+    strumDown.rest ??
+    0
+  const upRest = strumUp.rest ?? 0
+  const downRest = strumDown.rest ?? upRest
+  const travelToUp = Math.abs(strumUp.value - upRest)
+  const travelToDown = Math.abs(strumDown.value - downRest)
+  const neutralRadius =
+    Math.min(travelToUp, travelToDown, AXIS_THRESHOLD) * 0.45
+  const distanceFromRest = Math.min(
+    Math.abs(current - upRest),
+    Math.abs(current - downRest),
+  )
+
+  if (distanceFromRest <= neutralRadius) {
+    return { up: false, down: false }
+  }
+
+  const distanceToUp = Math.abs(current - strumUp.value)
+  const distanceToDown = Math.abs(current - strumDown.value)
+  return distanceToUp <= distanceToDown
+    ? { up: true, down: false }
+    : { up: false, down: true }
+}
+
 export function gamepadStrumDirections(
   gamepad: GamepadState,
   strumUp: GamepadBinding,
   strumDown: GamepadBinding,
 ): { up: boolean; down: boolean } {
-  const downBinding = repairedStrumDownBinding(strumUp, strumDown)
   const standardMapping = gamepad.mapping === 'standard'
+  const standardUp =
+    standardMapping && Boolean(gamepad.buttons[12]?.pressed)
+  const standardDown =
+    standardMapping && Boolean(gamepad.buttons[13]?.pressed)
+
+  if (standardUp || standardDown) {
+    return { up: standardUp, down: standardDown }
+  }
+
+  const sameAxisDirection = sameAxisTargetDirection(
+    gamepad,
+    strumUp,
+    strumDown,
+  )
+  if (sameAxisDirection) return sameAxisDirection
+
+  const downBinding = repairedStrumDownBinding(strumUp, strumDown)
 
   return {
-    up:
-      gamepadBindingActive(gamepad, strumUp) ||
-      (standardMapping && Boolean(gamepad.buttons[12]?.pressed)),
-    down:
-      gamepadBindingActive(gamepad, downBinding) ||
-      (standardMapping && Boolean(gamepad.buttons[13]?.pressed)),
+    up: gamepadBindingActive(gamepad, strumUp),
+    down: gamepadBindingActive(gamepad, downBinding),
   }
 }
 

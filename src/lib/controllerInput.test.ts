@@ -77,6 +77,26 @@ describe('controller input', () => {
     ).toEqual({ up: false, down: true })
   })
 
+  it('prioritizes a standard d-pad direction over an ambiguous saved binding', () => {
+    const buttons = Array.from({ length: 14 }, () => false)
+    const ambiguousUp: GamepadBinding = {
+      type: 'axis',
+      index: 0,
+      direction: 1,
+      rest: -1,
+    }
+    const down: GamepadBinding = { type: 'button', index: 13 }
+    buttons[13] = true
+
+    expect(
+      gamepadStrumDirections(
+        gamepad(buttons, [1], 'standard'),
+        ambiguousUp,
+        down,
+      ),
+    ).toEqual({ up: false, down: true })
+  })
+
   it('repairs an older mapping that saved both axis directions identically', () => {
     const up: GamepadBinding = {
       type: 'axis',
@@ -117,6 +137,13 @@ describe('controller input', () => {
     expect(
       gamepadStrumDirections(
         gamepad([], [-1, 0, 0, 0, 0, 0, 0, 0, 0, 0.8]),
+        up,
+        down,
+      ),
+    ).toEqual({ up: false, down: true })
+    expect(
+      gamepadStrumDirections(
+        gamepad([], [-1, 0, 0, 0, 0, 0, 0, 0, 0, 0.4]),
         up,
         down,
       ),
