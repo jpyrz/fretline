@@ -1,4 +1,4 @@
-import type { HidBinding } from '../types/game'
+import type { HidAnalogBinding, HidBinding } from '../types/game'
 
 export type HidReports = ReadonlyMap<number, Uint8Array>
 
@@ -82,4 +82,16 @@ export function hidBindingActive(
   const value = reports.get(binding.reportId)?.[binding.byteIndex]
   if (value === undefined) return false
   return (value & binding.mask) === binding.activeValue
+}
+
+export function hidAnalogValue(
+  reports: HidReports,
+  binding?: HidAnalogBinding,
+): number {
+  if (!binding) return 0
+  const current = reports.get(binding.reportId)?.[binding.byteIndex]
+  if (current === undefined) return 0
+  const travel = binding.value - binding.rest
+  if (Math.abs(travel) < 1) return 0
+  return Math.max(0, Math.min(1, (current - binding.rest) / travel))
 }

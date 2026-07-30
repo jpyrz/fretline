@@ -65,6 +65,7 @@ describe('scoring helpers', () => {
     expect(median([22, -8, 10, 14])).toBe(12)
     expect(scoreForHit(1, 0)).toBe(50)
     expect(scoreForHit(2, 30)).toBe(400)
+    expect(scoreForHit(2, 30, true)).toBe(800)
   })
 
   it('requires a live chain for HOPOs but not tap notes', () => {

@@ -27,6 +27,13 @@ function makeMidi(): Uint8Array {
           deltaTime: 0,
           type: 'noteOn',
           channel: 0,
+          noteNumber: 116,
+          velocity: 100,
+        },
+        {
+          deltaTime: 0,
+          type: 'noteOn',
+          channel: 0,
           noteNumber: 96,
           velocity: 100,
         },
@@ -49,6 +56,13 @@ function makeMidi(): Uint8Array {
           type: 'noteOff',
           channel: 0,
           noteNumber: 97,
+          velocity: 0,
+        },
+        {
+          deltaTime: 0,
+          type: 'noteOff',
+          channel: 0,
+          noteNumber: 116,
           velocity: 0,
         },
         {
@@ -221,6 +235,12 @@ delay = 125
     expect(charts[0].notes[0].sustainTicks).toBe(120)
     expect(charts[0].notes[1].hopo).toBe(true)
     expect(charts[1].notes[0].lanes).toEqual([2])
+    expect(charts[0].starPowerPhrases).toHaveLength(1)
+    expect(charts[0].starPowerPhrases?.[0]).toMatchObject({
+      tick: 0,
+      tickLength: 240,
+    })
+    expect(charts[0].notes.every((note) => note.starPower)).toBe(true)
   })
 
   it('keeps MIDI force-HOPO, force-strum, and tap markers distinct', () => {

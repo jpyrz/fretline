@@ -16,6 +16,15 @@ export interface ChartNote {
   hopo: boolean
   forced: boolean
   tap: boolean
+  starPower?: boolean
+  starPowerPhraseIndices?: number[]
+}
+
+export interface StarPowerPhrase {
+  tick: number
+  tickLength: number
+  timeSeconds: number
+  endTimeSeconds: number
 }
 
 export interface ChartMetadata {
@@ -33,6 +42,7 @@ export interface ParsedChart {
   trackName: string
   availableTracks: string[]
   durationSeconds: number
+  starPowerPhrases?: StarPowerPhrase[]
 }
 
 export interface LocalSong {
@@ -71,6 +81,14 @@ export interface HidBinding {
   activeValue: number
 }
 
+export interface HidAnalogBinding {
+  type: 'hid-axis'
+  reportId: number
+  byteIndex: number
+  rest: number
+  value: number
+}
+
 export interface HidDeviceIdentity {
   vendorId: number
   productId: number
@@ -86,6 +104,8 @@ export interface GamepadControllerMapping {
   frets: FiveFrets<GamepadBinding>
   strumUp: GamepadBinding
   strumDown: GamepadBinding
+  starPower?: GamepadBinding
+  whammy?: GamepadBinding
   start?: GamepadBinding
 }
 
@@ -95,6 +115,8 @@ export interface HidControllerMapping {
   frets: FiveFrets<HidBinding>
   strumUp: HidBinding
   strumDown: HidBinding
+  starPower?: HidBinding
+  whammy?: HidAnalogBinding
   start?: HidBinding
 }
 
@@ -109,6 +131,8 @@ export interface KeyboardMapping {
   select: string
   back: string
   pause: string
+  starPower: string
+  whammy: string
 }
 
 export interface CalibrationSettings {
@@ -136,6 +160,11 @@ export interface SessionStats {
   overstrums: number
   sustainsCompleted: number
   sustainsBroken: number
+  starPowerMeter: number
+  starPowerActive: boolean
+  starPowerPhrasesHit: number
+  starPowerPhrasesMissed: number
+  starPowerActivations: number
   lastErrorMs: number | null
   records: HitRecord[]
 }
@@ -149,6 +178,7 @@ export interface GameFrame {
   noteStates: Array<'pending' | 'hit' | 'miss'>
   sustainStates: SustainState[]
   stats: SessionStats
+  whammyAmount: number
   hitFlash: {
     lanes: Lane[]
     open: boolean

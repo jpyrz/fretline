@@ -4,14 +4,14 @@ import {
   directHidSnapshot,
   reconnectDirectHidDevice,
 } from '../lib/directHidController'
-import { hidBindingActive } from '../lib/hidInput'
+import { hidAnalogValue, hidBindingActive } from '../lib/hidInput'
 import { keyboardEventCode } from '../lib/keyboardMapping'
 import {
   canFretHit,
   HIT_WINDOW_MS,
   lanesMatchWithActiveSustains,
-  multiplierForStreak,
   scoreForHit,
+  scoreMultiplier,
   sustainBasePointsAtTick,
   sustainLanesHeld,
   sustainReleaseExpired,
@@ -21,6 +21,13 @@ import {
   createPlaybackSchedule,
   RESUME_LEAD_SECONDS,
 } from './playbackTimeline'
+import {
+  addStarPowerPhrase,
+  addWhammyStarPower,
+  canActivateStarPower,
+  drainStarPower,
+  isWhammyStarPowerSustain,
+} from '../lib/starPower'
 import type {
   CalibrationSettings,
   ControllerMapping,
@@ -39,6 +46,7 @@ interface GameEngineOptions {
   calibration: CalibrationSettings
   controllerMapping: ControllerMapping | null
   keyboardMapping: KeyboardMapping
+  whammyBufferIndices?: number[]
   onFrame: (frame: GameFrame) => void
   onStats: (stats: SessionStats) => void
   onFinish: (stats: SessionStats) => void
@@ -56,6 +64,11 @@ function freshStats(): SessionStats {
     overstrums: 0,
     sustainsCompleted: 0,
     sustainsBroken: 0,
+    starPowerMeter: 0,
+    starPowerActive: false,
+    starPowerPhrasesHit: 0,
+    starPowerPhrasesMissed: 0,
+    starPowerActivations: 0,
     lastErrorMs: null,
     records: [],
   }
@@ -75,18 +88,24 @@ export class GameEngine {
   private readonly calibration: CalibrationSettings
   private readonly controllerMapping: ControllerMapping | null
   private readonly keyboardMapping: KeyboardMapping
+  private readonly whammyBufferIndices: ReadonlySet<number>
   private readonly keyboardLanesByCode: Map<string, Lane>
   private readonly onFrame: (frame: GameFrame) => void
   private readonly onStats: (stats: SessionStats) => void
   private readonly onFinish: (stats: SessionStats) => void
   private readonly onPauseChange: (paused: boolean) => void
   private readonly sources: AudioBufferSourceNode[] = []
+  private readonly whammySources: AudioBufferSourceNode[] = []
   private readonly keyboardLanes = new Set<Lane>()
   private readonly noteStates: Array<'pending' | 'hit' | 'miss'>
   private readonly sustainStates: SustainState[]
   private readonly sustainBasePointsAwarded: number[]
   private readonly sustainMismatchStartedAt: Array<number | null>
   private readonly activeSustains = new Set<number>()
+  private readonly starPowerPhraseStates: Array<
+    'pending' | 'earned' | 'failed'
+  >
+  private readonly starPowerPhraseNoteIndices: number[][]
   private readonly stats = freshStats()
 
   private startContextTime = 0
@@ -98,7 +117,12 @@ export class GameEngine {
   private paused = false
   private pausedSongTimeSeconds = 0
   private previousGamepadStrum = false
+  private previousGamepadStarPower = false
   private gamepadLanes: Lane[] = []
+  private gamepadWhammy = 0
+  private keyboardWhammy = false
+  private lastStarPowerTick: number | null = null
+  private lastWhammyAudioAmount = -1
   private hitFlash: GameFrame['hitFlash'] = null
   private lastStatsPush = 0
   private mixGain: GainNode | null = null
@@ -110,6 +134,7 @@ export class GameEngine {
     this.calibration = options.calibration
     this.controllerMapping = options.controllerMapping
     this.keyboardMapping = options.keyboardMapping
+    this.whammyBufferIndices = new Set(options.whammyBufferIndices ?? [])
     this.keyboardLanesByCode = new Map(
       options.keyboardMapping.frets.map((code, index) => [
         code,
@@ -127,6 +152,18 @@ export class GameEngine {
     this.sustainStates = options.chart.notes.map(() => 'none')
     this.sustainBasePointsAwarded = options.chart.notes.map(() => 0)
     this.sustainMismatchStartedAt = options.chart.notes.map(() => null)
+    this.starPowerPhraseStates = (options.chart.starPowerPhrases ?? []).map(
+      () => 'pending',
+    )
+    this.starPowerPhraseNoteIndices = (
+      options.chart.starPowerPhrases ?? []
+    ).map((_, phraseIndex) =>
+      options.chart.notes.flatMap((note, noteIndex) =>
+        note.starPowerPhraseIndices?.includes(phraseIndex)
+          ? [noteIndex]
+          : [],
+      ),
+    )
   }
 
   start(): void {
@@ -144,6 +181,7 @@ export class GameEngine {
     this.sustainBasePointsAwarded.fill(0)
     this.sustainMismatchStartedAt.fill(null)
     this.activeSustains.clear()
+    this.starPowerPhraseStates.fill('pending')
     Object.assign(this.stats, freshStats())
     this.missCursor = 0
     this.lastHitNoteIndex = null
@@ -151,6 +189,12 @@ export class GameEngine {
     this.paused = false
     this.pausedSongTimeSeconds = -COUNTDOWN_SECONDS
     this.hitFlash = null
+    this.lastStarPowerTick = null
+    this.lastWhammyAudioAmount = -1
+    this.previousGamepadStrum = false
+    this.previousGamepadStarPower = false
+    this.gamepadWhammy = 0
+    this.keyboardWhammy = false
     this.lastStatsPush = 0
     this.schedulePlayback(-COUNTDOWN_SECONDS)
     this.pushStats()
@@ -204,6 +248,7 @@ export class GameEngine {
       }
     }
     this.sources.length = 0
+    this.whammySources.length = 0
   }
 
   private schedulePlayback(
@@ -224,7 +269,8 @@ export class GameEngine {
     )
     this.startContextTime = schedule.audioStartContextTime
 
-    for (const buffer of this.audioBuffers) {
+    this.lastWhammyAudioAmount = -1
+    for (const [bufferIndex, buffer] of this.audioBuffers.entries()) {
       if (schedule.sourceOffsetSeconds >= buffer.duration) continue
       const source = this.audioContext.createBufferSource()
       source.buffer = buffer
@@ -234,6 +280,9 @@ export class GameEngine {
         schedule.sourceOffsetSeconds,
       )
       this.sources.push(source)
+      if (this.whammyBufferIndices.has(bufferIndex)) {
+        this.whammySources.push(source)
+      }
     }
   }
 
@@ -242,6 +291,22 @@ export class GameEngine {
     if (code === this.keyboardMapping.pause) {
       event.preventDefault()
       if (!event.repeat) this.togglePause()
+      return
+    }
+
+    if (code === this.keyboardMapping.starPower) {
+      event.preventDefault()
+      if (!event.repeat) {
+        this.activateStarPower(
+          normalizePerformanceTimestamp(event.timeStamp),
+        )
+      }
+      return
+    }
+
+    if (code === this.keyboardMapping.whammy) {
+      event.preventDefault()
+      this.keyboardWhammy = true
       return
     }
 
@@ -267,7 +332,14 @@ export class GameEngine {
   }
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
-    const lane = this.keyboardLanesByCode.get(keyboardEventCode(event))
+    const code = keyboardEventCode(event)
+    if (code === this.keyboardMapping.whammy) {
+      event.preventDefault()
+      this.keyboardWhammy = false
+      return
+    }
+
+    const lane = this.keyboardLanesByCode.get(code)
     if (lane !== undefined) {
       event.preventDefault()
       this.keyboardLanes.delete(lane)
@@ -312,8 +384,57 @@ export class GameEngine {
     return [...lanes]
   }
 
+  private whammyAmount(): number {
+    return Math.max(this.keyboardWhammy ? 1 : 0, this.gamepadWhammy)
+  }
+
+  private whammyStarPowerSustainActive(scoringTime: number): boolean {
+    if (this.whammyAmount() < 0.08) return false
+    for (const noteIndex of this.activeSustains) {
+      const note = this.chart.notes[noteIndex]
+      if (
+        isWhammyStarPowerSustain(
+          note,
+          this.sustainStates[noteIndex],
+          scoringTime,
+        )
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private heldSustainActive(scoringTime: number): boolean {
+    for (const noteIndex of this.activeSustains) {
+      const note = this.chart.notes[noteIndex]
+      if (
+        this.sustainStates[noteIndex] === 'holding' &&
+        scoringTime < note.timeSeconds + note.sustainSeconds
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private updateWhammyAudio(scoringTime: number): void {
+    const amount = this.heldSustainActive(scoringTime)
+      ? this.whammyAmount()
+      : 0
+    if (Math.abs(amount - this.lastWhammyAudioAmount) < 0.02) return
+    this.lastWhammyAudioAmount = amount
+    const now = this.audioContext.currentTime
+    for (const source of this.whammySources) {
+      source.detune.setTargetAtTime(-200 * amount, now, 0.025)
+    }
+  }
+
   private readGamepad(now: number): void {
-    if (!this.controllerMapping) return
+    if (!this.controllerMapping) {
+      this.gamepadWhammy = 0
+      return
+    }
     if (this.controllerMapping.source === 'hid') {
       const snapshot = directHidSnapshot(this.controllerMapping.device)
       const previousLanes = this.gamepadLanes
@@ -330,6 +451,16 @@ export class GameEngine {
       const strumming =
         hidBindingActive(snapshot.reports, this.controllerMapping.strumUp) ||
         hidBindingActive(snapshot.reports, this.controllerMapping.strumDown)
+      const starPowerPressed = this.controllerMapping.starPower
+        ? hidBindingActive(
+            snapshot.reports,
+            this.controllerMapping.starPower,
+          )
+        : false
+      this.gamepadWhammy = hidAnalogValue(
+        snapshot.reports,
+        this.controllerMapping.whammy,
+      )
       const timestamp = snapshot.timestamp || now
 
       if (strumming && !this.previousGamepadStrum) {
@@ -337,7 +468,11 @@ export class GameEngine {
       } else if (fretsChanged) {
         this.fretChange(timestamp)
       }
+      if (starPowerPressed && !this.previousGamepadStarPower) {
+        this.activateStarPower(timestamp)
+      }
       this.previousGamepadStrum = strumming
+      this.previousGamepadStarPower = starPowerPressed
       return
     }
 
@@ -346,7 +481,9 @@ export class GameEngine {
     const snapshot = mappedGamepadSnapshot(mapping, gamepads)
     if (!snapshot) {
       this.gamepadLanes = []
+      this.gamepadWhammy = 0
       this.previousGamepadStrum = false
+      this.previousGamepadStarPower = false
       return
     }
 
@@ -354,6 +491,7 @@ export class GameEngine {
     this.gamepadLanes = snapshot.frets
       .map((active, index) => (active ? (index as Lane) : null))
       .filter((lane): lane is Lane => lane !== null)
+    this.gamepadWhammy = snapshot.whammy
     const fretsChanged =
       previousLanes.length !== this.gamepadLanes.length ||
       previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
@@ -374,7 +512,124 @@ export class GameEngine {
           : now
       this.fretChange(timestamp)
     }
+    if (snapshot.starPower && !this.previousGamepadStarPower) {
+      const timestamp =
+        snapshot.gamepad.timestamp > 0
+          ? normalizePerformanceTimestamp(snapshot.gamepad.timestamp)
+          : now
+      this.activateStarPower(timestamp)
+    }
     this.previousGamepadStrum = strumming
+    this.previousGamepadStarPower = snapshot.starPower
+  }
+
+  private activateStarPower(performanceTime: number): void {
+    if (
+      this.stopped ||
+      this.finished ||
+      this.paused ||
+      !canActivateStarPower(
+        this.stats.starPowerMeter,
+        this.stats.starPowerActive,
+      )
+    ) {
+      return
+    }
+
+    const scoringTime =
+      this.songTimeAt(performanceTime) -
+      this.calibration.inputOffsetMs / 1000
+    if (scoringTime < 0) return
+
+    this.stats.starPowerActive = true
+    this.stats.starPowerActivations += 1
+    this.lastStarPowerTick = secondsToTick(
+      scoringTime,
+      this.chart.tempos,
+      this.chart.metadata.resolution,
+      this.chart.metadata.offsetSeconds,
+    )
+    this.pushStats()
+  }
+
+  private updateStarPower(scoringTime: number): void {
+    if (scoringTime < 0) {
+      this.lastStarPowerTick = null
+      return
+    }
+
+    const currentTick = secondsToTick(
+      scoringTime,
+      this.chart.tempos,
+      this.chart.metadata.resolution,
+      this.chart.metadata.offsetSeconds,
+    )
+    if (
+      this.lastStarPowerTick === null ||
+      currentTick < this.lastStarPowerTick
+    ) {
+      this.lastStarPowerTick = currentTick
+      return
+    }
+
+    if (currentTick > this.lastStarPowerTick) {
+      const tickDelta = currentTick - this.lastStarPowerTick
+      this.stats.starPowerMeter = addWhammyStarPower(
+        this.stats.starPowerMeter,
+        tickDelta,
+        this.chart.metadata.resolution,
+        this.whammyStarPowerSustainActive(scoringTime),
+      )
+    }
+
+    if (
+      this.stats.starPowerActive &&
+      currentTick > this.lastStarPowerTick
+    ) {
+      this.stats.starPowerMeter = drainStarPower(
+        this.stats.starPowerMeter,
+        currentTick - this.lastStarPowerTick,
+        this.chart.metadata.resolution,
+      )
+      if (this.stats.starPowerMeter <= 0) {
+        this.stats.starPowerActive = false
+      }
+    }
+
+    this.lastStarPowerTick = currentTick
+  }
+
+  private completeStarPowerPhrases(noteIndex: number): void {
+    const phraseIndices =
+      this.chart.notes[noteIndex].starPowerPhraseIndices ?? []
+    for (const phraseIndex of phraseIndices) {
+      if (this.starPowerPhraseStates[phraseIndex] !== 'pending') continue
+      const phraseNotes =
+        this.starPowerPhraseNoteIndices[phraseIndex] ?? []
+      if (
+        phraseNotes.length === 0 ||
+        phraseNotes[phraseNotes.length - 1] !== noteIndex ||
+        phraseNotes.some((index) => this.noteStates[index] !== 'hit')
+      ) {
+        continue
+      }
+
+      this.starPowerPhraseStates[phraseIndex] = 'earned'
+      this.stats.starPowerMeter = addStarPowerPhrase(
+        this.stats.starPowerMeter,
+      )
+      this.stats.starPowerPhrasesHit += 1
+    }
+  }
+
+  private failStarPowerPhrases(noteIndex: number): void {
+    const phraseIndices =
+      this.chart.notes[noteIndex].starPowerPhraseIndices ?? []
+    for (const phraseIndex of phraseIndices) {
+      if (this.starPowerPhraseStates[phraseIndex] !== 'pending') continue
+      this.starPowerPhraseStates[phraseIndex] = 'failed'
+      this.stats.starPowerPhrasesMissed += 1
+    }
   }
 
   private strum(performanceTime: number): void {
@@ -455,6 +710,7 @@ export class GameEngine {
     this.stats.score += scoreForHit(
       Math.max(1, note.lanes.length),
       this.stats.streak,
+      this.stats.starPowerActive,
     )
     this.stats.streak += 1
     this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak)
@@ -466,6 +722,7 @@ export class GameEngine {
       errorMs,
       result: 'hit',
     })
+    this.completeStarPowerPhrases(candidateIndex)
     this.hitFlash = {
       lanes: note.lanes,
       open: note.open,
@@ -521,7 +778,11 @@ export class GameEngine {
 
       if (unawardedBasePoints > 0) {
         const awardedPoints =
-          unawardedBasePoints * multiplierForStreak(this.stats.streak)
+          unawardedBasePoints *
+          scoreMultiplier(
+            this.stats.streak,
+            this.stats.starPowerActive,
+          )
         this.sustainBasePointsAwarded[noteIndex] = targetBasePoints
         this.stats.score += awardedPoints
         this.stats.sustainPoints += awardedPoints
@@ -550,6 +811,7 @@ export class GameEngine {
     ) {
       if (this.noteStates[this.missCursor] === 'pending') {
         this.noteStates[this.missCursor] = 'miss'
+        this.failStarPowerPhrases(this.missCursor)
         this.stats.misses += 1
         this.stats.streak = 0
         this.lastHitNoteIndex = null
@@ -590,7 +852,9 @@ export class GameEngine {
       songTimeSeconds - this.calibration.inputOffsetMs / 1000
 
     this.readGamepad(now)
+    this.updateStarPower(scoringTime)
     this.updateSustains(scoringTime)
+    this.updateWhammyAudio(scoringTime)
     this.markMisses(scoringTime)
     if (this.hitFlash && this.hitFlash.expiresAt < songTimeSeconds) {
       this.hitFlash = null
@@ -609,6 +873,7 @@ export class GameEngine {
       noteStates: this.noteStates,
       sustainStates: this.sustainStates,
       stats: this.stats,
+      whammyAmount: this.whammyAmount(),
       hitFlash: this.hitFlash,
     })
 

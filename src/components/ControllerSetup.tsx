@@ -16,6 +16,7 @@ import {
 import type {
   ControllerMapping,
   GamepadBinding,
+  HidAnalogBinding,
   HidBinding,
   HidDeviceIdentity,
 } from '../types/game'
@@ -30,21 +31,30 @@ const STEPS = [
   'Orange fret',
   'Strum up',
   'Strum down',
+  'Star power / select',
+  'Whammy bar',
   'Start / pause',
 ]
 
 const STRUM_UP_STEP = 5
 const STRUM_DOWN_STEP = 6
-const START_STEP = 7
+const STAR_POWER_STEP = 7
+const WHAMMY_STEP = 8
+const START_STEP = 9
 const HID_MOTION_CALIBRATION_MS = 2500
 const HID_SETTLE_MS = 350
 const HID_CAPTURE_HOLD_MS = 35
 
-type CapturedBinding = GamepadBinding | HidBinding
+type CapturedBinding = GamepadBinding | HidBinding | HidAnalogBinding
 type MappingSource = 'gamepad' | 'hid'
 
 function bindingLabel(binding: CapturedBinding): string {
-  if (binding.type !== 'hid') return describeGamepadBinding(binding)
+  if (binding.type === 'button' || binding.type === 'axis') {
+    return describeGamepadBinding(binding)
+  }
+  if (binding.type === 'hid-axis') {
+    return `direct axis ${binding.reportId}:${binding.byteIndex}`
+  }
   return `direct input ${binding.reportId}:${binding.byteIndex}`
 }
 
@@ -71,7 +81,24 @@ function sameBinding(
       left.activeValue === right.activeValue
     )
   }
+  if (left.type === 'hid-axis' && right.type === 'hid-axis') {
+    return (
+      left.reportId === right.reportId &&
+      left.byteIndex === right.byteIndex
+    )
+  }
   return false
+}
+
+function mappingPrompt(step: number, direct = false): string {
+  if (step === WHAMMY_STEP) {
+    return direct
+      ? `Move ${STEPS[step]} fully and briefly hold it.`
+      : `Move ${STEPS[step]} fully.`
+  }
+  return direct
+    ? `Press and briefly hold ${STEPS[step]}.`
+    : `Press ${STEPS[step]}.`
 }
 
 function cloneReports(
@@ -268,7 +295,7 @@ export function ControllerSetup({
           axisBaseline.current = axes
           baselineReady.current = true
           armed.current = true
-          setMessage(`Press ${STEPS[captured.length]}.`)
+          setMessage(mappingPrompt(captured.length))
         } else {
           setMessage('Controller detected. Release every control to calibrate it.')
         }
@@ -280,7 +307,7 @@ export function ControllerSetup({
       const active = activeGamepadBindings(current, axisBaseline.current)
       if (active.length === 0) {
         armed.current = true
-        setMessage(`Press ${STEPS[captured.length]}.`)
+        setMessage(mappingPrompt(captured.length))
       } else if (armed.current) {
         const binding = active[0]
         armed.current = false
@@ -306,6 +333,8 @@ export function ControllerSetup({
             GamepadBinding,
             GamepadBinding,
             GamepadBinding,
+            GamepadBinding,
+            GamepadBinding,
           ]
           onChange({
             source: 'gamepad',
@@ -320,6 +349,8 @@ export function ControllerSetup({
             ],
             strumUp: bindings[5],
             strumDown: bindings[6],
+            starPower: bindings[STAR_POWER_STEP],
+            whammy: bindings[WHAMMY_STEP],
             start: bindings[START_STEP],
           })
           setMessage('Mapping saved locally.')
@@ -406,7 +437,7 @@ export function ControllerSetup({
           baselineReady.current = true
           armed.current = true
           pendingHidBinding.current = null
-          setMessage(`Press and briefly hold ${STEPS[captured.length]}.`)
+          setMessage(mappingPrompt(captured.length, true))
         } else {
           setMessage(
             'Motion learned. Hold the guitar still to finish calibration.',
@@ -425,7 +456,7 @@ export function ControllerSetup({
       if (active.length === 0) {
         armed.current = true
         pendingHidBinding.current = null
-        setMessage(`Press and briefly hold ${STEPS[captured.length]}.`)
+        setMessage(mappingPrompt(captured.length, true))
       } else if (armed.current) {
         const binding = active[0]
         const bindingKey = `${hidByteKey(
@@ -461,7 +492,23 @@ export function ControllerSetup({
           frame = requestAnimationFrame(poll)
           return
         }
-        const next = [...captured, binding]
+        const capturedBinding: CapturedBinding =
+          captured.length === WHAMMY_STEP
+            ? {
+                type: 'hid-axis',
+                reportId: binding.reportId,
+                byteIndex: binding.byteIndex,
+                rest:
+                  hidBaseline.current.get(binding.reportId)?.[
+                    binding.byteIndex
+                  ] ?? 0,
+                value:
+                  snapshot.reports.get(binding.reportId)?.[
+                    binding.byteIndex
+                  ] ?? binding.activeValue,
+              }
+            : binding
+        const next = [...captured, capturedBinding]
         setCaptured(next)
         if (next.length === STEPS.length) {
           const bindings = next as [
@@ -472,6 +519,8 @@ export function ControllerSetup({
             HidBinding,
             HidBinding,
             HidBinding,
+            HidBinding,
+            HidAnalogBinding,
             HidBinding,
           ]
           onChange({
@@ -486,6 +535,8 @@ export function ControllerSetup({
             ],
             strumUp: bindings[5],
             strumDown: bindings[6],
+            starPower: bindings[STAR_POWER_STEP],
+            whammy: bindings[WHAMMY_STEP],
             start: bindings[START_STEP],
           })
           setMessage('Direct controller mapping saved locally.')
@@ -541,6 +592,16 @@ export function ControllerSetup({
                   : mapping.source === 'hid'
                     ? 'not mapped—remap to enable pause'
                     : 'standard Start or remap'}
+                ; Star power is{' '}
+                {mapping.starPower
+                  ? bindingLabel(mapping.starPower)
+                  : mapping.source === 'hid'
+                    ? 'not mapped—remap to enable it'
+                    : 'standard Select or remap'}
+                ; Whammy is{' '}
+                {mapping.whammy
+                  ? bindingLabel(mapping.whammy)
+                  : 'not mapped—remap to enable it'}
               </small>
             </div>
           </div>

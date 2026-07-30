@@ -32,6 +32,14 @@ describe('keyboard mapping', () => {
     expect(DEFAULT_KEYBOARD_MAPPING.frets[4]).toBe('KeyG')
   })
 
+  it('adds the default whammy key to profiles saved before whammy existed', () => {
+    const oldProfile = {
+      ...DEFAULT_KEYBOARD_MAPPING,
+      whammy: undefined,
+    }
+    expect(normalizeKeyboardMapping(oldProfile).whammy).toBe('KeyW')
+  })
+
   it('falls back to event.key when iOS does not expose event.code', () => {
     expect(keyboardEventCode({ code: 'Unidentified', key: 'ø' })).toBe(
       'Key:ø',

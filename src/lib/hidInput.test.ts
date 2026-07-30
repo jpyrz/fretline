@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { HidBinding } from '../types/game'
+import type { HidAnalogBinding, HidBinding } from '../types/game'
 import {
   activeHidBindings,
   changedHidBytes,
+  hidAnalogValue,
   hidBindingActive,
 } from './hidInput'
 
@@ -79,5 +80,27 @@ describe('direct HID input', () => {
 
     expect(hidBindingActive(reports(2, [0, 0b00010000]), binding)).toBe(true)
     expect(hidBindingActive(reports(2, [0, 0]), binding)).toBe(false)
+  })
+
+  it('normalizes an analog byte in either direction', () => {
+    const forward: HidAnalogBinding = {
+      type: 'hid-axis',
+      reportId: 2,
+      byteIndex: 1,
+      rest: 0,
+      value: 255,
+    }
+    const reverse: HidAnalogBinding = {
+      ...forward,
+      rest: 255,
+      value: 0,
+    }
+
+    expect(hidAnalogValue(reports(2, [0, 128]), forward)).toBeCloseTo(
+      128 / 255,
+    )
+    expect(hidAnalogValue(reports(2, [0, 128]), reverse)).toBeCloseTo(
+      127 / 255,
+    )
   })
 })

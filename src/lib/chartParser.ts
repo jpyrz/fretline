@@ -3,6 +3,7 @@ import type {
   ChartNote,
   Lane,
   ParsedChart,
+  StarPowerPhrase,
   TempoEvent,
 } from '../types/game'
 
@@ -181,6 +182,73 @@ function readNotes(section: string): RawNote[] {
     .sort((a, b) => a.tick - b.tick || a.lane - b.lane)
 }
 
+function readStarPowerPhrases(
+  section: string,
+  metadata: ChartMetadata,
+  tempos: TempoEvent[],
+): StarPowerPhrase[] {
+  const rawPhrases = section
+    .split('\n')
+    .map((line) => line.match(/^\s*(\d+)\s*=\s*S\s+2\s+(\d+)\s*$/))
+    .filter((match): match is RegExpMatchArray => Boolean(match))
+    .map((match) => ({
+      tick: Number(match[1]),
+      tickLength: Number(match[2]),
+    }))
+
+  return createStarPowerPhrases(rawPhrases, metadata, tempos)
+}
+
+export function createStarPowerPhrases(
+  rawPhrases: Array<{ tick: number; tickLength: number }>,
+  metadata: ChartMetadata,
+  tempos: TempoEvent[],
+): StarPowerPhrase[] {
+  return rawPhrases
+    .filter(
+      (phrase) =>
+        Number.isFinite(phrase.tick) &&
+        Number.isFinite(phrase.tickLength) &&
+        phrase.tick >= 0 &&
+        phrase.tickLength >= 0,
+    )
+    .sort((left, right) => left.tick - right.tick)
+    .map((phrase) => ({
+      ...phrase,
+      timeSeconds: tickToSeconds(
+        phrase.tick,
+        tempos,
+        metadata.resolution,
+        metadata.offsetSeconds,
+      ),
+      endTimeSeconds: tickToSeconds(
+        phrase.tick + phrase.tickLength,
+        tempos,
+        metadata.resolution,
+        metadata.offsetSeconds,
+      ),
+    }))
+}
+
+export function applyStarPowerPhrases(
+  notes: ChartNote[],
+  phrases: StarPowerPhrase[],
+): ChartNote[] {
+  return notes.map((note) => {
+    const starPowerPhraseIndices = phrases.flatMap((phrase, index) =>
+      note.tick >= phrase.tick &&
+      note.tick <= phrase.tick + phrase.tickLength
+        ? [index]
+        : [],
+    )
+    return {
+      ...note,
+      starPower: starPowerPhraseIndices.length > 0,
+      starPowerPhraseIndices,
+    }
+  })
+}
+
 export function groupNotes(
   rawNotes: RawNote[],
   metadata: ChartMetadata,
@@ -309,10 +377,19 @@ export function parseChart(
     throw new Error('No supported five-fret guitar track was found.')
   }
 
-  const notes = groupNotes(
-    readNotes(sections.get(trackName) ?? ''),
+  const trackSection = sections.get(trackName) ?? ''
+  const starPowerPhrases = readStarPowerPhrases(
+    trackSection,
     metadata,
     tempos,
+  )
+  const notes = applyStarPowerPhrases(
+    groupNotes(
+      readNotes(trackSection),
+      metadata,
+      tempos,
+    ),
+    starPowerPhrases,
   )
 
   if (notes.length === 0) {
@@ -327,5 +404,6 @@ export function parseChart(
     trackName,
     availableTracks,
     durationSeconds: last.timeSeconds + last.sustainSeconds + 1.5,
+    starPowerPhrases,
   }
 }

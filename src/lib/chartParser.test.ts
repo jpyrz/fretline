@@ -75,4 +75,41 @@ describe('parseChart', () => {
     expect(chart.notes[2].forced).toBe(true)
     expect(chart.notes[4].tap).toBe(true)
   })
+
+  it('retains star power phrases and marks every note inside them', () => {
+    const chart = parseChart(`[Song]
+{
+  Name = "Star Power"
+  Artist = "Fretline"
+  Resolution = 192
+}
+[SyncTrack]
+{
+  0 = B 120000
+}
+[ExpertSingle]
+{
+  0 = S 2 192
+  0 = N 0 0
+  96 = N 1 0
+  192 = N 2 0
+  288 = N 3 0
+}`)
+
+    expect(chart.starPowerPhrases).toEqual([
+      {
+        tick: 0,
+        tickLength: 192,
+        timeSeconds: 0,
+        endTimeSeconds: 0.5,
+      },
+    ])
+    expect(chart.notes.map((note) => note.starPower)).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ])
+    expect(chart.notes[1].starPowerPhraseIndices).toEqual([0])
+  })
 })

@@ -37,6 +37,16 @@ const BINDINGS: BindingDefinition[] = [
   { id: 'select', label: 'Select', description: 'Confirm menu choices' },
   { id: 'back', label: 'Back', description: 'Return to the previous menu' },
   { id: 'pause', label: 'Pause', description: 'Pause or resume a song' },
+  {
+    id: 'starPower',
+    label: 'Star power',
+    description: 'Activate once the meter is at least half full',
+  },
+  {
+    id: 'whammy',
+    label: 'Whammy',
+    description: 'Hold during star-power sustains to build the meter',
+  },
 ]
 
 function bindingLabel(id: KeyboardBindingId): string {

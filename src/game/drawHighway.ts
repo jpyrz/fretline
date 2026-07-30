@@ -9,6 +9,8 @@ import { HIT_WINDOW_MS } from '../lib/scoring'
 import { countdownCue } from './playbackTimeline'
 
 const LANE_COLORS = ['#36d65b', '#f23b45', '#f4db2d', '#278de8', '#f28a22']
+const STAR_POWER_COLOR = '#37cfff'
+const STAR_POWER_DARK_COLOR = '#167aa8'
 
 interface BeatMarker {
   timeSeconds: number
@@ -141,6 +143,26 @@ function ellipseGradient(
   return gradient
 }
 
+function traceStar(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  outerRadiusX: number,
+  outerRadiusY: number,
+  innerRatio = 0.48,
+): void {
+  context.beginPath()
+  for (let point = 0; point < 10; point += 1) {
+    const angle = -Math.PI / 2 + (point * Math.PI) / 5
+    const radius = point % 2 === 0 ? 1 : innerRatio
+    const pointX = x + Math.cos(angle) * outerRadiusX * radius
+    const pointY = y + Math.sin(angle) * outerRadiusY * radius
+    if (point === 0) context.moveTo(pointX, pointY)
+    else context.lineTo(pointX, pointY)
+  }
+  context.closePath()
+}
+
 function visibleBeatMarkers(
   chart: ParsedChart,
   fromSeconds: number,
@@ -201,6 +223,8 @@ function drawHighwaySurface(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
+  starPowerActive: boolean,
+  songTimeSeconds: number,
 ): void {
   const top = highwayPoint(width, height, 0)
   const bottom = highwayPoint(width, height, SURFACE_END_PROGRESS)
@@ -213,8 +237,8 @@ function drawHighwaySurface(
     height * 0.5,
     width * 0.78,
   )
-  background.addColorStop(0, '#121726')
-  background.addColorStop(0.62, '#060811')
+  background.addColorStop(0, starPowerActive ? '#143d61' : '#121726')
+  background.addColorStop(0.62, starPowerActive ? '#071827' : '#060811')
   background.addColorStop(1, '#020307')
   context.fillStyle = background
   context.fillRect(0, 0, width, height)
@@ -224,9 +248,9 @@ function drawHighwaySurface(
   context.clip()
 
   const surface = context.createLinearGradient(0, top.y, 0, bottom.y)
-  surface.addColorStop(0, '#11151c')
-  surface.addColorStop(0.46, '#17191d')
-  surface.addColorStop(1, '#090a0c')
+  surface.addColorStop(0, starPowerActive ? '#152b3d' : '#11151c')
+  surface.addColorStop(0.46, starPowerActive ? '#10283b' : '#17191d')
+  surface.addColorStop(1, starPowerActive ? '#071521' : '#090a0c')
   context.fillStyle = surface
   context.fillRect(
     trackEdge(bottom, -1),
@@ -272,6 +296,21 @@ function drawHighwaySurface(
   vignette.addColorStop(1, 'rgba(0,0,0,0.55)')
   context.fillStyle = vignette
   context.fillRect(0, 0, width, height)
+
+  if (starPowerActive) {
+    const pulse = 0.12 + (Math.sin(songTimeSeconds * 8) + 1) * 0.035
+    const energy = context.createLinearGradient(0, top.y, 0, bottom.y)
+    energy.addColorStop(0, 'rgba(140, 229, 255, 0.02)')
+    energy.addColorStop(0.72, `rgba(78, 194, 255, ${pulse})`)
+    energy.addColorStop(1, 'rgba(196, 246, 255, 0.2)')
+    context.fillStyle = energy
+    context.fillRect(
+      trackEdge(bottom, -1),
+      top.y,
+      bottom.trackWidth,
+      bottom.y - top.y,
+    )
+  }
   context.restore()
 
   for (let laneNumber = 0; laneNumber < 5; laneNumber += 1) {
@@ -282,10 +321,14 @@ function drawHighwaySurface(
       highwayLaneX(width, lane, SURFACE_END_PROGRESS),
       bottom.y,
     )
-    context.strokeStyle = 'rgba(207, 214, 226, 0.2)'
+    context.strokeStyle = starPowerActive
+      ? 'rgba(177, 236, 255, 0.38)'
+      : 'rgba(207, 214, 226, 0.2)'
     context.lineWidth = 1.25
-    context.shadowColor = 'rgba(255,255,255,0.22)'
-    context.shadowBlur = 4
+    context.shadowColor = starPowerActive
+      ? 'rgba(91, 210, 255, 0.72)'
+      : 'rgba(255,255,255,0.22)'
+    context.shadowBlur = starPowerActive ? 9 : 4
     context.stroke()
   }
   context.shadowBlur = 0
@@ -313,8 +356,10 @@ function drawHighwaySurface(
     rail.addColorStop(1, '#3b444d')
     context.strokeStyle = rail
     context.lineWidth = 6
-    context.shadowColor = 'rgba(124, 153, 190, 0.32)'
-    context.shadowBlur = 8
+    context.shadowColor = starPowerActive
+      ? 'rgba(105, 220, 255, 0.9)'
+      : 'rgba(124, 153, 190, 0.32)'
+    context.shadowBlur = starPowerActive ? 16 : 8
     context.stroke()
 
     context.beginPath()
@@ -443,6 +488,8 @@ function drawSustainTail(
   render: NoteRenderState,
   visualTimeSeconds: number,
   travelSeconds: number,
+  whammyAmount: number,
+  starPowerActive: boolean,
 ): void {
   if (note.sustainSeconds <= 0.03) return
 
@@ -458,7 +505,13 @@ function drawSustainTail(
   context.save()
   context.globalAlpha = render.depthAlpha
   for (const lane of lanes) {
-    const color = lane === null ? '#e7e9ff' : LANE_COLORS[lane]
+    const color = starPowerActive
+      ? STAR_POWER_COLOR
+      : note.starPower
+      ? '#c8f2ff'
+      : lane === null
+        ? '#e7e9ff'
+        : LANE_COLORS[lane]
     const headX =
       lane === null ? head.center : highwayLaneX(width, lane, render.progress)
     const tailX =
@@ -488,8 +541,8 @@ function drawSustainTail(
         ? 'rgba(112, 116, 125, 0.75)'
         : beam
     context.lineWidth = thickness
-    context.shadowColor = held ? color : 'transparent'
-    context.shadowBlur = held ? 14 : 0
+    context.shadowColor = held || note.starPower ? color : 'transparent'
+    context.shadowBlur = held ? (note.starPower ? 22 : 14) : note.starPower ? 9 : 0
     context.stroke()
 
     context.beginPath()
@@ -502,6 +555,29 @@ function drawSustainTail(
     context.lineWidth = Math.max(1, thickness * 0.17)
     context.shadowBlur = 0
     context.stroke()
+
+    if (held && whammyAmount >= 0.08) {
+      context.save()
+      context.globalCompositeOperation = 'lighter'
+      context.fillStyle = '#f4fdff'
+      context.shadowColor = note.starPower ? '#65dcff' : color
+      context.shadowBlur = 12 + whammyAmount * 12
+      for (let spark = 0; spark < 6; spark += 1) {
+        const position =
+          (spark / 6 + visualTimeSeconds * (1.5 + whammyAmount)) % 1
+        const x = tailX + (headX - tailX) * position
+        const y = tail.y + (head.y - tail.y) * position
+        const radius =
+          Math.max(1.5, thickness * 0.22) *
+          (0.72 + whammyAmount * 0.48)
+        context.globalAlpha =
+          render.depthAlpha * (0.35 + position * 0.65)
+        context.beginPath()
+        context.arc(x, y, radius, 0, Math.PI * 2)
+        context.fill()
+      }
+      context.restore()
+    }
   }
   context.restore()
 }
@@ -512,6 +588,7 @@ function drawChordBridge(
   height: number,
   note: ChartNote,
   render: NoteRenderState,
+  starPowerActive: boolean,
 ): void {
   if (note.lanes.length < 2) return
   const positions = note.lanes.map((lane) =>
@@ -527,7 +604,9 @@ function drawChordBridge(
   context.strokeStyle =
     render.state === 'miss'
       ? 'rgba(92, 96, 105, 0.72)'
-      : 'rgba(220, 225, 233, 0.72)'
+      : starPowerActive
+        ? 'rgba(105, 224, 255, 0.9)'
+        : 'rgba(220, 225, 233, 0.72)'
   context.lineWidth = Math.max(3, size * 0.25)
   context.shadowColor =
     render.state === 'miss' ? 'transparent' : 'rgba(223, 230, 242, 0.32)'
@@ -544,9 +623,18 @@ function drawGem(
   lane: Lane,
   note: ChartNote,
   missed: boolean,
+  starPowerActive: boolean,
 ): void {
-  const color = missed ? '#62666c' : LANE_COLORS[lane]
-  const darkColor = missed ? '#34373b' : `${LANE_COLORS[lane]}a8`
+  const color = missed
+    ? '#62666c'
+    : starPowerActive
+      ? STAR_POWER_COLOR
+      : LANE_COLORS[lane]
+  const darkColor = missed
+    ? '#34373b'
+    : starPowerActive
+      ? STAR_POWER_DARK_COLOR
+      : `${LANE_COLORS[lane]}a8`
   const baseAlpha = context.globalAlpha
 
   context.save()
@@ -588,16 +676,20 @@ function drawGem(
   )
   context.fill()
 
-  context.beginPath()
-  context.ellipse(
-    x,
-    y - radius * 0.04,
-    radius,
-    radius * 0.58,
-    0,
-    0,
-    Math.PI * 2,
-  )
+  if (note.starPower && !missed) {
+    traceStar(context, x, y - radius * 0.04, radius, radius * 0.7)
+  } else {
+    context.beginPath()
+    context.ellipse(
+      x,
+      y - radius * 0.04,
+      radius,
+      radius * 0.58,
+      0,
+      0,
+      Math.PI * 2,
+    )
+  }
   context.fillStyle = ellipseGradient(
     context,
     x,
@@ -611,16 +703,26 @@ function drawGem(
   context.fill()
   context.shadowBlur = 0
 
-  context.beginPath()
-  context.ellipse(
-    x,
-    y - radius * 0.11,
-    radius * 0.74,
-    radius * 0.33,
-    0,
-    0,
-    Math.PI * 2,
-  )
+  if (note.starPower && !missed) {
+    traceStar(
+      context,
+      x,
+      y - radius * 0.11,
+      radius * 0.7,
+      radius * 0.43,
+    )
+  } else {
+    context.beginPath()
+    context.ellipse(
+      x,
+      y - radius * 0.11,
+      radius * 0.74,
+      radius * 0.33,
+      0,
+      0,
+      Math.PI * 2,
+    )
+  }
   context.fillStyle = missed
     ? '#484b50'
     : ellipseGradient(
@@ -716,6 +818,36 @@ function drawGem(
   context.fill()
   context.stroke()
   context.shadowBlur = 0
+
+  if (note.starPower && !missed) {
+    traceStar(
+      context,
+      x,
+      y - radius * 0.04,
+      radius * 1.08,
+      radius * 0.76,
+    )
+    context.strokeStyle = 'rgba(224, 250, 255, 0.98)'
+    context.lineJoin = 'round'
+    context.lineWidth = Math.max(1.5, radius * 0.1)
+    context.shadowColor = '#70dfff'
+    context.shadowBlur = radius * 1.2
+    context.stroke()
+
+    context.beginPath()
+    context.ellipse(
+      x - radius * 0.2,
+      y - radius * 0.31,
+      radius * 0.2,
+      radius * 0.075,
+      -0.18,
+      0,
+      Math.PI * 2,
+    )
+    context.fillStyle = 'rgba(255, 255, 255, 0.84)'
+    context.shadowBlur = 0
+    context.fill()
+  }
   context.restore()
 }
 
@@ -725,6 +857,7 @@ function drawOpenGem(
   size: number,
   note: ChartNote,
   missed: boolean,
+  starPowerActive: boolean,
 ): void {
   const barWidth = point.trackWidth * 0.68
   const barHeight = Math.max(
@@ -746,6 +879,15 @@ function drawOpenGem(
   )
   context.fillStyle = missed
     ? '#696d75'
+    : starPowerActive
+      ? ellipseGradient(
+          context,
+          point.center,
+          point.y,
+          barWidth * 0.45,
+          '#b8f4ff',
+          STAR_POWER_DARK_COLOR,
+        )
     : ellipseGradient(
         context,
         point.center,
@@ -754,7 +896,11 @@ function drawOpenGem(
         note.hopo || note.tap ? '#f7ecff' : '#c88aff',
         note.tap ? '#7fd9ff' : '#6d2ca5',
       )
-  context.shadowColor = missed ? 'transparent' : 'rgba(180, 100, 255, 0.82)'
+  context.shadowColor = missed
+    ? 'transparent'
+    : starPowerActive
+      ? 'rgba(80, 218, 255, 0.94)'
+      : 'rgba(180, 100, 255, 0.82)'
   context.shadowBlur = size * 0.9
   context.fill()
   context.shadowBlur = 0
@@ -777,6 +923,25 @@ function drawOpenGem(
       : 'transparent'
   context.shadowBlur = note.tap ? size * 1.25 : note.hopo ? size * 0.72 : 0
   context.stroke()
+
+  if (note.starPower && !missed) {
+    traceStar(
+      context,
+      point.center,
+      point.y,
+      size * 0.5,
+      size * 0.34,
+    )
+    context.fillStyle = 'rgba(238, 252, 255, 0.92)'
+    context.strokeStyle = STAR_POWER_COLOR
+    context.lineJoin = 'round'
+    context.lineWidth = Math.max(1.5, size * 0.08)
+    context.shadowColor = '#72dfff'
+    context.shadowBlur = size * 1.25
+    context.fill()
+    context.stroke()
+    context.shadowBlur = 0
+  }
   context.restore()
 }
 
@@ -1060,7 +1225,9 @@ function drawHitEffects(
   } else {
     for (const lane of frame.hitFlash.lanes) {
       const x = highwayLaneX(width, lane, 1)
-      const color = LANE_COLORS[lane]
+      const color = frame.stats.starPowerActive
+        ? STAR_POWER_COLOR
+        : LANE_COLORS[lane]
       const lift = Math.sin(impactProgress * Math.PI) * radius * 0.42
       const impactY = bottom.hitY - lift
       const bloomRadius = radius * (1.35 + impactProgress * 1.85)
@@ -1222,7 +1389,13 @@ export function drawHighway(
   const travelSeconds = travelSecondsForNoteSpeed(noteSpeed)
 
   context.clearRect(0, 0, width, height)
-  drawHighwaySurface(context, width, height)
+  drawHighwaySurface(
+    context,
+    width,
+    height,
+    frame.stats.starPowerActive,
+    frame.songTimeSeconds,
+  )
   drawTimingWindows(context, width, height, travelSeconds)
   drawBeatLines(
     context,
@@ -1245,6 +1418,8 @@ export function drawHighway(
       render,
       frame.visualTimeSeconds,
       travelSeconds,
+      frame.whammyAmount,
+      frame.stats.starPowerActive,
     )
   }
 
@@ -1267,9 +1442,23 @@ export function drawHighway(
     context.globalAlpha = render.depthAlpha
 
     if (note.open) {
-      drawOpenGem(context, point, size, note, render.state === 'miss')
+      drawOpenGem(
+        context,
+        point,
+        size,
+        note,
+        render.state === 'miss',
+        frame.stats.starPowerActive,
+      )
     } else {
-      drawChordBridge(context, width, height, note, render)
+      drawChordBridge(
+        context,
+        width,
+        height,
+        note,
+        render,
+        frame.stats.starPowerActive,
+      )
       for (const lane of note.lanes) {
         drawGem(
           context,
@@ -1279,6 +1468,7 @@ export function drawHighway(
           lane,
           note,
           render.state === 'miss',
+          frame.stats.starPowerActive,
         )
       }
     }

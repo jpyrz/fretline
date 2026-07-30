@@ -59,11 +59,22 @@ export function multiplierForStreak(streak: number): number {
   return Math.min(4, Math.floor(streak / 10) + 1)
 }
 
-export function scoreForHit(laneCount: number, streakBeforeHit: number): number {
+export function scoreMultiplier(
+  streak: number,
+  starPowerActive = false,
+): number {
+  return multiplierForStreak(streak) * (starPowerActive ? 2 : 1)
+}
+
+export function scoreForHit(
+  laneCount: number,
+  streakBeforeHit: number,
+  starPowerActive = false,
+): number {
   return (
     50 *
     Math.max(1, laneCount) *
-    multiplierForStreak(streakBeforeHit)
+    scoreMultiplier(streakBeforeHit, starPowerActive)
   )
 }
 

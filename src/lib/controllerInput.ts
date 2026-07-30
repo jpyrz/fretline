@@ -19,6 +19,8 @@ export interface MappedGamepadSnapshot<T extends IdentifiedGamepadState> {
   gamepad: T
   frets: boolean[]
   strumDirections: { up: boolean; down: boolean }
+  starPower: boolean
+  whammy: number
   start: boolean
 }
 
@@ -90,6 +92,24 @@ export function gamepadBindingActive(
   return binding.direction === 1
     ? delta > AXIS_THRESHOLD
     : delta < -AXIS_THRESHOLD
+}
+
+export function gamepadAnalogValue(
+  gamepad: GamepadState,
+  binding?: GamepadBinding,
+): number {
+  if (!binding) return 0
+  if (binding.type === 'button') {
+    return gamepad.buttons[binding.index]?.pressed ? 1 : 0
+  }
+
+  const rest = binding.rest ?? 0
+  const current = gamepad.axes[binding.index] ?? rest
+  const target =
+    binding.value ?? rest + binding.direction * Math.max(1, Math.abs(rest))
+  const travel = target - rest
+  if (Math.abs(travel) < 0.01) return 0
+  return Math.max(0, Math.min(1, (current - rest) / travel))
 }
 
 /**
@@ -208,6 +228,17 @@ export function gamepadStartActive(
   )
 }
 
+export function gamepadStarPowerActive(
+  gamepad: GamepadState,
+  starPower?: GamepadBinding,
+): boolean {
+  if (starPower && gamepadBindingActive(gamepad, starPower)) return true
+  return (
+    gamepad.mapping === 'standard' &&
+    Boolean(gamepad.buttons[8]?.pressed)
+  )
+}
+
 export function mappedGamepadSnapshot<T extends IdentifiedGamepadState>(
   mapping: GamepadControllerMapping,
   gamepads: readonly (T | null)[],
@@ -232,6 +263,8 @@ export function mappedGamepadSnapshot<T extends IdentifiedGamepadState>(
       mapping.strumUp,
       mapping.strumDown,
     ),
+    starPower: gamepadStarPowerActive(gamepad, mapping.starPower),
+    whammy: gamepadAnalogValue(gamepad, mapping.whammy),
     start: gamepadStartActive(gamepad, mapping.start),
   }
 }

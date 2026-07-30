@@ -5,7 +5,7 @@ import {
   mappedGamepadSnapshot,
 } from '../lib/controllerInput'
 import { directHidSnapshot } from '../lib/directHidController'
-import { hidBindingActive } from '../lib/hidInput'
+import { hidAnalogValue, hidBindingActive } from '../lib/hidInput'
 import type { ControllerMapping } from '../types/game'
 import styles from './ControllerInputTest.module.scss'
 
@@ -14,6 +14,8 @@ interface LiveInputState {
   source: string
   up: boolean
   down: boolean
+  starPower: boolean
+  whammy: number
   start: boolean
   pressedButtons: string
   axes: string
@@ -24,6 +26,8 @@ const disconnectedState: LiveInputState = {
   source: 'Waiting for controller',
   up: false,
   down: false,
+  starPower: false,
+  whammy: 0,
   start: false,
   pressedButtons: 'none',
   axes: 'unavailable',
@@ -38,6 +42,8 @@ function sameLiveInput(
     left.source === right.source &&
     left.up === right.up &&
     left.down === right.down &&
+    left.starPower === right.starPower &&
+    Math.round(left.whammy * 100) === Math.round(right.whammy * 100) &&
     left.start === right.start &&
     left.pressedButtons === right.pressedButtons &&
     left.axes === right.axes
@@ -65,6 +71,10 @@ function readLiveInput(mapping: ControllerMapping): LiveInputState {
       source: `Direct HID · ${mapping.device.productName}`,
       up: directions.up,
       down: directions.down,
+      starPower: mapping.starPower
+        ? hidBindingActive(reports, mapping.starPower)
+        : false,
+      whammy: hidAnalogValue(reports, mapping.whammy),
       start: mapping.start
         ? hidBindingActive(reports, mapping.start)
         : false,
@@ -89,6 +99,8 @@ function readLiveInput(mapping: ControllerMapping): LiveInputState {
     source: `${gamepad.mapping || 'raw'} mapping · index ${gamepad.index}`,
     up: snapshot.strumDirections.up,
     down: snapshot.strumDirections.down,
+    starPower: snapshot.starPower,
+    whammy: snapshot.whammy,
     start: snapshot.start,
     pressedButtons: pressedButtons || 'none',
     axes: axes || 'none',
@@ -133,6 +145,10 @@ export function ControllerInputTest({
       <div className={styles.indicators}>
         <b data-active={liveInput.up}>Strum up</b>
         <b data-active={liveInput.down}>Strum down</b>
+        <b data-active={liveInput.starPower}>Star power</b>
+        <b data-active={liveInput.whammy >= 0.08}>
+          Whammy {Math.round(liveInput.whammy * 100)}%
+        </b>
         <b data-active={liveInput.start}>Start</b>
       </div>
 

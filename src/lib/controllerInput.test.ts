@@ -6,6 +6,7 @@ import type {
 import {
   activeGamepadBindings,
   exclusiveStrumDirections,
+  gamepadAnalogValue,
   gamepadBindingActive,
   gamepadStartActive,
   gamepadStrumDirections,
@@ -52,6 +53,20 @@ describe('controller input', () => {
     expect(gamepadBindingActive(gamepad([], [-1]), binding)).toBe(false)
     expect(gamepadBindingActive(gamepad([], [0]), binding)).toBe(true)
     expect(gamepadBindingActive(gamepad([], [1]), binding)).toBe(true)
+  })
+
+  it('normalizes a whammy axis from rest to its captured full-travel value', () => {
+    const binding: GamepadBinding = {
+      type: 'axis',
+      index: 2,
+      direction: 1,
+      rest: -1,
+      value: 1,
+    }
+
+    expect(gamepadAnalogValue(gamepad([], [0, 0, -1]), binding)).toBe(0)
+    expect(gamepadAnalogValue(gamepad([], [0, 0, 0]), binding)).toBe(0.5)
+    expect(gamepadAnalogValue(gamepad([], [0, 0, 1]), binding)).toBe(1)
   })
 
   it('keeps older mappings that assumed a zero-centered axis working', () => {
@@ -193,6 +208,14 @@ describe('controller input', () => {
       ],
       strumUp: { type: 'button', index: 12 },
       strumDown: { type: 'button', index: 13 },
+      starPower: { type: 'button', index: 8 },
+      whammy: {
+        type: 'axis',
+        index: 0,
+        direction: 1,
+        rest: -1,
+        value: 1,
+      },
       start: { type: 'button', index: 9 },
     }
     const wrongIndex = {
@@ -212,14 +235,14 @@ describe('controller input', () => {
           false,
           false,
           false,
-          false,
+          true,
           true,
           false,
           false,
           false,
           true,
         ],
-        [],
+        [0],
       ),
       id: 'guitar',
       index: 1,
@@ -237,6 +260,8 @@ describe('controller input', () => {
       up: false,
       down: true,
     })
+    expect(snapshot?.starPower).toBe(true)
+    expect(snapshot?.whammy).toBe(0.5)
     expect(snapshot?.start).toBe(true)
   })
 })

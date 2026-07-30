@@ -11,6 +11,8 @@ export type KeyboardBindingId =
   | 'select'
   | 'back'
   | 'pause'
+  | 'starPower'
+  | 'whammy'
 
 export const DEFAULT_KEYBOARD_MAPPING: KeyboardMapping = {
   frets: ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG'],
@@ -19,6 +21,8 @@ export const DEFAULT_KEYBOARD_MAPPING: KeyboardMapping = {
   select: 'Enter',
   back: 'Escape',
   pause: 'Escape',
+  starPower: 'Space',
+  whammy: 'KeyW',
 }
 
 const VALID_CODE = /^(?:Key:[\s\S]+|[A-Za-z][A-Za-z0-9]+)$/
@@ -59,6 +63,11 @@ export function normalizeKeyboardMapping(
     ),
     back: validCode(candidate.back, DEFAULT_KEYBOARD_MAPPING.back),
     pause: validCode(candidate.pause, DEFAULT_KEYBOARD_MAPPING.pause),
+    starPower: validCode(
+      candidate.starPower,
+      DEFAULT_KEYBOARD_MAPPING.starPower,
+    ),
+    whammy: validCode(candidate.whammy, DEFAULT_KEYBOARD_MAPPING.whammy),
   }
 }
 
@@ -147,6 +156,8 @@ export function keyboardMappingConflicts(
     'select',
     'back',
     'pause',
+    'starPower',
+    'whammy',
   ]
   const byCode = new Map<string, KeyboardBindingId[]>()
   for (const binding of bindings) {

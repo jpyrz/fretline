@@ -1,5 +1,7 @@
 import { parseMidi, type MidiEvent } from 'midi-file'
 import {
+  applyStarPowerPhrases,
+  createStarPowerPhrases,
   createTempoEvents,
   groupNotes,
   type RawNote,
@@ -7,6 +9,7 @@ import {
 import type {
   ChartMetadata,
   ParsedChart,
+  StarPowerPhrase,
   TempoEvent,
 } from '../types/game'
 import type { SongIniMetadata } from './songIni'
@@ -151,6 +154,38 @@ function readDifficultyNotes(
   )
 }
 
+function readMarkerPhrases(
+  track: MidiTrack,
+  noteNumber: number,
+): Array<{ tick: number; tickLength: number }> {
+  const starts: number[] = []
+  const phrases: Array<{ tick: number; tickLength: number }> = []
+
+  for (const { tick, event } of track.events) {
+    if (
+      (event.type !== 'noteOn' && event.type !== 'noteOff') ||
+      event.noteNumber !== noteNumber
+    ) {
+      continue
+    }
+
+    const isNoteOn = event.type === 'noteOn' && event.velocity > 0
+    if (isNoteOn) {
+      starts.push(tick)
+      continue
+    }
+
+    const startTick = starts.shift()
+    if (startTick === undefined) continue
+    phrases.push({
+      tick: startTick,
+      tickLength: Math.max(0, tick - startTick),
+    })
+  }
+
+  return phrases
+}
+
 export function parseMidiCharts(
   source: ArrayBuffer | Uint8Array,
   iniMetadata?: SongIniMetadata,
@@ -176,14 +211,30 @@ export function parseMidiCharts(
     offsetSeconds: iniMetadata?.offsetSeconds ?? 0,
   }
 
-  const trackNotes = new Map<string, RawNote[]>()
+  const trackNotes = new Map<
+    string,
+    { notes: RawNote[]; starPowerPhrases: StarPowerPhrase[] }
+  >()
   for (const midiTrack of tracks) {
     const instrument = INSTRUMENTS.get(midiTrack.name)
     if (!instrument) continue
+    const modernPhrases = readMarkerPhrases(midiTrack, 116)
+    const rawPhrases =
+      modernPhrases.length > 0
+        ? modernPhrases
+        : readMarkerPhrases(midiTrack, 103)
+    const starPowerPhrases = createStarPowerPhrases(
+      rawPhrases,
+      metadata,
+      tempos,
+    )
     for (const difficulty of DIFFICULTIES) {
       const notes = readDifficultyNotes(midiTrack, difficulty.baseNote)
       if (notes.some((note) => note.lane <= 4 || note.lane === 7)) {
-        trackNotes.set(`${difficulty.name}${instrument}`, notes)
+        trackNotes.set(`${difficulty.name}${instrument}`, {
+          notes,
+          starPowerPhrases,
+        })
       }
     }
   }
@@ -205,11 +256,16 @@ export function parseMidiCharts(
   })
 
   return availableTracks.map((trackName) => {
-    const notes = groupNotes(
-      trackNotes.get(trackName) ?? [],
-      metadata,
-      tempos,
-      Math.floor(metadata.resolution / 3 + 1),
+    const track = trackNotes.get(trackName)
+    const starPowerPhrases = track?.starPowerPhrases ?? []
+    const notes = applyStarPowerPhrases(
+      groupNotes(
+        track?.notes ?? [],
+        metadata,
+        tempos,
+        Math.floor(metadata.resolution / 3 + 1),
+      ),
+      starPowerPhrases,
     )
     const last = notes[notes.length - 1]
     return {
@@ -219,6 +275,7 @@ export function parseMidiCharts(
       trackName,
       availableTracks,
       durationSeconds: last.timeSeconds + last.sustainSeconds + 1.5,
+      starPowerPhrases,
     }
   })
 }

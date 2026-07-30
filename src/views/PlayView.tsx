@@ -16,7 +16,7 @@ import {
   takePreparedGameplayAudioContext,
 } from '../lib/songAudio'
 import { useAppState } from '../state/AppState'
-import type { GameFrame, SessionStats } from '../types/game'
+import type { GameFrame, LocalSong, SessionStats } from '../types/game'
 import styles from './PlayView.module.scss'
 
 type Phase =
@@ -37,8 +37,31 @@ const emptyStats: SessionStats = {
   overstrums: 0,
   sustainsCompleted: 0,
   sustainsBroken: 0,
+  starPowerMeter: 0,
+  starPowerActive: false,
+  starPowerPhrasesHit: 0,
+  starPowerPhrasesMissed: 0,
+  starPowerActivations: 0,
   lastErrorMs: null,
   records: [],
+}
+
+function whammyBufferIndices(song: LocalSong): number[] {
+  const track = song.chart.trackName.toLowerCase()
+  const preferredStems = track.includes('doublebass')
+    ? ['bass', 'rhythm']
+    : track.includes('doublerhythm')
+      ? ['rhythm', 'bass']
+      : ['guitar']
+
+  for (const stem of preferredStems) {
+    const index = song.audioFiles.findIndex(
+      (file) =>
+        file.name.replace(/\.[^.]+$/, '').toLowerCase() === stem,
+    )
+    if (index >= 0) return [index]
+  }
+  return []
 }
 
 export function PlayView() {
@@ -118,7 +141,9 @@ export function PlayView() {
           ((stats.hits + stats.misses) / song.chart.notes.length) * 100,
         )
       : 0
-  const multiplier = Math.min(4, Math.floor(stats.streak / 10) + 1)
+  const multiplier =
+    Math.min(4, Math.floor(stats.streak / 10) + 1) *
+    (stats.starPowerActive ? 2 : 1)
   const loadingFrame = useMemo<GameFrame>(
     () => ({
       songTimeSeconds: -10,
@@ -127,6 +152,7 @@ export function PlayView() {
       noteStates: song.chart.notes.map(() => 'pending'),
       sustainStates: song.chart.notes.map(() => 'none'),
       stats: emptyStats,
+      whammyAmount: 0,
       hitFlash: null,
     }),
     [song.chart.notes],
@@ -205,6 +231,7 @@ export function PlayView() {
         calibration,
         controllerMapping,
         keyboardMapping,
+        whammyBufferIndices: whammyBufferIndices(song),
         onFrame: (frame) => {
           if (canvasRef.current) {
             drawHighway(
@@ -458,6 +485,14 @@ export function PlayView() {
                   <span>Broken holds</span>
                   <strong>{stats.sustainsBroken}</strong>
                 </div>
+                <div>
+                  <span>Star phrases</span>
+                  <strong>{stats.starPowerPhrasesHit}</strong>
+                </div>
+                <div>
+                  <span>Activations</span>
+                  <strong>{stats.starPowerActivations}</strong>
+                </div>
               </div>
               {song.kind !== 'calibration' ? (
                 <p>
@@ -517,6 +552,31 @@ export function PlayView() {
           </div>
           <div className={styles.scoreProgress} aria-hidden="true">
             <i style={{ width: `${chartProgress}%` }} />
+          </div>
+          <div
+            className={styles.starPower}
+            data-active={stats.starPowerActive || undefined}
+            data-ready={
+              !stats.starPowerActive && stats.starPowerMeter >= 0.5
+                ? 'true'
+                : undefined
+            }
+          >
+            <span aria-hidden="true">★</span>
+            <div aria-label={`Star power ${Math.round(stats.starPowerMeter * 100)} percent`}>
+              <i
+                style={{
+                  height: `${Math.round(stats.starPowerMeter * 100)}%`,
+                }}
+              />
+            </div>
+            <small>
+              {stats.starPowerActive
+                ? 'Star power'
+                : stats.starPowerMeter >= 0.5
+                  ? 'Ready'
+                  : 'Build power'}
+            </small>
           </div>
           <div className={styles.scoreDetails}>
             <span>
