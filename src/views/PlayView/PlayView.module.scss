@@ -305,6 +305,19 @@
   gap: 0.65rem;
 }
 
+.inputModeBadge {
+  margin: -0.35rem 0 0.25rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(113, 211, 245, 0.34);
+  border-radius: 3px;
+  color: #bdeeff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: rgba(39, 139, 177, 0.14);
+}
+
 .resultRank {
   color: #a7e6ff;
   font-size: 1.25em;

@@ -1,3 +1,4 @@
+import type { PlayInputMode } from '../../../../lib/inputMode'
 import type { SessionStats } from '../../../../types/game'
 import type { SessionResults } from '../../sessionResults'
 import styles from '../../PlayView.module.scss'
@@ -6,6 +7,7 @@ interface ResultsOverlayProps {
   stats: SessionStats
   noteCount: number
   calibrationRun: boolean
+  inputMode: PlayInputMode
   results: SessionResults
   runInputOffsetMs: number
   appliedOffsetMs: number | null
@@ -17,6 +19,7 @@ export function ResultsOverlay({
   stats,
   noteCount,
   calibrationRun,
+  inputMode,
   results,
   runInputOffsetMs,
   appliedOffsetMs,
@@ -26,6 +29,9 @@ export function ResultsOverlay({
   return (
     <div className={`${styles.overlay} ${styles.resultsOverlay}`}>
       <p className="eyebrow">Run complete</p>
+      {inputMode === 'tap' && (
+        <span className={styles.inputModeBadge}>Tap Mode</span>
+      )}
       <h1>
         <span className={styles.resultRank}>{results.resultRank}</span>
         {results.noteAccuracy.toFixed(1)}%

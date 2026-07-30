@@ -12,6 +12,7 @@ const LANE_NAMES = ['Green', 'Red', 'Yellow', 'Blue', 'Orange']
 
 interface TouchControlsProps {
   onTap: (lanes: Lane[], timestamp: number) => void
+  onFretChange: (lanes: Lane[], timestamp: number) => void
   onLanesChange: (lanes: Lane[]) => void
   onStarPower: (timestamp: number) => void
   onWhammy: (amount: number) => void
@@ -19,11 +20,13 @@ interface TouchControlsProps {
 
 export function TouchControls({
   onTap,
+  onFretChange,
   onLanesChange,
   onStarPower,
   onWhammy,
 }: TouchControlsProps) {
   const trackerRef = useRef(new TouchContactTracker())
+  const lanesRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef(0)
   const whammyPointerRef = useRef<number | null>(null)
   const [activeLanes, setActiveLanes] = useState<Lane[]>([])
@@ -61,10 +64,35 @@ export function TouchControls({
 
   const releaseContact = (
     event: ReactPointerEvent<HTMLButtonElement>,
+    lane: Lane | null,
   ) => {
     event.preventDefault()
-    trackerRef.current.release(event.pointerId)
+    const releaseType = trackerRef.current.release(event.pointerId)
     publishContacts()
+    if (releaseType === 'held' && lane !== null) {
+      onFretChange(trackerRef.current.snapshot().lanes, event.timeStamp)
+    }
+  }
+
+  const moveContact = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const bounds = lanesRef.current?.getBoundingClientRect()
+    if (!bounds || bounds.width <= 0) return
+
+    const progress = Math.max(
+      0,
+      Math.min(0.999, (event.clientX - bounds.left) / bounds.width),
+    )
+    const lane = Math.floor(progress * LANE_NAMES.length) as Lane
+    const moveType = trackerRef.current.move(event.pointerId, lane)
+    if (!moveType) return
+
+    event.preventDefault()
+    publishContacts()
+    if (moveType === 'held') {
+      onFretChange(trackerRef.current.snapshot().lanes, event.timeStamp)
+    }
   }
 
   const updateWhammy = (
@@ -110,9 +138,9 @@ export function TouchControls({
         data-active={openActive || undefined}
         aria-label="Open note"
         onPointerDown={(event) => pressContact(event, null)}
-        onPointerUp={releaseContact}
-        onPointerCancel={releaseContact}
-        onLostPointerCapture={releaseContact}
+        onPointerUp={(event) => releaseContact(event, null)}
+        onPointerCancel={(event) => releaseContact(event, null)}
+        onLostPointerCapture={(event) => releaseContact(event, null)}
       >
         Open
       </button>
@@ -154,7 +182,7 @@ export function TouchControls({
         Whammy
       </button>
 
-      <div className={styles.lanes}>
+      <div className={styles.lanes} ref={lanesRef}>
         {LANE_NAMES.map((name, index) => {
           const lane = index as Lane
           return (
@@ -165,9 +193,12 @@ export function TouchControls({
               data-active={activeLanes.includes(lane) || undefined}
               aria-label={`${name} lane`}
               onPointerDown={(event) => pressContact(event, lane)}
-              onPointerUp={releaseContact}
-              onPointerCancel={releaseContact}
-              onLostPointerCapture={releaseContact}
+              onPointerMove={moveContact}
+              onPointerUp={(event) => releaseContact(event, lane)}
+              onPointerCancel={(event) => releaseContact(event, lane)}
+              onLostPointerCapture={(event) =>
+                releaseContact(event, lane)
+              }
             >
               <span aria-hidden="true" />
             </button>

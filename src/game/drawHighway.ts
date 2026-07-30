@@ -47,6 +47,7 @@ export interface HighwayVisualOptions {
   highwayImage?: HTMLImageElement | null
   highwayOpacity?: number
   missFeedback?: boolean
+  tapMode?: boolean
 }
 
 function ellipseGradient(
@@ -273,6 +274,7 @@ function drawChordBridge(
   render: NoteRenderState,
   starPowerActive: boolean,
   highwayLength: number,
+  tapMode: boolean,
 ): void {
   if (note.lanes.length < 2) return
   const positions = note.lanes.map((lane) =>
@@ -285,11 +287,44 @@ function drawChordBridge(
     highwayLength,
   )
   const size = noteRadius(point)
+  const left = Math.min(...positions)
+  const right = Math.max(...positions)
   context.save()
   context.globalAlpha = render.depthAlpha
+  if (tapMode && note.lanes.length >= 3) {
+    const plateHeight = Math.max(5, size * 0.5)
+    context.beginPath()
+    context.roundRect(
+      left - size * 0.54,
+      point.y - plateHeight * 0.34,
+      right - left + size * 1.08,
+      plateHeight,
+      plateHeight * 0.5,
+    )
+    context.fillStyle =
+      render.state === 'miss'
+        ? 'rgba(66, 69, 76, 0.66)'
+        : starPowerActive
+          ? 'rgba(57, 201, 239, 0.6)'
+          : 'rgba(224, 231, 239, 0.38)'
+    context.strokeStyle =
+      render.state === 'miss'
+        ? 'rgba(115, 119, 127, 0.52)'
+        : 'rgba(247, 251, 255, 0.82)'
+    context.lineWidth = Math.max(1.5, size * 0.09)
+    context.shadowColor =
+      render.state === 'miss'
+        ? 'transparent'
+        : starPowerActive
+          ? 'rgba(76, 218, 255, 0.66)'
+          : 'rgba(226, 234, 243, 0.38)'
+    context.shadowBlur = 10
+    context.fill()
+    context.stroke()
+  }
   context.beginPath()
-  context.moveTo(Math.min(...positions), point.y + size * 0.2)
-  context.lineTo(Math.max(...positions), point.y + size * 0.2)
+  context.moveTo(left, point.y + size * 0.2)
+  context.lineTo(right, point.y + size * 0.2)
   context.strokeStyle =
     render.state === 'miss'
       ? 'rgba(92, 96, 105, 0.72)'
@@ -1439,6 +1474,7 @@ export function drawHighway(
         render,
         frame.stats.starPowerActive,
         highwayLength,
+        visuals.tapMode === true,
       )
       for (const lane of note.lanes) {
         drawGem(

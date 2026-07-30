@@ -22,7 +22,7 @@
 
 .lanes {
   position: absolute;
-  bottom: 4svh;
+  bottom: calc(max(5.5svh, 36px) + env(safe-area-inset-bottom));
   left: 50%;
   display: grid;
   width: min(88vw, 760px);
@@ -72,7 +72,6 @@
 .power,
 .whammy {
   position: absolute;
-  bottom: 20svh;
   min-height: 48px;
   border: 1px solid rgba(240, 244, 248, 0.24);
   background: rgba(7, 8, 12, 0.62);
@@ -81,10 +80,19 @@
 }
 
 .open {
+  bottom: env(safe-area-inset-bottom);
   left: 50%;
-  width: min(42vw, 260px);
-  border-radius: 999px;
+  width: min(88vw, 760px);
+  height: max(5.5svh, 36px);
+  border-color: rgba(230, 238, 245, 0.32);
+  border-radius: 6px 6px 0 0;
   transform: translateX(-50%);
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(235, 240, 245, 0.16),
+      rgba(7, 8, 12, 0.72)
+    );
 
   &[data-active='true'] {
     color: white;
@@ -95,6 +103,7 @@
 }
 
 .power {
+  bottom: 22svh;
   left: max(0.65rem, env(safe-area-inset-left));
   display: grid;
   width: 58px;
@@ -115,6 +124,7 @@
 }
 
 .whammy {
+  bottom: 22svh;
   right: max(0.65rem, env(safe-area-inset-right));
   display: grid;
   width: 58px;

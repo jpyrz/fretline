@@ -53,4 +53,40 @@ describe('touch contact tracker', () => {
       timestamp: 80,
     })
   })
+
+  it('updates a pending tap when a thumb slides before the frame flushes', () => {
+    const tracker = new TouchContactTracker()
+    tracker.press(1, 0, 100)
+
+    expect(tracker.move(1, 1)).toBe('pending')
+    expect(tracker.consumePendingTap()).toEqual({
+      lanes: [1],
+      open: false,
+      timestamp: 100,
+    })
+  })
+
+  it('reports a held-thumb slide as a fret change', () => {
+    const tracker = new TouchContactTracker()
+    tracker.press(1, 0, 100)
+    tracker.consumePendingTap()
+
+    expect(tracker.move(1, 2)).toBe('held')
+    expect(tracker.snapshot()).toEqual({
+      lanes: [2],
+      open: false,
+    })
+    expect(tracker.move(1, 2)).toBeNull()
+  })
+
+  it('distinguishes a held-thumb release for pull-off input', () => {
+    const tracker = new TouchContactTracker()
+    tracker.press(1, 0, 100)
+    tracker.press(2, 1, 101)
+    tracker.consumePendingTap()
+
+    expect(tracker.release(2)).toBe('held')
+    expect(tracker.snapshot().lanes).toEqual([0])
+    expect(tracker.release(2)).toBeNull()
+  })
 })

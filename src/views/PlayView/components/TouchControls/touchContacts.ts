@@ -11,22 +11,44 @@ export interface PendingTap extends TouchContactSnapshot {
 
 export class TouchContactTracker {
   private readonly contacts = new Map<number, Lane | null>()
-  private pendingLanes = new Set<Lane>()
-  private pendingOpen = false
+  private readonly pendingContacts = new Map<number, Lane | null>()
   private pendingTimestamp: number | null = null
 
   press(pointerId: number, lane: Lane | null, timestamp: number): void {
     this.contacts.set(pointerId, lane)
-    if (lane === null) this.pendingOpen = true
-    else this.pendingLanes.add(lane)
+    this.pendingContacts.set(pointerId, lane)
     this.pendingTimestamp =
       this.pendingTimestamp === null
         ? timestamp
         : Math.min(this.pendingTimestamp, timestamp)
   }
 
-  release(pointerId: number): void {
+  move(
+    pointerId: number,
+    lane: Lane,
+  ): 'pending' | 'held' | null {
+    if (
+      !this.contacts.has(pointerId) ||
+      this.contacts.get(pointerId) === lane
+    ) {
+      return null
+    }
+
+    this.contacts.set(pointerId, lane)
+    if (this.pendingContacts.has(pointerId)) {
+      this.pendingContacts.set(pointerId, lane)
+      return 'pending'
+    }
+    return 'held'
+  }
+
+  release(pointerId: number): 'pending' | 'held' | null {
+    if (!this.contacts.has(pointerId)) return null
+    const releaseType = this.pendingContacts.has(pointerId)
+      ? 'pending'
+      : 'held'
     this.contacts.delete(pointerId)
+    return releaseType
   }
 
   snapshot(): TouchContactSnapshot {
@@ -43,23 +65,25 @@ export class TouchContactTracker {
   consumePendingTap(): PendingTap | null {
     if (this.pendingTimestamp === null) return null
     const heldLanes = this.snapshot().lanes
+    const pendingValues = [...this.pendingContacts.values()]
+    const pendingLanes = pendingValues.filter(
+      (lane): lane is Lane => lane !== null,
+    )
     const pending = {
-      lanes: [...new Set([...heldLanes, ...this.pendingLanes])].sort(
+      lanes: [...new Set([...heldLanes, ...pendingLanes])].sort(
         (a, b) => a - b,
       ),
-      open: this.pendingOpen,
+      open: pendingValues.includes(null),
       timestamp: this.pendingTimestamp,
     }
-    this.pendingLanes.clear()
-    this.pendingOpen = false
+    this.pendingContacts.clear()
     this.pendingTimestamp = null
     return pending
   }
 
   reset(): void {
     this.contacts.clear()
-    this.pendingLanes.clear()
-    this.pendingOpen = false
+    this.pendingContacts.clear()
     this.pendingTimestamp = null
   }
 }

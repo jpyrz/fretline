@@ -143,11 +143,13 @@ export function PlayView() {
       highwayImage,
       highwayOpacity: visualSettings.highwayOpacity,
       missFeedback: highwaySettings.missFeedback,
+      tapMode: inputMode === 'tap',
     }),
     [
       backgroundImage,
       highwayImage,
       highwaySettings.missFeedback,
+      inputMode,
       visualSettings.backgroundDim,
       visualSettings.highwayOpacity,
     ],
@@ -357,6 +359,16 @@ export function PlayView() {
     [],
   )
 
+  const handleTapFretChange = useCallback(
+    (
+      lanes: Parameters<GameEngine['submitTapFretChange']>[0],
+      timestamp: number,
+    ) => {
+      engineRef.current?.submitTapFretChange(lanes, timestamp)
+    },
+    [],
+  )
+
   const handleTapStarPower = useCallback((timestamp: number) => {
     engineRef.current?.activateTapStarPower(timestamp)
   }, [])
@@ -516,6 +528,7 @@ export function PlayView() {
               stats={stats}
               noteCount={song.chart.notes.length}
               calibrationRun={song.kind === 'calibration'}
+              inputMode={inputMode}
               results={{
                 suggestedCorrection,
                 timingMedian,
@@ -538,6 +551,7 @@ export function PlayView() {
           {phase === 'playing' && inputMode === 'tap' && (
             <TouchControls
               onTap={handleTap}
+              onFretChange={handleTapFretChange}
               onLanesChange={handleTapLanesChange}
               onStarPower={handleTapStarPower}
               onWhammy={handleTapWhammy}
