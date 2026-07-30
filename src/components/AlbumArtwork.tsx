@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { loadSongArtwork } from '../lib/songLibrary'
 import type { LocalSong } from '../types/game'
 import styles from './AlbumArtwork.module.scss'
 
@@ -21,14 +22,21 @@ export function AlbumArtwork({ song, compact = false }: AlbumArtworkProps) {
   const [source, setSource] = useState('')
 
   useEffect(() => {
-    if (!song.artworkFile) {
-      setSource('')
-      return
+    let active = true
+    let objectUrl = ''
+    setSource('')
+    void loadSongArtwork(song)
+      .then((artworkFile) => {
+        if (!active || !artworkFile) return
+        objectUrl = URL.createObjectURL(artworkFile)
+        setSource(objectUrl)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-    const url = URL.createObjectURL(song.artworkFile)
-    setSource(url)
-    return () => URL.revokeObjectURL(url)
-  }, [song.artworkFile])
+  }, [song])
 
   return (
     <div

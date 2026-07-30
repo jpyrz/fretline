@@ -11,6 +11,7 @@ import { GameEngine } from '../game/GameEngine'
 import { drawHighway } from '../game/drawHighway'
 import { createCalibrationAudio } from '../lib/calibrationSong'
 import { median } from '../lib/scoring'
+import { audioFileMetadata } from '../lib/songLibrary'
 import {
   decodeSongAudio,
   takePreparedGameplayAudioContext,
@@ -56,7 +57,7 @@ function whammyBufferIndices(song: LocalSong): number[] {
       : ['guitar']
 
   for (const stem of preferredStems) {
-    const index = song.audioFiles.findIndex(
+    const index = audioFileMetadata(song).findIndex(
       (file) =>
         file.name.replace(/\.[^.]+$/, '').toLowerCase() === stem,
     )

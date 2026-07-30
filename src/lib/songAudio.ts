@@ -1,4 +1,9 @@
 import { decodeAudioFiles } from './songImport'
+import {
+  audioFileMetadata,
+  materializeSongFiles,
+  persistSong,
+} from './songLibrary'
 import type { LocalSong } from '../types/game'
 
 const decodedAudio = new Map<string, Promise<AudioBuffer[]>>()
@@ -21,7 +26,7 @@ function resumeDecoder(): void {
 }
 
 function audioCacheKey(song: LocalSong): string {
-  const files = song.audioFiles
+  const files = audioFileMetadata(song)
     .map((file) => `${file.name}:${file.size}:${file.lastModified}`)
     .join('|')
   return `${song.id}:${files}`
@@ -42,12 +47,27 @@ export function decodeSongAudio(
   const context = audioContext ?? getDecoderContext()
   if (!audioContext) resumeDecoder()
 
-  const pending = decodeAudioFiles(context, song.audioFiles).catch(
-    (error) => {
+  const pending = materializeSongFiles(song)
+    .then(async (materializedSong) => {
+      const buffers = await decodeAudioFiles(
+        context,
+        materializedSong.audioFiles,
+      )
+      if (song.legacyPersistedFiles) {
+        void persistSong(materializedSong).catch(() => undefined)
+      }
+      return buffers
+    })
+    .catch((error: unknown) => {
       decodedAudio.delete(key)
+      if (song.legacyPersistedFiles) {
+        throw new Error(
+          `The saved copy of ${song.chart.metadata.name} could not be restored on this device. Sync its Google Drive folder again.`,
+          { cause: error },
+        )
+      }
       throw error
-    },
-  )
+    })
   decodedAudio.set(key, pending)
   while (decodedAudio.size > MAX_CACHED_SONGS) {
     const oldestKey = decodedAudio.keys().next().value

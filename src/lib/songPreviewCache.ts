@@ -1,7 +1,11 @@
 import { createConcurrencyLimiter } from './concurrency'
 import { decodeAudioFiles } from './songImport'
 import {
+  audioFileMetadata,
   loadPersistedPreview,
+  loadSongPreviewAudio,
+  materializeSongFiles,
+  persistSong,
   persistPreview,
 } from './songLibrary'
 import { previewOffsetSeconds } from './songPreview'
@@ -33,9 +37,11 @@ export interface PreviewPreparationResult {
 }
 
 export function songPreviewCacheKey(song: LocalSong): string {
-  const files = song.previewAudioFile
-    ? [song.previewAudioFile]
-    : song.audioFiles
+  const files = song.persistedFiles?.preview
+    ? [song.persistedFiles.preview]
+    : song.previewAudioFile
+      ? [song.previewAudioFile]
+      : audioFileMetadata(song)
   const fingerprint = files
     .map((file) => `${file.name}:${file.size}:${file.lastModified}`)
     .join('|')
@@ -153,24 +159,35 @@ export function mixPreviewBuffers(
 }
 
 async function generateSongPreview(song: LocalSong): Promise<File> {
-  if (song.previewAudioFile) return song.previewAudioFile
-  if (song.audioFiles.length === 0) {
+  const dedicatedPreview = await loadSongPreviewAudio(song)
+  if (dedicatedPreview) return dedicatedPreview
+  const materializedSong = await materializeSongFiles(song)
+  if (materializedSong.audioFiles.length === 0) {
     throw new Error(`${song.chart.metadata.name} does not contain audio.`)
   }
 
   const context = new AudioContext({ latencyHint: 'playback' })
   try {
-    const buffers = await decodeAudioFiles(context, song.audioFiles)
+    const buffers = await decodeAudioFiles(
+      context,
+      materializedSong.audioFiles,
+    )
     const duration = Math.max(...buffers.map((buffer) => buffer.duration))
-    const offset = previewOffsetSeconds(song, duration, false)
-    return mixPreviewBuffers(buffers, offset)
+    const offset = previewOffsetSeconds(materializedSong, duration, false)
+    const preview = mixPreviewBuffers(buffers, offset)
+    if (song.legacyPersistedFiles) {
+      void persistSong(materializedSong).catch(() => undefined)
+    }
+    return preview
   } finally {
     await context.close().catch(() => undefined)
   }
 }
 
 export function prepareSongPreview(song: LocalSong): Promise<File> {
-  if (song.previewAudioFile) return Promise.resolve(song.previewAudioFile)
+  if (song.previewAudioFile && !song.legacyPersistedFiles) {
+    return Promise.resolve(song.previewAudioFile)
+  }
   const key = songPreviewCacheKey(song)
   const existing = pendingPreviews.get(key)
   if (existing) return existing

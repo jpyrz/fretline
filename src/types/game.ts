@@ -55,6 +55,13 @@ export interface LocalSong {
   previewStartSeconds?: number
   artworkFile?: File
   folderName?: string
+  persistedFiles?: {
+    version: 2
+    audio: PersistedFileReference[]
+    preview?: PersistedFileReference
+    artwork?: PersistedFileReference
+  }
+  legacyPersistedFiles?: boolean
   source?: {
     type: 'google-drive'
     rootFolderId?: string
@@ -62,6 +69,14 @@ export interface LocalSong {
     fileIds?: string[]
     fingerprint: string
   }
+}
+
+export interface PersistedFileReference {
+  key: string
+  name: string
+  type: string
+  size: number
+  lastModified: number
 }
 
 export type GamepadBinding =
