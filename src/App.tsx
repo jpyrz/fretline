@@ -1,21 +1,43 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { MenuControllerNavigation } from './components/MenuControllerNavigation'
 import { HomeView } from './views/HomeView'
-import { PlayView } from './views/PlayView'
-import { SettingsView } from './views/SettingsView'
-import { SongSelectView } from './views/SongSelectView'
+
+const PlayView = lazy(() =>
+  import('./views/PlayView').then((module) => ({
+    default: module.PlayView,
+  })),
+)
+const SettingsView = lazy(() =>
+  import('./views/SettingsView').then((module) => ({
+    default: module.SettingsView,
+  })),
+)
+const SongSelectView = lazy(() =>
+  import('./views/SongSelectView').then((module) => ({
+    default: module.SongSelectView,
+  })),
+)
 
 export default function App() {
   return (
     <>
       <MenuControllerNavigation />
-      <Routes>
-        <Route path="/" element={<HomeView />} />
-        <Route path="/songs" element={<SongSelectView />} />
-        <Route path="/settings" element={<SettingsView />} />
-        <Route path="/play" element={<PlayView />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense
+        fallback={
+          <div className="route-loading" role="status">
+            Loading stage…
+          </div>
+        }
+      >
+        <Routes>
+          <Route path="/" element={<HomeView />} />
+          <Route path="/songs" element={<SongSelectView />} />
+          <Route path="/settings" element={<SettingsView />} />
+          <Route path="/play" element={<PlayView />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </>
   )
 }

@@ -62,6 +62,19 @@ interface PersistedVisualAssetV2
 
 let songPersistenceQueue = Promise.resolve()
 
+function storedArrayBuffer(value: unknown): ArrayBuffer | null {
+  if (value instanceof ArrayBuffer) return value
+  if (ArrayBuffer.isView(value)) {
+    return value.buffer.slice(
+      value.byteOffset,
+      value.byteOffset + value.byteLength,
+    ) as ArrayBuffer
+  }
+  return Object.prototype.toString.call(value) === '[object ArrayBuffer]'
+    ? (value as ArrayBuffer)
+    : null
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   if (!('indexedDB' in globalThis)) {
     return Promise.reject(
@@ -294,12 +307,13 @@ async function readStoredFiles(
     await completed
     return records.map((record, index) => {
       const reference = references[index]
-      if (!record || !(record.bytes instanceof ArrayBuffer)) {
+      const bytes = storedArrayBuffer(record?.bytes)
+      if (!bytes) {
         throw new Error(
           `The saved copy of ${reference.name} is incomplete. Sync its Google Drive folder again.`,
         )
       }
-      return fileFromStoredBytes(reference, record.bytes)
+      return fileFromStoredBytes(reference, bytes)
     })
   } finally {
     database.close()
@@ -484,11 +498,14 @@ export async function loadPersistedPreview(
     )
     await transactionComplete(transaction)
     if (!record) return null
-    if ('bytes' in record && record.bytes instanceof ArrayBuffer) {
-      return new File([record.bytes], record.name, {
-        type: record.type,
-        lastModified: record.lastModified,
-      })
+    if ('bytes' in record) {
+      const bytes = storedArrayBuffer(record.bytes)
+      if (bytes) {
+        return new File([bytes], record.name, {
+          type: record.type,
+          lastModified: record.lastModified,
+        })
+      }
     }
     return 'file' in record && record.file instanceof Blob
       ? copyLegacyFile(record.file, 'fretline-preview.wav')

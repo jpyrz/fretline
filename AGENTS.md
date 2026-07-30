@@ -12,7 +12,7 @@
 - Client: React, Vite, TypeScript, React Router.
 - Styling: SCSS Modules with shared tokens in `src/index.css`.
 - Backend: none. Gameplay, imported files, settings, and controller mappings stay in the browser.
-- Hosting: not connected.
+- Hosting: Netlify, deployed from the connected GitHub repository.
 - PWA: yes. Cache the application shell and repository-owned static assets only; never cache user-selected audio or chart files.
 
 ## Commands
@@ -33,8 +33,22 @@
 - Never derive authoritative song position by accumulating animation-frame deltas.
 - Keep per-frame gameplay state outside React renders.
 - Apply chart tempo changes before converting ticks to seconds.
-- Imported song files must remain local and must not be uploaded or persisted without an explicit product change.
-- Store only calibration and controller mapping preferences in local storage.
+- Imported song files must remain on the device. Persist them only in the
+  browser's IndexedDB library and never upload them outside a user-authorized
+  read-only Google Drive download.
+- Store small preferences, mappings, selected IDs, and Drive folder references
+  in local storage. Store song audio, previews, and artwork in IndexedDB.
+
+## Architecture
+
+- Organize product code by feature, with component implementations, styles,
+  and tests colocated in the same feature or component folder.
+- Route components coordinate feature modules; they should not own storage,
+  network, rendering, and presentation responsibilities at the same time.
+- Keep the gameplay engine and Canvas renderer independent from React.
+- Preserve a single public renderer facade and a single authoritative gameplay
+  coordinator while splitting their internal responsibilities into focused
+  modules.
 
 ## Delivery
 

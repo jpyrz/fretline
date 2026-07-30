@@ -1,0 +1,32 @@
+import { describe, expect, it } from 'vitest'
+import {
+  highwayLaneX,
+  highwayPoint,
+  highwayTopY,
+  highwayTrackWidth,
+  projectHighwayProgress,
+  travelSecondsForNoteSpeed,
+} from './highwayGeometry'
+
+describe('highway geometry', () => {
+  it('projects every lane through the same perspective model', () => {
+    const width = 1000
+    const height = 800
+    const progress = 0.72
+    const point = highwayPoint(width, height, progress)
+    const laneWidth = point.trackWidth / 5
+
+    for (const lane of [0, 1, 2, 3, 4] as const) {
+      expect(highwayLaneX(width, lane, progress)).toBeCloseTo(
+        point.center - point.trackWidth / 2 + laneWidth * (lane + 0.5),
+      )
+    }
+  })
+
+  it('retains the established note-speed and responsive-width behavior', () => {
+    expect(travelSecondsForNoteSpeed(12)).toBeCloseTo(1.8)
+    expect(projectHighwayProgress(1)).toBe(1)
+    expect(highwayTrackWidth(1400, 1)).toBe(760)
+    expect(highwayTopY(1600, 1000)).toBeCloseTo(422.5)
+  })
+})

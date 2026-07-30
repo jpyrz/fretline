@@ -17,7 +17,6 @@ import {
   persistVisualAssets,
   persistSong,
 } from '../lib/songLibrary'
-import { normalizeKeyboardMapping } from '../lib/keyboardMapping'
 import type { PlayPreferences } from '../lib/trackSelection'
 import type {
   CalibrationSettings,
@@ -29,6 +28,10 @@ import type {
   VisualAsset,
   VisualSettings,
 } from '../types/game'
+import {
+  loadInitialSettings,
+  STORAGE_KEYS,
+} from './settingsStorage'
 
 interface AppStateValue {
   song: LocalSong
@@ -65,104 +68,6 @@ interface AppStateValue {
   setKeyboardMapping: (mapping: KeyboardMapping) => void
 }
 
-const SETTINGS_KEY = 'fretline:calibration'
-const HIGHWAY_KEY = 'fretline:highway'
-const AUDIO_KEY = 'fretline:audio'
-const VISUAL_SETTINGS_KEY = 'fretline:visual-settings'
-const PLAY_PREFERENCES_KEY = 'fretline:play-preferences'
-const CONTROLLER_KEY = 'fretline:controller'
-const KEYBOARD_KEY = 'fretline:keyboard'
-const SELECTED_SONG_KEY = 'fretline:selected-song'
-
-const defaultCalibration: CalibrationSettings = {
-  inputOffsetMs: 0,
-  videoOffsetMs: 0,
-}
-
-const defaultHighwaySettings: HighwaySettings = {
-  noteSpeed: 12,
-  length: 55,
-  missFeedback: true,
-}
-
-const defaultAudioSettings: AudioSettings = {
-  homeMusicMuted: false,
-}
-
-const defaultVisualSettings: VisualSettings = {
-  backgroundSelection: 'default',
-  highwaySelection: 'default',
-  backgroundDim: 42,
-  highwayOpacity: 72,
-  backgroundDriveFolder: null,
-  highwayDriveFolder: null,
-}
-
-const defaultPlayPreferences: PlayPreferences = {
-  difficulty: 'Expert',
-  instrumentId: 'Single',
-}
-
-function loadStored<T>(key: string, fallback: T): T {
-  try {
-    const value = localStorage.getItem(key)
-    return value ? (JSON.parse(value) as T) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function loadHighwaySettings(): HighwaySettings {
-  const value = loadStored<unknown>(HIGHWAY_KEY, defaultHighwaySettings)
-  const stored =
-    typeof value === 'object' && value !== null
-      ? (value as Partial<HighwaySettings>)
-      : {}
-
-  return {
-    noteSpeed:
-      typeof stored.noteSpeed === 'number' &&
-      Number.isFinite(stored.noteSpeed)
-        ? Math.max(6, Math.min(18, stored.noteSpeed))
-        : defaultHighwaySettings.noteSpeed,
-    length:
-      typeof stored.length === 'number' && Number.isFinite(stored.length)
-        ? Math.max(45, Math.min(100, stored.length))
-        : defaultHighwaySettings.length,
-    missFeedback:
-      typeof stored.missFeedback === 'boolean'
-        ? stored.missFeedback
-        : defaultHighwaySettings.missFeedback,
-  }
-}
-
-function loadVisualSettings(): VisualSettings {
-  const value = loadStored<Partial<VisualSettings>>(
-    VISUAL_SETTINGS_KEY,
-    defaultVisualSettings,
-  )
-  return {
-    backgroundSelection:
-      typeof value.backgroundSelection === 'string'
-        ? value.backgroundSelection
-        : 'default',
-    highwaySelection:
-      typeof value.highwaySelection === 'string'
-        ? value.highwaySelection
-        : 'default',
-    backgroundDim:
-      typeof value.backgroundDim === 'number'
-        ? Math.max(0, Math.min(90, value.backgroundDim))
-        : defaultVisualSettings.backgroundDim,
-    highwayOpacity:
-      typeof value.highwayOpacity === 'number'
-        ? Math.max(20, Math.min(100, value.highwayOpacity))
-        : defaultVisualSettings.highwayOpacity,
-    backgroundDriveFolder: value.backgroundDriveFolder ?? null,
-    highwayDriveFolder: value.highwayDriveFolder ?? null,
-  }
-}
-
 const AppStateContext = createContext<AppStateValue | null>(null)
 
 function upsertSong(songs: LocalSong[], nextSong: LocalSong): LocalSong[] {
@@ -175,36 +80,35 @@ function upsertSong(songs: LocalSong[], nextSong: LocalSong): LocalSong[] {
 }
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
+  const [initialSettings] = useState(loadInitialSettings)
   const [song, setCurrentSong] = useState<LocalSong>(calibrationSong)
   const [songs, setSongs] = useState<LocalSong[]>([calibrationSong])
   const [libraryReady, setLibraryReady] = useState(false)
   const [librarySaving, setLibrarySaving] = useState(false)
   const [libraryError, setLibraryError] = useState('')
-  const [calibration, setCalibration] = useState<CalibrationSettings>(() =>
-    loadStored(SETTINGS_KEY, defaultCalibration),
+  const [calibration, setCalibration] = useState<CalibrationSettings>(
+    initialSettings.calibration,
   )
-  const [highwaySettings, setHighwaySettings] = useState<HighwaySettings>(() =>
-    loadHighwaySettings(),
+  const [highwaySettings, setHighwaySettings] = useState<HighwaySettings>(
+    initialSettings.highway,
   )
-  const [audioSettings, setAudioSettings] = useState<AudioSettings>(() =>
-    loadStored(AUDIO_KEY, defaultAudioSettings),
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(
+    initialSettings.audio,
   )
   const [visualAssets, setVisualAssets] = useState<VisualAsset[]>([])
   const [visualAssetsReady, setVisualAssetsReady] = useState(false)
   const [visualAssetsSaving, setVisualAssetsSaving] = useState(false)
   const [visualAssetsError, setVisualAssetsError] = useState('')
-  const [visualSettings, setVisualSettings] = useState<VisualSettings>(() =>
-    loadVisualSettings(),
+  const [visualSettings, setVisualSettings] = useState<VisualSettings>(
+    initialSettings.visual,
   )
-  const [playPreferences, setPlayPreferences] = useState<PlayPreferences>(() =>
-    loadStored(PLAY_PREFERENCES_KEY, defaultPlayPreferences),
+  const [playPreferences, setPlayPreferences] = useState<PlayPreferences>(
+    initialSettings.play,
   )
   const [controllerMapping, setControllerMapping] =
-    useState<ControllerMapping | null>(() =>
-      loadStored<ControllerMapping | null>(CONTROLLER_KEY, null),
-    )
-  const [keyboardMapping, setKeyboardMapping] = useState<KeyboardMapping>(() =>
-    normalizeKeyboardMapping(loadStored<unknown>(KEYBOARD_KEY, null)),
+    useState<ControllerMapping | null>(initialSettings.controller)
+  const [keyboardMapping, setKeyboardMapping] = useState<KeyboardMapping>(
+    initialSettings.keyboard,
   )
 
   useEffect(() => {
@@ -214,7 +118,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       .then((persistedSongs) => {
         if (!active) return
         const loadedSongs = [calibrationSong, ...persistedSongs]
-        const selectedSongId = localStorage.getItem(SELECTED_SONG_KEY)
+        const selectedSongId = localStorage.getItem(STORAGE_KEYS.selectedSong)
         setSongs(loadedSongs)
         setCurrentSong(
           loadedSongs.find((candidate) => candidate.id === selectedSongId) ??
@@ -261,47 +165,59 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(calibration))
+    localStorage.setItem(
+      STORAGE_KEYS.calibration,
+      JSON.stringify(calibration),
+    )
   }, [calibration])
 
   useEffect(() => {
-    localStorage.setItem(HIGHWAY_KEY, JSON.stringify(highwaySettings))
+    localStorage.setItem(
+      STORAGE_KEYS.highway,
+      JSON.stringify(highwaySettings),
+    )
   }, [highwaySettings])
 
   useEffect(() => {
-    localStorage.setItem(AUDIO_KEY, JSON.stringify(audioSettings))
+    localStorage.setItem(STORAGE_KEYS.audio, JSON.stringify(audioSettings))
   }, [audioSettings])
 
   useEffect(() => {
     localStorage.setItem(
-      VISUAL_SETTINGS_KEY,
+      STORAGE_KEYS.visualSettings,
       JSON.stringify(visualSettings),
     )
   }, [visualSettings])
 
   useEffect(() => {
     localStorage.setItem(
-      PLAY_PREFERENCES_KEY,
+      STORAGE_KEYS.playPreferences,
       JSON.stringify(playPreferences),
     )
   }, [playPreferences])
 
   useEffect(() => {
     if (controllerMapping) {
-      localStorage.setItem(CONTROLLER_KEY, JSON.stringify(controllerMapping))
+      localStorage.setItem(
+        STORAGE_KEYS.controller,
+        JSON.stringify(controllerMapping),
+      )
     } else {
-      localStorage.removeItem(CONTROLLER_KEY)
+      localStorage.removeItem(STORAGE_KEYS.controller)
     }
   }, [controllerMapping])
 
   useEffect(() => {
-    localStorage.setItem(KEYBOARD_KEY, JSON.stringify(keyboardMapping))
+    localStorage.setItem(
+      STORAGE_KEYS.keyboard,
+      JSON.stringify(keyboardMapping),
+    )
   }, [keyboardMapping])
 
   const setSong = useCallback((nextSong: LocalSong) => {
     setCurrentSong(nextSong)
     setSongs((current) => upsertSong(current, nextSong))
-    localStorage.setItem(SELECTED_SONG_KEY, nextSong.id)
+    localStorage.setItem(STORAGE_KEYS.selectedSong, nextSong.id)
 
     if (
       nextSong.kind === 'folder' &&
@@ -335,7 +251,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         ),
       )
       setCurrentSong(nextSongs[0])
-      localStorage.setItem(SELECTED_SONG_KEY, nextSongs[0].id)
+      localStorage.setItem(STORAGE_KEYS.selectedSong, nextSongs[0].id)
     } catch (reason) {
       const message =
         reason instanceof Error
@@ -367,7 +283,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setSongs((current) => current.filter((song) => song.id !== songId))
     setCurrentSong((current) => {
       if (current.id !== songId) return current
-      localStorage.setItem(SELECTED_SONG_KEY, calibrationSong.id)
+      localStorage.setItem(STORAGE_KEYS.selectedSong, calibrationSong.id)
       return calibrationSong
     })
     setLibraryError('')
@@ -385,7 +301,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const selectedSong = songs.find((candidate) => candidate.id === songId)
       if (!selectedSong) return
       setCurrentSong(selectedSong)
-      localStorage.setItem(SELECTED_SONG_KEY, selectedSong.id)
+      localStorage.setItem(STORAGE_KEYS.selectedSong, selectedSong.id)
     },
     [songs],
   )

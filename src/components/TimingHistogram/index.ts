@@ -1,0 +1,1 @@
+export { TimingHistogram } from './TimingHistogram'

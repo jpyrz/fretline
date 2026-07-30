@@ -1,10 +1,5 @@
 import { secondsToTick } from '../lib/chartParser'
-import { mappedGamepadSnapshot } from '../lib/controllerInput'
-import {
-  directHidSnapshot,
-  reconnectDirectHidDevice,
-} from '../lib/directHidController'
-import { hidAnalogValue, hidBindingActive } from '../lib/hidInput'
+import { reconnectDirectHidDevice } from '../lib/directHidController'
 import { keyboardEventCode } from '../lib/keyboardMapping'
 import {
   canFretHit,
@@ -29,6 +24,10 @@ import {
   isWhammyStarPowerSustain,
 } from '../lib/starPower'
 import { whammyAudioParameters } from './whammyAudio'
+import {
+  normalizePerformanceTimestamp,
+  readControllerState,
+} from './input/controllerState'
 import type {
   CalibrationSettings,
   ControllerMapping,
@@ -79,13 +78,6 @@ function freshStats(): SessionStats {
     lastErrorMs: null,
     records: [],
   }
-}
-
-function normalizePerformanceTimestamp(timestamp: number): number {
-  if (timestamp > performance.timeOrigin) {
-    return timestamp - performance.timeOrigin
-  }
-  return timestamp
 }
 
 export class GameEngine {
@@ -376,7 +368,9 @@ export class GameEngine {
       code === this.keyboardMapping.strumDown
     ) {
       event.preventDefault()
-      if (!event.repeat) this.strum(normalizePerformanceTimestamp(event.timeStamp))
+      if (!event.repeat) {
+        this.strum(normalizePerformanceTimestamp(event.timeStamp))
+      }
     }
   }
 
@@ -495,55 +489,12 @@ export class GameEngine {
   }
 
   private readGamepad(now: number): void {
-    if (!this.controllerMapping) {
+    const snapshot = readControllerState(this.controllerMapping, now)
+    if (!snapshot) {
       this.gamepadWhammy = 0
       return
     }
-    if (this.controllerMapping.source === 'hid') {
-      const snapshot = directHidSnapshot(this.controllerMapping.device)
-      const previousLanes = this.gamepadLanes
-      this.gamepadLanes = this.controllerMapping.frets
-        .map((binding, index) =>
-          hidBindingActive(snapshot.reports, binding)
-            ? (index as Lane)
-            : null,
-        )
-        .filter((lane): lane is Lane => lane !== null)
-      const fretsChanged =
-        previousLanes.length !== this.gamepadLanes.length ||
-        previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
-      const strumming =
-        hidBindingActive(snapshot.reports, this.controllerMapping.strumUp) ||
-        hidBindingActive(snapshot.reports, this.controllerMapping.strumDown)
-      const starPowerPressed = this.controllerMapping.starPower
-        ? hidBindingActive(
-            snapshot.reports,
-            this.controllerMapping.starPower,
-          )
-        : false
-      this.gamepadWhammy = hidAnalogValue(
-        snapshot.reports,
-        this.controllerMapping.whammy,
-      )
-      const timestamp = snapshot.timestamp || now
-
-      if (strumming && !this.previousGamepadStrum) {
-        this.strum(timestamp)
-      } else if (fretsChanged) {
-        this.fretChange(timestamp)
-      }
-      if (starPowerPressed && !this.previousGamepadStarPower) {
-        this.activateStarPower(timestamp)
-      }
-      this.previousGamepadStrum = strumming
-      this.previousGamepadStarPower = starPowerPressed
-      return
-    }
-
-    const mapping = this.controllerMapping
-    const gamepads = navigator.getGamepads?.() ?? []
-    const snapshot = mappedGamepadSnapshot(mapping, gamepads)
-    if (!snapshot) {
+    if (!snapshot.connected) {
       this.gamepadLanes = []
       this.gamepadWhammy = 0
       this.previousGamepadStrum = false
@@ -552,38 +503,21 @@ export class GameEngine {
     }
 
     const previousLanes = this.gamepadLanes
-    this.gamepadLanes = snapshot.frets
-      .map((active, index) => (active ? (index as Lane) : null))
-      .filter((lane): lane is Lane => lane !== null)
+    this.gamepadLanes = snapshot.lanes
     this.gamepadWhammy = snapshot.whammy
     const fretsChanged =
       previousLanes.length !== this.gamepadLanes.length ||
       previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
 
-    const strumming =
-      snapshot.strumDirections.up || snapshot.strumDirections.down
-
-    if (strumming && !this.previousGamepadStrum) {
-      const timestamp =
-        snapshot.gamepad.timestamp > 0
-          ? normalizePerformanceTimestamp(snapshot.gamepad.timestamp)
-          : now
-      this.strum(timestamp)
+    if (snapshot.strumming && !this.previousGamepadStrum) {
+      this.strum(snapshot.timestamp)
     } else if (fretsChanged) {
-      const timestamp =
-        snapshot.gamepad.timestamp > 0
-          ? normalizePerformanceTimestamp(snapshot.gamepad.timestamp)
-          : now
-      this.fretChange(timestamp)
+      this.fretChange(snapshot.timestamp)
     }
     if (snapshot.starPower && !this.previousGamepadStarPower) {
-      const timestamp =
-        snapshot.gamepad.timestamp > 0
-          ? normalizePerformanceTimestamp(snapshot.gamepad.timestamp)
-          : now
-      this.activateStarPower(timestamp)
+      this.activateStarPower(snapshot.timestamp)
     }
-    this.previousGamepadStrum = strumming
+    this.previousGamepadStrum = snapshot.strumming
     this.previousGamepadStarPower = snapshot.starPower
   }
 

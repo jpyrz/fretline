@@ -1,0 +1,144 @@
+import type { PlayPreferences } from '../lib/trackSelection'
+import { normalizeKeyboardMapping } from '../lib/keyboardMapping'
+import type {
+  AudioSettings,
+  CalibrationSettings,
+  ControllerMapping,
+  HighwaySettings,
+  KeyboardMapping,
+  VisualSettings,
+} from '../types/game'
+
+export const STORAGE_KEYS = {
+  calibration: 'fretline:calibration',
+  highway: 'fretline:highway',
+  audio: 'fretline:audio',
+  visualSettings: 'fretline:visual-settings',
+  playPreferences: 'fretline:play-preferences',
+  controller: 'fretline:controller',
+  keyboard: 'fretline:keyboard',
+  selectedSong: 'fretline:selected-song',
+} as const
+
+export const defaultCalibration: CalibrationSettings = {
+  inputOffsetMs: 0,
+  videoOffsetMs: 0,
+}
+
+export const defaultHighwaySettings: HighwaySettings = {
+  noteSpeed: 12,
+  length: 55,
+  missFeedback: true,
+}
+
+export const defaultAudioSettings: AudioSettings = {
+  homeMusicMuted: false,
+}
+
+export const defaultVisualSettings: VisualSettings = {
+  backgroundSelection: 'default',
+  highwaySelection: 'default',
+  backgroundDim: 42,
+  highwayOpacity: 72,
+  backgroundDriveFolder: null,
+  highwayDriveFolder: null,
+}
+
+export const defaultPlayPreferences: PlayPreferences = {
+  difficulty: 'Expert',
+  instrumentId: 'Single',
+}
+
+export function loadStoredValue<T>(key: string, fallback: T): T {
+  try {
+    const value = localStorage.getItem(key)
+    return value ? (JSON.parse(value) as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+export function loadHighwaySettings(): HighwaySettings {
+  const value = loadStoredValue<unknown>(
+    STORAGE_KEYS.highway,
+    defaultHighwaySettings,
+  )
+  const stored =
+    typeof value === 'object' && value !== null
+      ? (value as Partial<HighwaySettings>)
+      : {}
+
+  return {
+    noteSpeed:
+      typeof stored.noteSpeed === 'number' &&
+      Number.isFinite(stored.noteSpeed)
+        ? Math.max(6, Math.min(18, stored.noteSpeed))
+        : defaultHighwaySettings.noteSpeed,
+    length:
+      typeof stored.length === 'number' && Number.isFinite(stored.length)
+        ? Math.max(45, Math.min(100, stored.length))
+        : defaultHighwaySettings.length,
+    missFeedback:
+      typeof stored.missFeedback === 'boolean'
+        ? stored.missFeedback
+        : defaultHighwaySettings.missFeedback,
+  }
+}
+
+export function loadVisualSettings(): VisualSettings {
+  const value = loadStoredValue<Partial<VisualSettings>>(
+    STORAGE_KEYS.visualSettings,
+    defaultVisualSettings,
+  )
+  return {
+    backgroundSelection:
+      typeof value.backgroundSelection === 'string'
+        ? value.backgroundSelection
+        : 'default',
+    highwaySelection:
+      typeof value.highwaySelection === 'string'
+        ? value.highwaySelection
+        : 'default',
+    backgroundDim:
+      typeof value.backgroundDim === 'number'
+        ? Math.max(0, Math.min(90, value.backgroundDim))
+        : defaultVisualSettings.backgroundDim,
+    highwayOpacity:
+      typeof value.highwayOpacity === 'number'
+        ? Math.max(20, Math.min(100, value.highwayOpacity))
+        : defaultVisualSettings.highwayOpacity,
+    backgroundDriveFolder: value.backgroundDriveFolder ?? null,
+    highwayDriveFolder: value.highwayDriveFolder ?? null,
+  }
+}
+
+export function loadInitialSettings(): {
+  calibration: CalibrationSettings
+  highway: HighwaySettings
+  audio: AudioSettings
+  visual: VisualSettings
+  play: PlayPreferences
+  controller: ControllerMapping | null
+  keyboard: KeyboardMapping
+} {
+  return {
+    calibration: loadStoredValue(
+      STORAGE_KEYS.calibration,
+      defaultCalibration,
+    ),
+    highway: loadHighwaySettings(),
+    audio: loadStoredValue(STORAGE_KEYS.audio, defaultAudioSettings),
+    visual: loadVisualSettings(),
+    play: loadStoredValue(
+      STORAGE_KEYS.playPreferences,
+      defaultPlayPreferences,
+    ),
+    controller: loadStoredValue<ControllerMapping | null>(
+      STORAGE_KEYS.controller,
+      null,
+    ),
+    keyboard: normalizeKeyboardMapping(
+      loadStoredValue<unknown>(STORAGE_KEYS.keyboard, null),
+    ),
+  }
+}
