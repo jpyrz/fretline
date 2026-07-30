@@ -654,6 +654,211 @@ function drawChordBridge(
   context.restore()
 }
 
+function drawStarPowerGem(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  note: ChartNote,
+  color: string,
+  darkColor: string,
+  missed: boolean,
+): void {
+  const baseAlpha = context.globalAlpha
+  const capScale = note.tap ? 0.48 : note.hopo ? 0.27 : 0.52
+  const capHeight = note.tap ? 0.18 : note.hopo ? 0.1 : 0.18
+
+  context.save()
+  context.lineJoin = 'round'
+  if (note.tap && !missed) {
+    context.globalAlpha = baseAlpha * 0.6
+  }
+
+  // The shadow and metal underside follow the complete star silhouette so
+  // this reads as a star-shaped gem rather than an icon on a round note.
+  traceStar(
+    context,
+    x,
+    y + radius * 0.34,
+    radius * 1.22,
+    radius * 0.77,
+  )
+  context.fillStyle = 'rgba(0, 0, 0, 0.78)'
+  context.shadowColor = missed ? 'transparent' : `${color}70`
+  context.shadowBlur = radius * 0.95
+  context.fill()
+  context.shadowBlur = 0
+
+  traceStar(
+    context,
+    x,
+    y + radius * 0.2,
+    radius * 1.16,
+    radius * 0.75,
+  )
+  context.fillStyle = ellipseGradient(
+    context,
+    x,
+    y + radius * 0.04,
+    radius * 1.18,
+    missed ? '#c9cccf' : '#f8fafb',
+    missed ? '#666b70' : '#777d83',
+  )
+  context.strokeStyle = missed
+    ? 'rgba(240, 242, 244, 0.42)'
+    : 'rgba(255, 255, 255, 0.88)'
+  context.lineWidth = Math.max(1, radius * 0.075)
+  context.fill()
+  context.stroke()
+
+  traceStar(
+    context,
+    x,
+    y - radius * 0.015,
+    radius * 1.08,
+    radius * 0.69,
+  )
+  context.fillStyle = ellipseGradient(
+    context,
+    x - radius * 0.15,
+    y - radius * 0.2,
+    radius * 1.08,
+    missed ? '#85898d' : color,
+    darkColor,
+  )
+  context.strokeStyle = missed
+    ? 'rgba(220, 223, 226, 0.38)'
+    : 'rgba(223, 249, 255, 0.96)'
+  context.lineWidth = Math.max(1.25, radius * 0.09)
+  context.shadowColor = missed ? 'transparent' : `${color}b8`
+  context.shadowBlur = radius * 0.9
+  context.fill()
+  context.stroke()
+  context.shadowBlur = 0
+
+  // A second star-shaped bevel adds depth without obscuring the silhouette.
+  traceStar(
+    context,
+    x,
+    y - radius * 0.09,
+    radius * 0.78,
+    radius * 0.47,
+    0.52,
+  )
+  context.fillStyle = ellipseGradient(
+    context,
+    x - radius * 0.12,
+    y - radius * 0.18,
+    radius * 0.78,
+    missed ? '#9a9da1' : `${color}ee`,
+    missed ? '#55595d' : darkColor,
+  )
+  context.fill()
+
+  context.globalAlpha = baseAlpha
+  if (note.tap && !missed) {
+    traceStar(
+      context,
+      x,
+      y - radius * 0.02,
+      radius * 1.1,
+      radius * 0.7,
+    )
+    context.strokeStyle = 'rgba(201, 235, 255, 0.98)'
+    context.lineWidth = Math.max(1.5, radius * 0.1)
+    context.shadowColor = 'rgba(112, 210, 255, 0.98)'
+    context.shadowBlur = radius * 1.2
+    context.stroke()
+    context.shadowBlur = 0
+  }
+
+  // Keep the familiar cap language so power notes still communicate whether
+  // they are strums, HOPOs, or taps.
+  context.beginPath()
+  context.ellipse(
+    x,
+    y - radius * 0.07,
+    radius * (capScale + 0.1),
+    radius * (capHeight + 0.07),
+    0,
+    0,
+    Math.PI * 2,
+  )
+  context.fillStyle = missed ? '#5d6165' : 'rgba(13, 18, 23, 0.9)'
+  context.fill()
+
+  context.beginPath()
+  context.ellipse(
+    x,
+    y - radius * 0.11,
+    radius * capScale,
+    radius * capHeight,
+    0,
+    0,
+    Math.PI * 2,
+  )
+  context.fillStyle = missed
+    ? ellipseGradient(
+        context,
+        x,
+        y - radius * 0.14,
+        radius * capScale,
+        '#a0a3a6',
+        '#5b5f63',
+      )
+    : note.hopo || note.tap
+      ? ellipseGradient(
+          context,
+          x,
+          y - radius * 0.15,
+          radius * capScale,
+          '#ffffff',
+          note.tap ? '#b7eaff' : '#c8cdd2',
+        )
+      : ellipseGradient(
+          context,
+          x,
+          y - radius * 0.12,
+          radius * capScale,
+          '#464d54',
+          '#0b0e12',
+        )
+  context.strokeStyle =
+    !missed && (note.hopo || note.tap)
+      ? 'rgba(255, 255, 255, 0.96)'
+      : 'rgba(218, 226, 232, 0.7)'
+  context.lineWidth =
+    note.hopo || note.tap ? Math.max(1.2, radius * 0.08) : 1
+  context.shadowColor =
+    !missed && (note.hopo || note.tap)
+      ? note.tap
+        ? 'rgba(118, 216, 255, 0.98)'
+        : 'rgba(255, 255, 255, 0.92)'
+      : 'transparent'
+  context.shadowBlur = note.tap
+    ? radius
+    : note.hopo
+      ? radius * 0.65
+      : 0
+  context.fill()
+  context.stroke()
+  context.shadowBlur = 0
+
+  context.beginPath()
+  context.ellipse(
+    x - radius * 0.17,
+    y - radius * 0.23,
+    radius * 0.18,
+    radius * 0.055,
+    -0.18,
+    0,
+    Math.PI * 2,
+  )
+  context.fillStyle = 'rgba(255, 255, 255, 0.72)'
+  context.fill()
+  context.restore()
+}
+
 function drawGem(
   context: CanvasRenderingContext2D,
   x: number,
@@ -675,6 +880,20 @@ function drawGem(
       ? STAR_POWER_DARK_COLOR
       : `${LANE_COLORS[lane]}a8`
   const baseAlpha = context.globalAlpha
+
+  if (note.starPower) {
+    drawStarPowerGem(
+      context,
+      x,
+      y,
+      radius,
+      note,
+      color,
+      darkColor,
+      missed,
+    )
+    return
+  }
 
   context.save()
   if (note.tap && !missed) {
@@ -715,20 +934,16 @@ function drawGem(
   )
   context.fill()
 
-  if (note.starPower && !missed) {
-    traceStar(context, x, y - radius * 0.04, radius, radius * 0.7)
-  } else {
-    context.beginPath()
-    context.ellipse(
-      x,
-      y - radius * 0.04,
-      radius,
-      radius * 0.58,
-      0,
-      0,
-      Math.PI * 2,
-    )
-  }
+  context.beginPath()
+  context.ellipse(
+    x,
+    y - radius * 0.04,
+    radius,
+    radius * 0.58,
+    0,
+    0,
+    Math.PI * 2,
+  )
   context.fillStyle = ellipseGradient(
     context,
     x,
@@ -742,26 +957,16 @@ function drawGem(
   context.fill()
   context.shadowBlur = 0
 
-  if (note.starPower && !missed) {
-    traceStar(
-      context,
-      x,
-      y - radius * 0.11,
-      radius * 0.7,
-      radius * 0.43,
-    )
-  } else {
-    context.beginPath()
-    context.ellipse(
-      x,
-      y - radius * 0.11,
-      radius * 0.74,
-      radius * 0.33,
-      0,
-      0,
-      Math.PI * 2,
-    )
-  }
+  context.beginPath()
+  context.ellipse(
+    x,
+    y - radius * 0.11,
+    radius * 0.74,
+    radius * 0.33,
+    0,
+    0,
+    Math.PI * 2,
+  )
   context.fillStyle = missed
     ? '#484b50'
     : ellipseGradient(
@@ -858,35 +1063,6 @@ function drawGem(
   context.stroke()
   context.shadowBlur = 0
 
-  if (note.starPower && !missed) {
-    traceStar(
-      context,
-      x,
-      y - radius * 0.04,
-      radius * 1.08,
-      radius * 0.76,
-    )
-    context.strokeStyle = 'rgba(224, 250, 255, 0.98)'
-    context.lineJoin = 'round'
-    context.lineWidth = Math.max(1.5, radius * 0.1)
-    context.shadowColor = '#70dfff'
-    context.shadowBlur = radius * 1.2
-    context.stroke()
-
-    context.beginPath()
-    context.ellipse(
-      x - radius * 0.2,
-      y - radius * 0.31,
-      radius * 0.2,
-      radius * 0.075,
-      -0.18,
-      0,
-      Math.PI * 2,
-    )
-    context.fillStyle = 'rgba(255, 255, 255, 0.84)'
-    context.shadowBlur = 0
-    context.fill()
-  }
   context.restore()
 }
 
