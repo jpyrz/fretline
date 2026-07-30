@@ -3,61 +3,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LocalSong } from '../types/game'
 import { useSongPreview } from './useSongPreview'
 
-const audioBuffers = [
-  { duration: 120 } as AudioBuffer,
-  { duration: 120 } as AudioBuffer,
-]
-
-vi.mock('../lib/songAudio', () => ({
-  decodeSongAudio: vi.fn(() => Promise.resolve(audioBuffers)),
-  registerPreviewAudioContext: vi.fn(),
-  releasePreviewAudioContext: vi.fn(() => false),
-  unlockSongAudioDecoder: vi.fn(),
+vi.mock('../lib/songPreviewCache', () => ({
+  prepareSongPreview: vi.fn(() =>
+    Promise.resolve(new File(['preview'], 'fretline-preview.wav')),
+  ),
 }))
 
-class FakeAudioContext {
-  static sources: Array<{
-    start: ReturnType<typeof vi.fn>
-    stop: ReturnType<typeof vi.fn>
-    buffer: AudioBuffer | null
-  }> = []
+class FakePreviewAudio extends EventTarget {
+  static instances: FakePreviewAudio[] = []
 
-  state: AudioContextState = 'running'
-  currentTime = 1
-  destination = {} as AudioDestinationNode
+  readonly play = vi.fn(() => Promise.resolve())
+  readonly pause = vi.fn()
+  readonly load = vi.fn()
+  readonly removeAttribute = vi.fn()
+  currentTime = 0
+  volume = 0
+  preload = ''
+  src = ''
 
-  createDynamicsCompressor() {
-    return { connect: vi.fn() } as unknown as DynamicsCompressorNode
+  constructor() {
+    super()
+    FakePreviewAudio.instances.push(this)
   }
-
-  createGain() {
-    return {
-      context: this,
-      connect: vi.fn(),
-      gain: {
-        value: 0,
-        cancelScheduledValues: vi.fn(),
-        setValueAtTime: vi.fn(),
-        linearRampToValueAtTime: vi.fn(),
-        setTargetAtTime: vi.fn(),
-      },
-    } as unknown as GainNode
-  }
-
-  createBufferSource() {
-    const source = {
-      buffer: null as AudioBuffer | null,
-      connect: vi.fn(),
-      start: vi.fn(),
-      stop: vi.fn(),
-      onended: null,
-    }
-    FakeAudioContext.sources.push(source)
-    return source as unknown as AudioBufferSourceNode
-  }
-
-  resume = vi.fn(() => Promise.resolve())
-  close = vi.fn(() => Promise.resolve())
 }
 
 function previewSong(): LocalSong {
@@ -75,43 +42,35 @@ function previewSong(): LocalSong {
 
 describe('useSongPreview', () => {
   beforeEach(() => {
-    FakeAudioContext.sources = []
-    vi.stubGlobal('AudioContext', FakeAudioContext)
+    FakePreviewAudio.instances = []
+    vi.stubGlobal('Audio', FakePreviewAudio)
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:preview-test'),
+      revokeObjectURL: vi.fn(),
+    })
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('schedules every stem once on one clock without restarting on navigation', async () => {
+  it('plays one mixed preview without restarting on navigation', async () => {
     const { unmount } = renderHook(() =>
       useSongPreview(previewSong()),
     )
 
     await waitFor(() => {
-      expect(FakeAudioContext.sources).toHaveLength(2)
+      expect(FakePreviewAudio.instances).toHaveLength(1)
+      expect(FakePreviewAudio.instances[0].play).toHaveBeenCalledTimes(1)
     })
-
-    expect(
-      FakeAudioContext.sources.map((source) => source.start.mock.calls.length),
-    ).toEqual([1, 1])
-    expect(FakeAudioContext.sources[0].start.mock.calls[0]).toEqual([
-      1.03,
-      26.4,
-    ])
-    expect(FakeAudioContext.sources[1].start.mock.calls[0]).toEqual([
-      1.03,
-      26.4,
-    ])
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
       window.dispatchEvent(new Event('fretline:controller-action'))
     })
 
-    expect(
-      FakeAudioContext.sources.map((source) => source.start.mock.calls.length),
-    ).toEqual([1, 1])
+    expect(FakePreviewAudio.instances[0].play).toHaveBeenCalledTimes(1)
     unmount()
   })
 })

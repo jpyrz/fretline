@@ -17,6 +17,10 @@ import {
   prepareGameplayAudioContext,
 } from '../lib/songAudio'
 import { pickLoadingPhrase } from '../lib/loadingPhrases'
+import {
+  prepareSongPreview,
+  prepareSongPreviews,
+} from '../lib/songPreviewCache'
 import { importCloneHeroFolder, loadBundledSong } from '../lib/songImport'
 import {
   DIFFICULTIES,
@@ -50,7 +54,7 @@ export function SongSelectView() {
     song,
     songs,
     setSong,
-    addSongs,
+    addImportedSong,
     selectSong,
     removeSong,
     libraryReady,
@@ -185,7 +189,15 @@ export function SongSelectView() {
     setImporting(true)
     setError('')
     try {
-      setSong(await importCloneHeroFolder(files))
+      const imported = await importCloneHeroFolder(files)
+      setSong(imported)
+      try {
+        await prepareSongPreview(imported)
+      } catch {
+        setError(
+          `${imported.chart.metadata.name} was added, but its preview could not be prepared.`,
+        )
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Import failed.')
     } finally {
@@ -241,27 +253,61 @@ export function SongSelectView() {
         accessToken = await authorizeGoogleDrive()
       }
 
+      let preparedDuringSync = 0
+      let previewFailures = 0
       const result = await syncGoogleDriveLibrary(
         source,
         accessToken,
         songs,
         (progress) => setDriveStatus(progress.message),
+        async (importedSong) => {
+          await addImportedSong(importedSong)
+          try {
+            await prepareSongPreview(importedSong)
+            preparedDuringSync += 1
+            setDriveStatus(
+              `Preparing previews · ${preparedDuringSync} songs ready`,
+            )
+          } catch {
+            previewFailures += 1
+          }
+        },
       )
-      await addSongs(result.songs)
+      const previewSongs = songs.filter(
+        (candidate) =>
+          candidate.kind === 'folder' &&
+          candidate.source?.type === 'google-drive' &&
+          candidate.source.rootFolderId === source.id,
+      )
+      if (previewSongs.length > 0) {
+        setDriveStatus(`Preparing previews for ${previewSongs.length} songs…`)
+        const previewResult = await prepareSongPreviews(previewSongs, (progress) => {
+          setDriveStatus(
+            `Preparing previews · ${progress.completed} of ${progress.total}`,
+          )
+        })
+        previewFailures += previewResult.failed
+      }
       if (result.discovered === 0) {
         setDriveStatus(
           `No compatible song folders were found in ${source.name}.`,
         )
       } else if (result.songs.length === 0) {
         setDriveStatus(
-          `${source.name} is up to date · ${result.unchanged} songs checked.`,
+          `${source.name} is up to date · ${result.unchanged} songs checked.` +
+            (previewFailures
+              ? ` ${previewFailures} previews could not be prepared.`
+              : ''),
         )
       } else {
         setDriveStatus(
           `Added or updated ${result.songs.length} songs` +
             (result.unchanged
               ? ` · ${result.unchanged} already current.`
-              : '.'),
+              : '.') +
+            (previewFailures
+              ? ` ${previewFailures} previews could not be prepared.`
+              : ''),
         )
       }
     } catch (reason) {

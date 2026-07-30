@@ -1,4 +1,5 @@
 import { importCloneHeroFolder } from './songImport'
+import { createConcurrencyLimiter, mapConcurrent } from './concurrency'
 import type { LocalSong } from '../types/game'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
@@ -8,6 +9,9 @@ const SOURCE_STORAGE_KEY = 'fretline:google-drive-source'
 const SOURCE_SCOPE_VERSION = 2
 const CHART_IMPORT_VERSION = 3
 const MAX_DRIVE_ITEMS = 5000
+const DRIVE_SCAN_CONCURRENCY = 6
+const DRIVE_DOWNLOAD_CONCURRENCY = 6
+const DRIVE_RETRY_DELAYS_MS = [350, 900, 1_800]
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
 const PREVIEW_AUDIO = /^preview\.[^.]+$/i
 const CHART_EXTENSION = /\.(chart|mid)$/i
@@ -120,6 +124,10 @@ interface GoogleApiWindow extends Window {
 export interface DriveSyncProgress {
   phase: 'scanning' | 'downloading'
   message: string
+  completedBytes?: number
+  totalBytes?: number
+  completedSongs?: number
+  totalSongs?: number
 }
 
 export interface DriveSyncResult {
@@ -351,9 +359,10 @@ async function driveRequest<T>(
   accessToken: string,
   path: string,
 ): Promise<T> {
-  const response = await fetch(`${DRIVE_API_ROOT}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  const response = await fetchDriveWithRetry(
+    `${DRIVE_API_ROOT}${path}`,
+    accessToken,
+  )
   if (!response.ok) {
     let detail = ''
     try {
@@ -372,6 +381,45 @@ async function driveRequest<T>(
     )
   }
   return response.json() as Promise<T>
+}
+
+function isRetryableDriveStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
+
+function retryDelay(delayMs: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, delayMs))
+}
+
+async function fetchDriveWithRetry(
+  url: string,
+  accessToken: string,
+): Promise<Response> {
+  let lastError: unknown
+
+  for (let attempt = 0; attempt <= DRIVE_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (
+        !isRetryableDriveStatus(response.status) ||
+        attempt === DRIVE_RETRY_DELAYS_MS.length
+      ) {
+        return response
+      }
+      void response.body?.cancel()
+    } catch (reason) {
+      lastError = reason
+      if (attempt === DRIVE_RETRY_DELAYS_MS.length) throw reason
+    }
+
+    await retryDelay(DRIVE_RETRY_DELAYS_MS[attempt])
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Google Drive could not be reached.')
 }
 
 async function listChildren(
@@ -413,32 +461,41 @@ async function scanDriveTree(
   let itemCount = 0
 
   while (queue.length > 0) {
-    const directory = queue.shift()
-    if (!directory) break
+    const batch = queue.splice(0, DRIVE_SCAN_CONCURRENCY)
     onProgress?.({
       phase: 'scanning',
-      message: `Scanning ${directory.path}…`,
+      message: `Scanning ${directories.length + batch.length} folders…`,
     })
-    const children = await listChildren(accessToken, directory.id)
-    itemCount += children.length
-    if (itemCount > MAX_DRIVE_ITEMS) {
-      throw new Error(
-        `This Drive folder contains more than ${MAX_DRIVE_ITEMS.toLocaleString()} items. Choose a smaller charts folder.`,
-      )
-    }
-
-    directory.files = children.filter(
-      (child) => child.mimeType !== DRIVE_FOLDER_MIME_TYPE,
+    const scanned = await mapConcurrent(
+      batch,
+      DRIVE_SCAN_CONCURRENCY,
+      async (directory) => ({
+        directory,
+        children: await listChildren(accessToken, directory.id),
+      }),
     )
-    directories.push(directory)
-    for (const child of children) {
-      if (child.mimeType !== DRIVE_FOLDER_MIME_TYPE) continue
-      queue.push({
-        id: child.id,
-        name: child.name,
-        path: `${directory.path}/${child.name}`,
-        files: [],
-      })
+
+    for (const { directory, children } of scanned) {
+      itemCount += children.length
+      if (itemCount > MAX_DRIVE_ITEMS) {
+        throw new Error(
+          `This Drive folder contains more than ${MAX_DRIVE_ITEMS.toLocaleString()} items. Choose a smaller charts folder.`,
+        )
+      }
+
+      directory.files = children.filter(
+        (child) => child.mimeType !== DRIVE_FOLDER_MIME_TYPE,
+      )
+      directories.push(directory)
+      for (const child of children) {
+        if (child.mimeType !== DRIVE_FOLDER_MIME_TYPE) continue
+        queue.push({
+          id: child.id,
+          name: child.name,
+          path: `${directory.path}/${child.name}`,
+          files: [],
+        })
+      }
     }
   }
 
@@ -472,9 +529,9 @@ async function downloadDriveFile(
   accessToken: string,
   file: DriveFileMetadata,
 ): Promise<File> {
-  const response = await fetch(
+  const response = await fetchDriveWithRetry(
     `${DRIVE_API_ROOT}/files/${encodeURIComponent(file.id)}?alt=media&supportsAllDrives=true`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
+    accessToken,
   )
   if (!response.ok) {
     throw new Error(`Google Drive could not download ${file.name}.`)
@@ -492,6 +549,7 @@ export async function syncGoogleDriveLibrary(
   accessToken: string,
   existingSongs: LocalSong[],
   onProgress?: (progress: DriveSyncProgress) => void,
+  onSongReady?: (song: LocalSong) => Promise<void> | void,
 ): Promise<DriveSyncResult> {
   const directories = await scanDriveTree(accessToken, source, onProgress)
   const songDirectories = directories.filter((directory) => {
@@ -507,6 +565,11 @@ export async function syncGoogleDriveLibrary(
   const songs: LocalSong[] = []
   let unchanged = 0
   let requiredBytes = 0
+  const changedDirectories: Array<{
+    directory: DriveDirectory
+    songFiles: DriveFileMetadata[]
+    fingerprint: string
+  }> = []
 
   for (const directory of songDirectories) {
     const songFiles = directory.files.filter(isSongFile)
@@ -522,6 +585,9 @@ export async function syncGoogleDriveLibrary(
         (total, file) => total + Number(file.size ?? 0),
         0,
       )
+      changedDirectories.push({ directory, songFiles, fingerprint })
+    } else {
+      unchanged += 1
     }
   }
 
@@ -539,41 +605,61 @@ export async function syncGoogleDriveLibrary(
     await navigator.storage.persist?.()
   }
 
-  for (const [index, directory] of songDirectories.entries()) {
-    const songFiles = directory.files.filter(isSongFile)
-    const fingerprint = createDriveFingerprint(songFiles)
-    const existing = existingSongs.find(
-      (song) =>
-        song.source?.type === 'google-drive' &&
-        song.source.folderId === directory.id &&
-        song.source.fingerprint === fingerprint,
-    )
-    if (existing) {
-      unchanged += 1
-      continue
-    }
+  const downloadLimiter = createConcurrencyLimiter(
+    DRIVE_DOWNLOAD_CONCURRENCY,
+  )
+  let completedBytes = 0
+  let completedSongs = 0
 
-    onProgress?.({
-      phase: 'downloading',
-      message: `Downloading ${directory.name} (${index + 1} of ${songDirectories.length})…`,
-    })
-    const files: File[] = []
-    for (const file of songFiles) {
-      files.push(await downloadDriveFile(accessToken, file))
-    }
-    const imported = await importCloneHeroFolder(files)
-    songs.push({
-      ...imported,
-      id: `google-drive:${directory.id}`,
-      folderName: directory.path,
-      source: {
-        type: 'google-drive',
-        rootFolderId: source.id,
-        folderId: directory.id,
-        fingerprint,
-      },
-    })
-  }
+  const downloadedSongs = await Promise.all(
+    changedDirectories.map(async ({ directory, songFiles, fingerprint }) => {
+      const files = await Promise.all(
+        songFiles.map((file) =>
+          downloadLimiter.run(async () => {
+            const downloaded = await downloadDriveFile(accessToken, file)
+            completedBytes += Number(file.size ?? downloaded.size)
+            onProgress?.({
+              phase: 'downloading',
+              message:
+                `Downloading songs · ${formatBytes(completedBytes)} of ` +
+                `${formatBytes(requiredBytes)}`,
+              completedBytes,
+              totalBytes: requiredBytes,
+              completedSongs,
+              totalSongs: changedDirectories.length,
+            })
+            return downloaded
+          }),
+        ),
+      )
+      const imported = await importCloneHeroFolder(files)
+      completedSongs += 1
+      onProgress?.({
+        phase: 'downloading',
+        message:
+          `Downloaded ${completedSongs} of ${changedDirectories.length} songs` +
+          ` · ${formatBytes(completedBytes)} of ${formatBytes(requiredBytes)}`,
+        completedBytes,
+        totalBytes: requiredBytes,
+        completedSongs,
+        totalSongs: changedDirectories.length,
+      })
+      const song: LocalSong = {
+        ...imported,
+        id: `google-drive:${directory.id}`,
+        folderName: directory.path,
+        source: {
+          type: 'google-drive',
+          rootFolderId: source.id,
+          folderId: directory.id,
+          fingerprint,
+        },
+      }
+      await onSongReady?.(song)
+      return song
+    }),
+  )
+  songs.push(...downloadedSongs)
 
   return {
     songs,

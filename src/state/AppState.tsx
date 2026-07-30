@@ -29,6 +29,7 @@ interface AppStateValue {
   songs: LocalSong[]
   setSong: (song: LocalSong) => void
   addSongs: (songs: LocalSong[]) => Promise<void>
+  addImportedSong: (song: LocalSong) => Promise<void>
   selectSong: (songId: string) => void
   removeSong: (songId: string) => void
   selectTrack: (trackName: string) => void
@@ -241,6 +242,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const addImportedSong = useCallback(async (nextSong: LocalSong) => {
+    setLibraryError('')
+    try {
+      await persistSong(nextSong)
+      setSongs((current) => upsertSong(current, nextSong))
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'The imported song could not be saved in this browser.'
+      setLibraryError(message)
+      throw reason
+    }
+  }, [])
+
   const removeSong = useCallback((songId: string) => {
     setSongs((current) => current.filter((song) => song.id !== songId))
     setCurrentSong((current) => {
@@ -298,6 +314,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       songs,
       setSong,
       addSongs,
+      addImportedSong,
       selectSong,
       removeSong,
       selectTrack,
@@ -321,6 +338,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       songs,
       setSong,
       addSongs,
+      addImportedSong,
       selectSong,
       removeSong,
       selectTrack,

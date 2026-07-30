@@ -1,11 +1,18 @@
 import type { LocalSong } from '../types/game'
 
 const DATABASE_NAME = 'fretline-song-library'
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 2
 const SONG_STORE = 'songs'
+const PREVIEW_STORE = 'previews'
 
 interface PersistedSong extends LocalSong {
   librarySchemaVersion: 1
+  savedAt: number
+}
+
+interface PersistedPreview {
+  key: string
+  file: File
   savedAt: number
 }
 
@@ -23,6 +30,9 @@ function openDatabase(): Promise<IDBDatabase> {
       const database = request.result
       if (!database.objectStoreNames.contains(SONG_STORE)) {
         database.createObjectStore(SONG_STORE, { keyPath: 'id' })
+      }
+      if (!database.objectStoreNames.contains(PREVIEW_STORE)) {
+        database.createObjectStore(PREVIEW_STORE, { keyPath: 'key' })
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -99,8 +109,65 @@ export async function deletePersistedSong(songId: string): Promise<void> {
   const database = await openDatabase()
 
   try {
-    const transaction = database.transaction(SONG_STORE, 'readwrite')
+    const transaction = database.transaction(
+      [SONG_STORE, PREVIEW_STORE],
+      'readwrite',
+    )
     transaction.objectStore(SONG_STORE).delete(songId)
+    const previewStore = transaction.objectStore(PREVIEW_STORE)
+    const previewKeys = previewStore.getAllKeys()
+    previewKeys.onsuccess = () => {
+      for (const key of previewKeys.result) {
+        if (typeof key === 'string' && key.startsWith(`${songId}|`)) {
+          previewStore.delete(key)
+        }
+      }
+    }
+    await transactionComplete(transaction)
+  } finally {
+    database.close()
+  }
+}
+
+export async function loadPersistedPreview(
+  key: string,
+): Promise<File | null> {
+  const database = await openDatabase()
+
+  try {
+    const transaction = database.transaction(PREVIEW_STORE, 'readonly')
+    const request = transaction.objectStore(PREVIEW_STORE).get(key)
+    const record = await new Promise<PersistedPreview | undefined>(
+      (resolve, reject) => {
+        request.onsuccess = () =>
+          resolve(request.result as PersistedPreview | undefined)
+        request.onerror = () =>
+          reject(
+            request.error ??
+              new Error('The saved song preview could not be read.'),
+          )
+      },
+    )
+    await transactionComplete(transaction)
+    return record?.file instanceof File ? record.file : null
+  } finally {
+    database.close()
+  }
+}
+
+export async function persistPreview(
+  key: string,
+  file: File,
+): Promise<void> {
+  const database = await openDatabase()
+
+  try {
+    const transaction = database.transaction(PREVIEW_STORE, 'readwrite')
+    transaction.objectStore(PREVIEW_STORE).put({
+      key,
+      file,
+      savedAt: Date.now(),
+    } satisfies PersistedPreview)
     await transactionComplete(transaction)
   } finally {
     database.close()

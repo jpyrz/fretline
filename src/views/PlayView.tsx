@@ -217,7 +217,7 @@ export function PlayView() {
       const audioBuffersPromise =
         song.kind === 'calibration'
           ? Promise.resolve([createCalibrationAudio(audioContext)])
-          : decodeSongAudio(song)
+          : decodeSongAudio(song, audioContext)
       const minimumLoadingTime = autoStartRequested
         ? new Promise<void>((resolve) => window.setTimeout(resolve, 900))
         : Promise.resolve()
