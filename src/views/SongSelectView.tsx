@@ -553,7 +553,10 @@ export function SongSelectView() {
   }
 
   return (
-    <main className={styles.page}>
+    <main
+      className={styles.page}
+      data-manager-open={manageOpen || undefined}
+    >
       <header className={styles.header}>
         <button
           type="button"

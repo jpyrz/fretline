@@ -41,6 +41,14 @@ const DEFAULT_HIGHWAY_LENGTH = 55
 // unusually tall or high-DPI displays.
 const SURFACE_END_PROGRESS = 1.18
 
+export interface HighwayVisualOptions {
+  backgroundImage?: HTMLImageElement | null
+  backgroundDim?: number
+  highwayImage?: HTMLImageElement | null
+  highwayOpacity?: number
+  missFeedback?: boolean
+}
+
 export function travelSecondsForNoteSpeed(noteSpeed: number): number {
   const normalizedSpeed = Math.max(6, Math.min(18, noteSpeed))
   return 3 - normalizedSpeed * 0.1
@@ -243,6 +251,10 @@ function drawHighwaySurface(
   starPowerActive: boolean,
   songTimeSeconds: number,
   highwayLength: number,
+  backgroundImage: HTMLImageElement | null,
+  backgroundDim: number,
+  highwayImage: HTMLImageElement | null,
+  highwayOpacity: number,
 ): void {
   const top = highwayPoint(width, height, 0, highwayLength)
   const bottom = highwayPoint(
@@ -252,19 +264,68 @@ function drawHighwaySurface(
     highwayLength,
   )
 
-  const background = context.createRadialGradient(
-    width / 2,
-    height * 0.45,
-    width * 0.05,
-    width / 2,
-    height * 0.5,
-    width * 0.78,
-  )
-  background.addColorStop(0, starPowerActive ? '#143d61' : '#121726')
-  background.addColorStop(0.62, starPowerActive ? '#071827' : '#060811')
-  background.addColorStop(1, '#020307')
-  context.fillStyle = background
-  context.fillRect(0, 0, width, height)
+  if (
+    backgroundImage &&
+    backgroundImage.complete &&
+    backgroundImage.naturalWidth > 0
+  ) {
+    const imageRatio =
+      backgroundImage.naturalWidth / backgroundImage.naturalHeight
+    const viewportRatio = width / height
+    const sourceWidth =
+      imageRatio > viewportRatio
+        ? backgroundImage.naturalHeight * viewportRatio
+        : backgroundImage.naturalWidth
+    const sourceHeight =
+      imageRatio > viewportRatio
+        ? backgroundImage.naturalHeight
+        : backgroundImage.naturalWidth / viewportRatio
+    context.drawImage(
+      backgroundImage,
+      (backgroundImage.naturalWidth - sourceWidth) / 2,
+      (backgroundImage.naturalHeight - sourceHeight) / 2,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      width,
+      height,
+    )
+    context.fillStyle = `rgba(2, 3, 7, ${Math.max(
+      0,
+      Math.min(0.9, backgroundDim / 100),
+    )})`
+    context.fillRect(0, 0, width, height)
+    const ambient = context.createRadialGradient(
+      width / 2,
+      height * 0.45,
+      width * 0.05,
+      width / 2,
+      height * 0.5,
+      width * 0.78,
+    )
+    ambient.addColorStop(
+      0,
+      starPowerActive ? 'rgba(20,61,97,0.34)' : 'rgba(18,23,38,0.18)',
+    )
+    ambient.addColorStop(1, 'rgba(2,3,7,0.68)')
+    context.fillStyle = ambient
+    context.fillRect(0, 0, width, height)
+  } else {
+    const background = context.createRadialGradient(
+      width / 2,
+      height * 0.45,
+      width * 0.05,
+      width / 2,
+      height * 0.5,
+      width * 0.78,
+    )
+    background.addColorStop(0, starPowerActive ? '#143d61' : '#121726')
+    background.addColorStop(0.62, starPowerActive ? '#071827' : '#060811')
+    background.addColorStop(1, '#020307')
+    context.fillStyle = background
+    context.fillRect(0, 0, width, height)
+  }
 
   context.save()
   trackPath(context, top, bottom)
@@ -281,6 +342,51 @@ function drawHighwaySurface(
     bottom.trackWidth,
     bottom.y - top.y,
   )
+
+  if (
+    highwayImage &&
+    highwayImage.complete &&
+    highwayImage.naturalWidth > 0
+  ) {
+    const slices = 72
+    context.save()
+    context.globalAlpha = Math.max(
+      0.2,
+      Math.min(1, highwayOpacity / 100),
+    )
+    for (let slice = 0; slice < slices; slice += 1) {
+      const progressStart =
+        (slice / slices) * SURFACE_END_PROGRESS
+      const progressEnd =
+        ((slice + 1) / slices) * SURFACE_END_PROGRESS
+      const start = highwayPoint(
+        width,
+        height,
+        progressStart,
+        highwayLength,
+      )
+      const end = highwayPoint(
+        width,
+        height,
+        progressEnd,
+        highwayLength,
+      )
+      const sourceY = (slice / slices) * highwayImage.naturalHeight
+      const sourceHeight = highwayImage.naturalHeight / slices + 1
+      context.drawImage(
+        highwayImage,
+        0,
+        sourceY,
+        highwayImage.naturalWidth,
+        sourceHeight,
+        trackEdge(start, -1),
+        start.y,
+        start.trackWidth,
+        Math.max(1, end.y - start.y + 1),
+      )
+    }
+    context.restore()
+  }
 
   for (let band = 0; band < 14; band += 1) {
     const startProgress = (band / 14) * SURFACE_END_PROGRESS
@@ -1592,12 +1698,74 @@ function drawCountdown(
   context.restore()
 }
 
+function drawMissFeedback(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  frame: GameFrame,
+  highwayLength: number,
+): void {
+  const miss = frame.missFlash
+  if (!miss) return
+  const duration = Math.max(0.001, miss.expiresAt - miss.startedAt)
+  const progress = Math.max(
+    0,
+    Math.min(1, (frame.songTimeSeconds - miss.startedAt) / duration),
+  )
+  const alpha = 1 - progress
+  const point = highwayPoint(width, height, 1, highwayLength)
+  const radius = receptorRadius(point)
+
+  context.save()
+  context.globalAlpha = alpha
+  context.strokeStyle = '#ff4051'
+  context.fillStyle = '#ff7380'
+  context.shadowColor = '#ff233b'
+  context.shadowBlur = 16 * alpha
+  context.lineWidth = Math.max(2, radius * 0.09)
+
+  if (miss.open) {
+    context.beginPath()
+    context.roundRect(
+      trackEdge(point, -1) + radius * 0.25,
+      point.hitY - radius * 0.25,
+      point.trackWidth - radius * 0.5,
+      radius * 0.5,
+      radius * 0.2,
+    )
+    context.stroke()
+  } else {
+    for (const lane of miss.lanes) {
+      const x = highwayLaneX(width, lane, 1)
+      context.beginPath()
+      context.ellipse(
+        x,
+        point.hitY,
+        radius * (1.08 + progress * 0.32),
+        radius * (0.58 + progress * 0.18),
+        0,
+        0,
+        Math.PI * 2,
+      )
+      context.stroke()
+    }
+  }
+
+  context.shadowBlur = 10 * alpha
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  context.font = `850 ${Math.max(12, Math.min(18, width * 0.018))}px system-ui, sans-serif`
+  context.fillText('MISS', width / 2, point.hitY - radius * 1.65)
+  context.restore()
+}
+
 export function drawHighway(
   canvas: HTMLCanvasElement,
   chart: ParsedChart,
   frame: GameFrame,
   noteSpeed = 12,
   highwayLength = DEFAULT_HIGHWAY_LENGTH,
+  visuals: HighwayVisualOptions = {},
 ): void {
   const context = resizeCanvas(canvas)
   if (!context) return
@@ -1614,6 +1782,10 @@ export function drawHighway(
     frame.stats.starPowerActive,
     frame.songTimeSeconds,
     highwayLength,
+    visuals.backgroundImage ?? null,
+    visuals.backgroundDim ?? 42,
+    visuals.highwayImage ?? null,
+    visuals.highwayOpacity ?? 72,
   )
   drawTimingWindows(
     context,
@@ -1709,6 +1881,9 @@ export function drawHighway(
     context.restore()
   }
   drawHitEffects(context, width, height, frame, highwayLength)
+  if (visuals.missFeedback !== false) {
+    drawMissFeedback(context, width, height, frame, highwayLength)
+  }
   drawCountdown(context, width, height, frame.songTimeSeconds)
 
   const songProgress = Math.max(

@@ -144,6 +144,45 @@ export interface CalibrationSettings {
 export interface HighwaySettings {
   noteSpeed: number
   length: number
+  missFeedback: boolean
+}
+
+export interface AudioSettings {
+  homeMusicMuted: boolean
+}
+
+export type VisualAssetKind = 'background' | 'highway'
+
+export interface VisualAsset {
+  id: string
+  kind: VisualAssetKind
+  name: string
+  file: File
+  source:
+    | {
+        type: 'local'
+      }
+    | {
+        type: 'google-drive'
+        fileId: string
+        folderId: string
+        fingerprint: string
+      }
+}
+
+export interface VisualAssetFolder {
+  id: string
+  name: string
+  scopeVersion: 2
+}
+
+export interface VisualSettings {
+  backgroundSelection: 'default' | 'random' | string
+  highwaySelection: 'default' | 'random' | string
+  backgroundDim: number
+  highwayOpacity: number
+  backgroundDriveFolder: VisualAssetFolder | null
+  highwayDriveFolder: VisualAssetFolder | null
 }
 
 export interface HitRecord {
@@ -182,6 +221,12 @@ export interface GameFrame {
   stats: SessionStats
   whammyAmount: number
   hitFlash: {
+    lanes: Lane[]
+    open: boolean
+    startedAt: number
+    expiresAt: number
+  } | null
+  missFlash?: {
     lanes: Lane[]
     open: boolean
     startedAt: number

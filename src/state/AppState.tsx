@@ -10,8 +10,11 @@ import {
 } from 'react'
 import { calibrationSong } from '../lib/calibrationSong'
 import {
+  deletePersistedVisualAsset,
   deletePersistedSong,
+  loadPersistedVisualAssets,
   loadPersistedSongs,
+  persistVisualAssets,
   persistSong,
 } from '../lib/songLibrary'
 import { normalizeKeyboardMapping } from '../lib/keyboardMapping'
@@ -19,9 +22,12 @@ import type { PlayPreferences } from '../lib/trackSelection'
 import type {
   CalibrationSettings,
   ControllerMapping,
+  AudioSettings,
   HighwaySettings,
   KeyboardMapping,
   LocalSong,
+  VisualAsset,
+  VisualSettings,
 } from '../types/game'
 
 interface AppStateValue {
@@ -41,6 +47,16 @@ interface AppStateValue {
   setCalibration: (calibration: CalibrationSettings) => void
   highwaySettings: HighwaySettings
   setHighwaySettings: (settings: HighwaySettings) => void
+  audioSettings: AudioSettings
+  setAudioSettings: (settings: AudioSettings) => void
+  visualAssets: VisualAsset[]
+  visualAssetsReady: boolean
+  visualAssetsSaving: boolean
+  visualAssetsError: string
+  addVisualAssets: (assets: VisualAsset[]) => Promise<void>
+  removeVisualAsset: (assetId: string) => Promise<void>
+  visualSettings: VisualSettings
+  setVisualSettings: (settings: VisualSettings) => void
   playPreferences: PlayPreferences
   setPlayPreferences: (preferences: PlayPreferences) => void
   controllerMapping: ControllerMapping | null
@@ -51,6 +67,8 @@ interface AppStateValue {
 
 const SETTINGS_KEY = 'fretline:calibration'
 const HIGHWAY_KEY = 'fretline:highway'
+const AUDIO_KEY = 'fretline:audio'
+const VISUAL_SETTINGS_KEY = 'fretline:visual-settings'
 const PLAY_PREFERENCES_KEY = 'fretline:play-preferences'
 const CONTROLLER_KEY = 'fretline:controller'
 const KEYBOARD_KEY = 'fretline:keyboard'
@@ -64,6 +82,20 @@ const defaultCalibration: CalibrationSettings = {
 const defaultHighwaySettings: HighwaySettings = {
   noteSpeed: 12,
   length: 55,
+  missFeedback: true,
+}
+
+const defaultAudioSettings: AudioSettings = {
+  homeMusicMuted: false,
+}
+
+const defaultVisualSettings: VisualSettings = {
+  backgroundSelection: 'default',
+  highwaySelection: 'default',
+  backgroundDim: 42,
+  highwayOpacity: 72,
+  backgroundDriveFolder: null,
+  highwayDriveFolder: null,
 }
 
 const defaultPlayPreferences: PlayPreferences = {
@@ -97,6 +129,37 @@ function loadHighwaySettings(): HighwaySettings {
       typeof stored.length === 'number' && Number.isFinite(stored.length)
         ? Math.max(45, Math.min(100, stored.length))
         : defaultHighwaySettings.length,
+    missFeedback:
+      typeof stored.missFeedback === 'boolean'
+        ? stored.missFeedback
+        : defaultHighwaySettings.missFeedback,
+  }
+}
+
+function loadVisualSettings(): VisualSettings {
+  const value = loadStored<Partial<VisualSettings>>(
+    VISUAL_SETTINGS_KEY,
+    defaultVisualSettings,
+  )
+  return {
+    backgroundSelection:
+      typeof value.backgroundSelection === 'string'
+        ? value.backgroundSelection
+        : 'default',
+    highwaySelection:
+      typeof value.highwaySelection === 'string'
+        ? value.highwaySelection
+        : 'default',
+    backgroundDim:
+      typeof value.backgroundDim === 'number'
+        ? Math.max(0, Math.min(90, value.backgroundDim))
+        : defaultVisualSettings.backgroundDim,
+    highwayOpacity:
+      typeof value.highwayOpacity === 'number'
+        ? Math.max(20, Math.min(100, value.highwayOpacity))
+        : defaultVisualSettings.highwayOpacity,
+    backgroundDriveFolder: value.backgroundDriveFolder ?? null,
+    highwayDriveFolder: value.highwayDriveFolder ?? null,
   }
 }
 
@@ -122,6 +185,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   )
   const [highwaySettings, setHighwaySettings] = useState<HighwaySettings>(() =>
     loadHighwaySettings(),
+  )
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(() =>
+    loadStored(AUDIO_KEY, defaultAudioSettings),
+  )
+  const [visualAssets, setVisualAssets] = useState<VisualAsset[]>([])
+  const [visualAssetsReady, setVisualAssetsReady] = useState(false)
+  const [visualAssetsSaving, setVisualAssetsSaving] = useState(false)
+  const [visualAssetsError, setVisualAssetsError] = useState('')
+  const [visualSettings, setVisualSettings] = useState<VisualSettings>(() =>
+    loadVisualSettings(),
   )
   const [playPreferences, setPlayPreferences] = useState<PlayPreferences>(() =>
     loadStored(PLAY_PREFERENCES_KEY, defaultPlayPreferences),
@@ -166,12 +239,45 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    let active = true
+    void loadPersistedVisualAssets()
+      .then((assets) => {
+        if (active) setVisualAssets(assets)
+      })
+      .catch((reason: unknown) => {
+        if (!active) return
+        setVisualAssetsError(
+          reason instanceof Error
+            ? reason.message
+            : 'Saved artwork could not be loaded.',
+        )
+      })
+      .finally(() => {
+        if (active) setVisualAssetsReady(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(calibration))
   }, [calibration])
 
   useEffect(() => {
     localStorage.setItem(HIGHWAY_KEY, JSON.stringify(highwaySettings))
   }, [highwaySettings])
+
+  useEffect(() => {
+    localStorage.setItem(AUDIO_KEY, JSON.stringify(audioSettings))
+  }, [audioSettings])
+
+  useEffect(() => {
+    localStorage.setItem(
+      VISUAL_SETTINGS_KEY,
+      JSON.stringify(visualSettings),
+    )
+  }, [visualSettings])
 
   useEffect(() => {
     localStorage.setItem(
@@ -308,6 +414,60 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const addVisualAssets = useCallback(async (assets: VisualAsset[]) => {
+    if (assets.length === 0) return
+    setVisualAssetsSaving(true)
+    setVisualAssetsError('')
+    try {
+      await persistVisualAssets(assets)
+      setVisualAssets((current) => {
+        const byId = new Map(current.map((asset) => [asset.id, asset]))
+        for (const asset of assets) byId.set(asset.id, asset)
+        return [...byId.values()]
+      })
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'The artwork could not be saved in this browser.'
+      setVisualAssetsError(message)
+      throw reason
+    } finally {
+      setVisualAssetsSaving(false)
+    }
+  }, [])
+
+  const removeVisualAsset = useCallback(async (assetId: string) => {
+    setVisualAssetsSaving(true)
+    setVisualAssetsError('')
+    try {
+      await deletePersistedVisualAsset(assetId)
+      setVisualAssets((current) =>
+        current.filter((asset) => asset.id !== assetId),
+      )
+      setVisualSettings((current) => ({
+        ...current,
+        backgroundSelection:
+          current.backgroundSelection === assetId
+            ? 'default'
+            : current.backgroundSelection,
+        highwaySelection:
+          current.highwaySelection === assetId
+            ? 'default'
+            : current.highwaySelection,
+      }))
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'The artwork could not be removed.'
+      setVisualAssetsError(message)
+      throw reason
+    } finally {
+      setVisualAssetsSaving(false)
+    }
+  }, [])
+
   const value = useMemo<AppStateValue>(
     () => ({
       song,
@@ -326,6 +486,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setCalibration,
       highwaySettings,
       setHighwaySettings,
+      audioSettings,
+      setAudioSettings,
+      visualAssets,
+      visualAssetsReady,
+      visualAssetsSaving,
+      visualAssetsError,
+      addVisualAssets,
+      removeVisualAsset,
+      visualSettings,
+      setVisualSettings,
       playPreferences,
       setPlayPreferences,
       controllerMapping,
@@ -347,6 +517,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       libraryError,
       calibration,
       highwaySettings,
+      audioSettings,
+      visualAssets,
+      visualAssetsReady,
+      visualAssetsSaving,
+      visualAssetsError,
+      addVisualAssets,
+      removeVisualAsset,
+      visualSettings,
       playPreferences,
       controllerMapping,
       keyboardMapping,

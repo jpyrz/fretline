@@ -15,6 +15,7 @@ import {
   decodeSongAudio,
   takePreparedGameplayAudioContext,
 } from '../lib/songAudio'
+import { selectVisualAsset } from '../lib/visualAssets'
 import { useAppState } from '../state/AppState'
 import type { GameFrame, LocalSong, SessionStats } from '../types/game'
 import styles from './PlayView.module.scss'
@@ -64,6 +65,34 @@ function whammyBufferIndices(song: LocalSong): number[] {
   return []
 }
 
+function useVisualImage(file: File | undefined): HTMLImageElement | null {
+  const [image, setImage] = useState<HTMLImageElement | null>(null)
+
+  useEffect(() => {
+    if (!file) {
+      setImage(null)
+      return
+    }
+    const objectUrl = URL.createObjectURL(file)
+    const nextImage = new Image()
+    let active = true
+    setImage(null)
+    nextImage.onload = () => {
+      if (active) setImage(nextImage)
+    }
+    nextImage.onerror = () => {
+      if (active) setImage(null)
+    }
+    nextImage.src = objectUrl
+    return () => {
+      active = false
+      URL.revokeObjectURL(objectUrl)
+    }
+  }, [file])
+
+  return image
+}
+
 export function PlayView() {
   const location = useLocation()
   const {
@@ -71,6 +100,8 @@ export function PlayView() {
     calibration,
     setCalibration,
     highwaySettings,
+    visualAssets,
+    visualSettings,
     controllerMapping,
     keyboardMapping,
   } = useAppState()
@@ -94,6 +125,50 @@ export function PlayView() {
     calibration.inputOffsetMs,
   )
   const [appliedOffsetMs, setAppliedOffsetMs] = useState<number | null>(null)
+  const backgroundAsset = useMemo(
+    () =>
+      selectVisualAsset(
+        visualAssets,
+        'background',
+        visualSettings.backgroundSelection,
+        song.id,
+      ),
+    [
+      song.id,
+      visualAssets,
+      visualSettings.backgroundSelection,
+    ],
+  )
+  const highwayAsset = useMemo(
+    () =>
+      selectVisualAsset(
+        visualAssets,
+        'highway',
+        visualSettings.highwaySelection,
+        song.id,
+      ),
+    [song.id, visualAssets, visualSettings.highwaySelection],
+  )
+  const backgroundImage = useVisualImage(backgroundAsset?.file)
+  const highwayImage = useVisualImage(highwayAsset?.file)
+  const highwayVisuals = useMemo(
+    () => ({
+      backgroundImage,
+      backgroundDim: visualSettings.backgroundDim,
+      highwayImage,
+      highwayOpacity: visualSettings.highwayOpacity,
+      missFeedback: highwaySettings.missFeedback,
+    }),
+    [
+      backgroundImage,
+      highwayImage,
+      highwaySettings.missFeedback,
+      visualSettings.backgroundDim,
+      visualSettings.highwayOpacity,
+    ],
+  )
+  const highwayVisualsRef = useRef(highwayVisuals)
+  highwayVisualsRef.current = highwayVisuals
 
   const hitErrors = useMemo(
     () =>
@@ -154,6 +229,7 @@ export function PlayView() {
       stats: emptyStats,
       whammyAmount: 0,
       hitFlash: null,
+      missFlash: null,
     }),
     [song.chart.notes],
   )
@@ -177,6 +253,7 @@ export function PlayView() {
         loadingFrame,
         highwaySettings.noteSpeed,
         highwaySettings.length,
+        highwayVisuals,
       )
     const frame = requestAnimationFrame(drawLoadingHighway)
     const observer = new ResizeObserver(drawLoadingHighway)
@@ -188,6 +265,7 @@ export function PlayView() {
   }, [
     highwaySettings.noteSpeed,
     highwaySettings.length,
+    highwayVisuals,
     immersiveLoading,
     loadingFrame,
     song.chart,
@@ -242,6 +320,7 @@ export function PlayView() {
               frame,
               highwaySettings.noteSpeed,
               highwaySettings.length,
+              highwayVisualsRef.current,
             )
           }
         },

@@ -131,6 +131,7 @@ export class GameEngine {
   private lastStarPowerTick: number | null = null
   private lastWhammyAudioAmount = -1
   private hitFlash: GameFrame['hitFlash'] = null
+  private missFlash: GameFrame['missFlash'] = null
   private lastStatsPush = 0
   private mixGain: GainNode | null = null
 
@@ -196,6 +197,7 @@ export class GameEngine {
     this.paused = false
     this.pausedSongTimeSeconds = -COUNTDOWN_SECONDS
     this.hitFlash = null
+    this.missFlash = null
     this.lastStarPowerTick = null
     this.lastWhammyAudioAmount = -1
     this.previousGamepadStrum = false
@@ -858,6 +860,7 @@ export class GameEngine {
         scoringTime
     ) {
       if (this.noteStates[this.missCursor] === 'pending') {
+        const missedNote = this.chart.notes[this.missCursor]
         this.noteStates[this.missCursor] = 'miss'
         this.failStarPowerPhrases(this.missCursor)
         this.stats.misses += 1
@@ -868,6 +871,12 @@ export class GameEngine {
           errorMs: HIT_WINDOW_MS,
           result: 'miss',
         })
+        this.missFlash = {
+          lanes: [...missedNote.lanes],
+          open: missedNote.open,
+          startedAt: scoringTime,
+          expiresAt: scoringTime + 0.18,
+        }
         changed = true
       }
       this.missCursor += 1
@@ -907,6 +916,9 @@ export class GameEngine {
     if (this.hitFlash && this.hitFlash.expiresAt < songTimeSeconds) {
       this.hitFlash = null
     }
+    if (this.missFlash && this.missFlash.expiresAt < scoringTime) {
+      this.missFlash = null
+    }
 
     if (now - this.lastStatsPush > 100) {
       this.lastStatsPush = now
@@ -923,6 +935,7 @@ export class GameEngine {
       stats: this.stats,
       whammyAmount: this.whammyAmount(),
       hitFlash: this.hitFlash,
+      missFlash: this.missFlash,
     })
 
     const audioDuration = Math.max(

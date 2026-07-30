@@ -34,13 +34,17 @@ export function HomeView() {
     songs,
     controllerMapping,
     libraryReady,
+    audioSettings,
     useTimingLab: activateTimingLab,
   } = useAppState()
   const playableSongs = useMemo(
     () => songs.filter((candidate) => candidate.kind === 'folder'),
     [songs],
   )
-  const homeAudio = useHomeAudio(playableSongs)
+  const homeAudio = useHomeAudio(
+    playableSongs,
+    audioSettings.homeMusicMuted,
+  )
   const songCountLabel = `${playableSongs.length} ${
     playableSongs.length === 1 ? 'song' : 'songs'
   } ready`

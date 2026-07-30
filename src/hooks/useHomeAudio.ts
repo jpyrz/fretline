@@ -25,11 +25,14 @@ function randomSongId(
   return choices[Math.floor(Math.random() * choices.length)]?.id ?? null
 }
 
-export function useHomeAudio(songs: LocalSong[]): HomeAudioState {
+export function useHomeAudio(
+  songs: LocalSong[],
+  initiallyMuted = false,
+): HomeAudioState {
   const [songId, setSongId] = useState<string | null>(null)
   const [status, setStatus] = useState<HomeAudioStatus>('idle')
   const [progress, setProgress] = useState(0)
-  const [muted, setMuted] = useState(false)
+  const [muted, setMuted] = useState(initiallyMuted)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const startRef = useRef<() => void>(() => undefined)
   const mutedRef = useRef(muted)

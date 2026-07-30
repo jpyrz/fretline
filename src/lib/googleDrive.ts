@@ -1,6 +1,10 @@
 import { importCloneHeroFolder } from './songImport'
 import { createConcurrencyLimiter, mapConcurrent } from './concurrency'
-import type { LocalSong } from '../types/game'
+import type {
+  LocalSong,
+  VisualAsset,
+  VisualAssetKind,
+} from '../types/game'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 const DRIVE_API_ROOT = 'https://www.googleapis.com/drive/v3'
@@ -17,6 +21,7 @@ const PREVIEW_AUDIO = /^preview\.[^.]+$/i
 const CHART_EXTENSION = /\.(chart|mid)$/i
 const METADATA_FILE = /^song\.ini$/i
 const ARTWORK_FILE = /^(album|cover)\.(png|jpe?g|webp)$/i
+const VISUAL_ART_FILE = /\.(png|jpe?g|webp)$/i
 
 interface GoogleDriveConfig {
   clientId: string
@@ -283,6 +288,7 @@ async function pickFolder(
   googleWindow: GoogleApiWindow,
   config: GoogleDriveConfig,
   accessToken: string,
+  title = 'Choose the Drive folder containing your song folders',
 ): Promise<DriveLibrarySource | null> {
   const picker = googleWindow.google?.picker
   if (!picker) throw new Error('Google Drive Picker is unavailable.')
@@ -299,7 +305,7 @@ async function pickFolder(
       builder.setDeveloperKey(config.apiKey)
       builder.setOAuthToken(accessToken)
       builder.setOrigin(window.location.origin)
-      builder.setTitle('Choose the Drive folder containing your song folders')
+      builder.setTitle(title)
       builder.setCallback((data) => {
         if (data.action === picker.Action.CANCEL) {
           resolve(null)
@@ -342,6 +348,29 @@ export async function connectGoogleDrive(): Promise<{
   const googleWindow = await loadGoogleScripts()
   const accessToken = await requestDriveToken(googleWindow, config, true)
   const source = await pickFolder(googleWindow, config, accessToken)
+  return { source, accessToken }
+}
+
+export async function connectGoogleDriveFolder(
+  title: string,
+): Promise<{
+  source: DriveLibrarySource | null
+  accessToken: string
+}> {
+  const config = getConfig()
+  if (!config) {
+    throw new Error(
+      'Google Drive needs a client ID, API key, and app ID before it can connect.',
+    )
+  }
+  const googleWindow = await loadGoogleScripts()
+  const accessToken = await requestDriveToken(googleWindow, config, true)
+  const source = await pickFolder(
+    googleWindow,
+    config,
+    accessToken,
+    title,
+  )
   return { source, accessToken }
 }
 
@@ -665,6 +694,90 @@ export async function syncGoogleDriveLibrary(
     songs,
     discovered: songDirectories.length,
     unchanged,
+  }
+}
+
+export interface DriveVisualSyncResult {
+  assets: VisualAsset[]
+  discovered: number
+  unchanged: number
+}
+
+function visualFingerprint(file: DriveFileMetadata): string {
+  return `${file.id}:${file.modifiedTime ?? ''}:${file.size ?? ''}`
+}
+
+export async function syncGoogleDriveVisualAssets(
+  source: DriveLibrarySource,
+  accessToken: string,
+  kind: VisualAssetKind,
+  existingAssets: VisualAsset[],
+  onProgress?: (progress: DriveSyncProgress) => void,
+): Promise<DriveVisualSyncResult> {
+  const directories = await scanDriveTree(accessToken, source, onProgress)
+  const imageFiles = directories.flatMap((directory) =>
+    directory.files
+      .filter((file) => VISUAL_ART_FILE.test(file.name))
+      .map((file) => ({ directory, file })),
+  )
+  const current = new Map(
+    existingAssets
+      .flatMap((asset) =>
+        asset.kind === kind && asset.source.type === 'google-drive'
+          ? ([[asset.source.fileId, asset]] as const)
+          : [],
+      ),
+  )
+  const unchangedAssets: VisualAsset[] = []
+  const changed = imageFiles.filter(({ file }) => {
+    const asset = current.get(file.id)
+    const unchanged =
+      asset?.source.type === 'google-drive' &&
+      asset.source.fingerprint === visualFingerprint(file)
+    if (unchanged && asset) unchangedAssets.push(asset)
+    return !unchanged
+  })
+  const totalBytes = changed.reduce(
+    (total, { file }) => total + Number(file.size ?? 0),
+    0,
+  )
+  let completedBytes = 0
+  const limiter = createConcurrencyLimiter(DRIVE_DOWNLOAD_CONCURRENCY)
+  const downloaded = await Promise.all(
+    changed.map(({ directory, file }, index) =>
+      limiter.run(async () => {
+        const downloadedFile = await downloadDriveFile(accessToken, file)
+        completedBytes += Number(file.size ?? downloadedFile.size)
+        onProgress?.({
+          phase: 'downloading',
+          message:
+            `Downloading artwork · ${index + 1} of ${changed.length}` +
+            (totalBytes > 0
+              ? ` · ${formatBytes(completedBytes)} of ${formatBytes(totalBytes)}`
+              : ''),
+          completedBytes,
+          totalBytes,
+        })
+        return {
+          id: `google-drive:${kind}:${file.id}`,
+          kind,
+          name: file.name,
+          file: downloadedFile,
+          source: {
+            type: 'google-drive',
+            fileId: file.id,
+            folderId: directory.id,
+            fingerprint: visualFingerprint(file),
+          },
+        } satisfies VisualAsset
+      }),
+    ),
+  )
+
+  return {
+    assets: [...unchangedAssets, ...downloaded],
+    discovered: imageFiles.length,
+    unchanged: unchangedAssets.length,
   }
 }
 

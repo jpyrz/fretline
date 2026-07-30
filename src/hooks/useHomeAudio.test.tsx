@@ -78,4 +78,19 @@ describe('useHomeAudio', () => {
     expect(FakeHomeAudio.instances[0].play).toHaveBeenCalledTimes(1)
     unmount()
   })
+
+  it('honors the saved Home music default without blocking playback', async () => {
+    const { result, unmount } = renderHook(() =>
+      useHomeAudio([homeSong()], true),
+    )
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('playing')
+    })
+
+    expect(result.current.muted).toBe(true)
+    expect(FakeHomeAudio.instances[0].volume).toBe(0)
+    expect(FakeHomeAudio.instances[0].play).toHaveBeenCalledTimes(1)
+    unmount()
+  })
 })

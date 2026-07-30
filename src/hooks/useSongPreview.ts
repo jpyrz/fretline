@@ -38,9 +38,17 @@ function fadePreview(
 
   const update = (now: number) => {
     if (preview.disposed) return
-    const progress = Math.min(1, (now - startedAt) / durationMs)
-    preview.audio.volume =
-      initialVolume + (targetVolume - initialVolume) * progress
+    const progress = Math.max(
+      0,
+      Math.min(1, (now - startedAt) / durationMs),
+    )
+    preview.audio.volume = Math.max(
+      0,
+      Math.min(
+        1,
+        initialVolume + (targetVolume - initialVolume) * progress,
+      ),
+    )
     if (progress < 1) {
       preview.animationFrame = requestAnimationFrame(update)
       return

@@ -1,9 +1,10 @@
-import type { LocalSong } from '../types/game'
+import type { LocalSong, VisualAsset } from '../types/game'
 
 const DATABASE_NAME = 'fretline-song-library'
-const DATABASE_VERSION = 2
+const DATABASE_VERSION = 3
 const SONG_STORE = 'songs'
 const PREVIEW_STORE = 'previews'
+const VISUAL_ASSET_STORE = 'visual-assets'
 
 interface PersistedSong extends LocalSong {
   librarySchemaVersion: 1
@@ -33,6 +34,9 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!database.objectStoreNames.contains(PREVIEW_STORE)) {
         database.createObjectStore(PREVIEW_STORE, { keyPath: 'key' })
+      }
+      if (!database.objectStoreNames.contains(VISUAL_ASSET_STORE)) {
+        database.createObjectStore(VISUAL_ASSET_STORE, { keyPath: 'id' })
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -168,6 +172,67 @@ export async function persistPreview(
       file,
       savedAt: Date.now(),
     } satisfies PersistedPreview)
+    await transactionComplete(transaction)
+  } finally {
+    database.close()
+  }
+}
+
+export async function loadPersistedVisualAssets(): Promise<VisualAsset[]> {
+  const database = await openDatabase()
+
+  try {
+    const transaction = database.transaction(VISUAL_ASSET_STORE, 'readonly')
+    const request = transaction.objectStore(VISUAL_ASSET_STORE).getAll()
+    const records = await new Promise<VisualAsset[]>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result as VisualAsset[])
+      request.onerror = () =>
+        reject(
+          request.error ??
+            new Error('Saved visual artwork could not be read.'),
+        )
+    })
+    await transactionComplete(transaction)
+    return records.filter(
+      (asset) =>
+        (asset.kind === 'background' || asset.kind === 'highway') &&
+        asset.file instanceof File,
+    )
+  } finally {
+    database.close()
+  }
+}
+
+export async function persistVisualAssets(
+  assets: VisualAsset[],
+): Promise<void> {
+  if (assets.length === 0) return
+  const database = await openDatabase()
+
+  try {
+    const transaction = database.transaction(
+      VISUAL_ASSET_STORE,
+      'readwrite',
+    )
+    const store = transaction.objectStore(VISUAL_ASSET_STORE)
+    for (const asset of assets) store.put(asset)
+    await transactionComplete(transaction)
+  } finally {
+    database.close()
+  }
+}
+
+export async function deletePersistedVisualAsset(
+  assetId: string,
+): Promise<void> {
+  const database = await openDatabase()
+
+  try {
+    const transaction = database.transaction(
+      VISUAL_ASSET_STORE,
+      'readwrite',
+    )
+    transaction.objectStore(VISUAL_ASSET_STORE).delete(assetId)
     await transactionComplete(transaction)
   } finally {
     database.close()
