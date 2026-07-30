@@ -163,9 +163,17 @@ export function useSongPreview(
           disposed: false,
         }
         pendingRef.current = preview
+        let playbackState: 'idle' | 'starting' | 'playing' = 'idle'
 
         const beginPlayback = async () => {
-          if (cancelled || preview.disposed) return
+          if (
+            cancelled ||
+            preview.disposed ||
+            playbackState !== 'idle'
+          ) {
+            return
+          }
+          playbackState = 'starting'
           try {
             for (const track of preview.tracks) {
               track.audio.currentTime = preview.startOffsetSeconds
@@ -179,10 +187,13 @@ export function useSongPreview(
             }
             pendingRef.current = null
             activeRef.current = preview
+            playbackState = 'playing'
+            unlockRef.current = () => undefined
             fadePreview(preview, 0.52, 160)
             setStatus('playing')
           } catch (reason) {
             if (cancelled || preview.disposed) return
+            playbackState = 'idle'
             if (
               reason instanceof DOMException &&
               reason.name === 'NotAllowedError'
