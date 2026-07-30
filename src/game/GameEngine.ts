@@ -28,6 +28,7 @@ import {
   drainStarPower,
   isWhammyStarPowerSustain,
 } from '../lib/starPower'
+import { whammyAudioParameters } from './whammyAudio'
 import type {
   CalibrationSettings,
   ControllerMapping,
@@ -51,6 +52,12 @@ interface GameEngineOptions {
   onStats: (stats: SessionStats) => void
   onFinish: (stats: SessionStats) => void
   onPauseChange: (paused: boolean) => void
+}
+
+interface WhammyEffectNodes {
+  delay: DelayNode
+  modulationDepth: GainNode
+  oscillator: OscillatorNode
 }
 
 function freshStats(): SessionStats {
@@ -95,7 +102,7 @@ export class GameEngine {
   private readonly onFinish: (stats: SessionStats) => void
   private readonly onPauseChange: (paused: boolean) => void
   private readonly sources: AudioBufferSourceNode[] = []
-  private readonly whammySources: AudioBufferSourceNode[] = []
+  private readonly whammyEffects: WhammyEffectNodes[] = []
   private readonly keyboardLanes = new Set<Lane>()
   private readonly noteStates: Array<'pending' | 'hit' | 'miss'>
   private readonly sustainStates: SustainState[]
@@ -247,8 +254,18 @@ export class GameEngine {
         // A source that naturally ended cannot be stopped again.
       }
     }
+    for (const effect of this.whammyEffects) {
+      try {
+        effect.oscillator.stop()
+      } catch {
+        // An oscillator that already stopped cannot be stopped again.
+      }
+      effect.oscillator.disconnect()
+      effect.modulationDepth.disconnect()
+      effect.delay.disconnect()
+    }
     this.sources.length = 0
-    this.whammySources.length = 0
+    this.whammyEffects.length = 0
   }
 
   private schedulePlayback(
@@ -274,15 +291,31 @@ export class GameEngine {
       if (schedule.sourceOffsetSeconds >= buffer.duration) continue
       const source = this.audioContext.createBufferSource()
       source.buffer = buffer
-      source.connect(this.mixGain)
+      if (this.whammyBufferIndices.has(bufferIndex)) {
+        const delay = this.audioContext.createDelay(0.05)
+        const oscillator = this.audioContext.createOscillator()
+        const modulationDepth = this.audioContext.createGain()
+        delay.delayTime.value = 0
+        oscillator.frequency.value = 5
+        modulationDepth.gain.value = 0
+        oscillator.connect(modulationDepth)
+        modulationDepth.connect(delay.delayTime)
+        source.connect(delay)
+        delay.connect(this.mixGain)
+        oscillator.start()
+        this.whammyEffects.push({
+          delay,
+          modulationDepth,
+          oscillator,
+        })
+      } else {
+        source.connect(this.mixGain)
+      }
       source.start(
         schedule.sourceStartContextTime,
         schedule.sourceOffsetSeconds,
       )
       this.sources.push(source)
-      if (this.whammyBufferIndices.has(bufferIndex)) {
-        this.whammySources.push(source)
-      }
     }
   }
 
@@ -425,8 +458,23 @@ export class GameEngine {
     if (Math.abs(amount - this.lastWhammyAudioAmount) < 0.02) return
     this.lastWhammyAudioAmount = amount
     const now = this.audioContext.currentTime
-    for (const source of this.whammySources) {
-      source.detune.setTargetAtTime(-200 * amount, now, 0.025)
+    const parameters = whammyAudioParameters(amount)
+    for (const effect of this.whammyEffects) {
+      effect.delay.delayTime.setTargetAtTime(
+        parameters.baseDelaySeconds,
+        now,
+        0.025,
+      )
+      effect.modulationDepth.gain.setTargetAtTime(
+        parameters.modulationDepthSeconds,
+        now,
+        0.025,
+      )
+      effect.oscillator.frequency.setTargetAtTime(
+        parameters.modulationFrequencyHz,
+        now,
+        0.025,
+      )
     }
   }
 
