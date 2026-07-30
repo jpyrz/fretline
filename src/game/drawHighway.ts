@@ -35,6 +35,7 @@ interface NoteRenderState {
 
 const MAX_HIGHWAY_WIDTH = 760
 const PERSPECTIVE_POWER = 1.68
+const DEFAULT_HIGHWAY_LENGTH = 55
 // Draw the road well beyond the visible canvas. This keeps the highway,
 // lane guides, and side rails continuous below the receptor row even on
 // unusually tall or high-DPI displays.
@@ -66,12 +67,28 @@ export function highwayTrackWidth(
   return topWidth + (bottomWidth - topWidth) * depth
 }
 
+export function highwayTopY(
+  width: number,
+  height: number,
+  highwayLength = DEFAULT_HIGHWAY_LENGTH,
+): number {
+  const boundedLength = Math.max(45, Math.min(100, highwayLength))
+  const aspectRatio = width / Math.max(1, height)
+  const portraitDepth =
+    Math.max(0, Math.min(1, (1.05 - aspectRatio) / 0.45)) * 25
+  const responsiveLength = Math.min(100, boundedLength + portraitDepth)
+  const hitY = height * 0.89
+
+  return hitY - height * 0.85 * (responsiveLength / 100)
+}
+
 function highwayPoint(
   width: number,
   height: number,
   progress: number,
+  highwayLength = DEFAULT_HIGHWAY_LENGTH,
 ): HighwayPoint {
-  const topY = height * 0.04
+  const topY = highwayTopY(width, height, highwayLength)
   const hitY = height * 0.89
   const projected = projectHighwayProgress(progress)
   const center = width / 2
@@ -225,9 +242,15 @@ function drawHighwaySurface(
   height: number,
   starPowerActive: boolean,
   songTimeSeconds: number,
+  highwayLength: number,
 ): void {
-  const top = highwayPoint(width, height, 0)
-  const bottom = highwayPoint(width, height, SURFACE_END_PROGRESS)
+  const top = highwayPoint(width, height, 0, highwayLength)
+  const bottom = highwayPoint(
+    width,
+    height,
+    SURFACE_END_PROGRESS,
+    highwayLength,
+  )
 
   const background = context.createRadialGradient(
     width / 2,
@@ -262,8 +285,8 @@ function drawHighwaySurface(
   for (let band = 0; band < 14; band += 1) {
     const startProgress = (band / 14) * SURFACE_END_PROGRESS
     const endProgress = ((band + 1) / 14) * SURFACE_END_PROGRESS
-    const start = highwayPoint(width, height, startProgress)
-    const end = highwayPoint(width, height, endProgress)
+    const start = highwayPoint(width, height, startProgress, highwayLength)
+    const end = highwayPoint(width, height, endProgress, highwayLength)
     context.beginPath()
     context.moveTo(trackEdge(start, -1), start.y)
     context.lineTo(start.center, end.y - (end.y - start.y) * 0.28)
@@ -377,17 +400,20 @@ function drawTimingWindows(
   width: number,
   height: number,
   travelSeconds: number,
+  highwayLength: number,
 ): void {
   const hitWindowSeconds = HIT_WINDOW_MS / 1000
   const early = highwayPoint(
     width,
     height,
     1 - hitWindowSeconds / travelSeconds,
+    highwayLength,
   )
   const late = highwayPoint(
     width,
     height,
     1 + hitWindowSeconds / travelSeconds,
+    highwayLength,
   )
   context.beginPath()
   context.moveTo(trackEdge(early, -1), early.y)
@@ -410,6 +436,7 @@ function drawBeatLines(
   chart: ParsedChart,
   visualTimeSeconds: number,
   travelSeconds: number,
+  highwayLength: number,
 ): void {
   const markers = visibleBeatMarkers(
     chart,
@@ -421,7 +448,7 @@ function drawBeatLines(
     const progress =
       1 - (marker.timeSeconds - visualTimeSeconds) / travelSeconds
     if (progress < 0 || progress > 1.14) continue
-    const point = highwayPoint(width, height, progress)
+    const point = highwayPoint(width, height, progress, highwayLength)
     const fade = Math.max(0.16, 1 - Math.max(0, progress - 0.82) * 4.5)
     context.beginPath()
     context.moveTo(trackEdge(point, -1), point.y)
@@ -490,14 +517,20 @@ function drawSustainTail(
   travelSeconds: number,
   whammyAmount: number,
   starPowerActive: boolean,
+  highwayLength: number,
 ): void {
   if (note.sustainSeconds <= 0.03) return
 
   const sustainEnd = note.timeSeconds + note.sustainSeconds
   const tailProgress =
     1 - (sustainEnd - visualTimeSeconds) / travelSeconds
-  const head = highwayPoint(width, height, render.progress)
-  const tail = highwayPoint(width, height, Math.max(-0.05, tailProgress))
+  const head = highwayPoint(width, height, render.progress, highwayLength)
+  const tail = highwayPoint(
+    width,
+    height,
+    Math.max(-0.05, tailProgress),
+    highwayLength,
+  )
   const headSize = noteRadius(head)
   const lanes: Array<Lane | null> = note.open ? [null] : note.lanes
   const held = render.activeSustain && render.sustainState !== 'released'
@@ -589,12 +622,18 @@ function drawChordBridge(
   note: ChartNote,
   render: NoteRenderState,
   starPowerActive: boolean,
+  highwayLength: number,
 ): void {
   if (note.lanes.length < 2) return
   const positions = note.lanes.map((lane) =>
     highwayLaneX(width, lane, render.progress),
   )
-  const point = highwayPoint(width, height, render.progress)
+  const point = highwayPoint(
+    width,
+    height,
+    render.progress,
+    highwayLength,
+  )
   const size = noteRadius(point)
   context.save()
   context.globalAlpha = render.depthAlpha
@@ -968,8 +1007,9 @@ function drawStrikeLineAndReceptors(
   height: number,
   frame: GameFrame,
   sustainingLanes: Set<Lane>,
+  highwayLength: number,
 ): void {
-  const bottom = highwayPoint(width, height, 1)
+  const bottom = highwayPoint(width, height, 1, highwayLength)
 
   context.beginPath()
   context.moveTo(trackEdge(bottom, -1), bottom.hitY)
@@ -1083,6 +1123,7 @@ function drawHitEffects(
   width: number,
   height: number,
   frame: GameFrame,
+  highwayLength: number,
 ): void {
   if (!frame.hitFlash) return
   const duration = Math.max(
@@ -1096,7 +1137,7 @@ function drawHitEffects(
       (frame.songTimeSeconds - frame.hitFlash.startedAt) / duration,
     ),
   )
-  const bottom = highwayPoint(width, height, 1)
+  const bottom = highwayPoint(width, height, 1, highwayLength)
   const opacity = Math.pow(1 - impactProgress, 1.15)
   const radius = receptorRadius(bottom)
 
@@ -1380,6 +1421,7 @@ export function drawHighway(
   chart: ParsedChart,
   frame: GameFrame,
   noteSpeed = 12,
+  highwayLength = DEFAULT_HIGHWAY_LENGTH,
 ): void {
   const context = resizeCanvas(canvas)
   if (!context) return
@@ -1395,8 +1437,15 @@ export function drawHighway(
     height,
     frame.stats.starPowerActive,
     frame.songTimeSeconds,
+    highwayLength,
   )
-  drawTimingWindows(context, width, height, travelSeconds)
+  drawTimingWindows(
+    context,
+    width,
+    height,
+    travelSeconds,
+    highwayLength,
+  )
   drawBeatLines(
     context,
     width,
@@ -1404,6 +1453,7 @@ export function drawHighway(
     chart,
     frame.visualTimeSeconds,
     travelSeconds,
+    highwayLength,
   )
 
   for (let noteIndex = 0; noteIndex < chart.notes.length; noteIndex += 1) {
@@ -1420,6 +1470,7 @@ export function drawHighway(
       travelSeconds,
       frame.whammyAmount,
       frame.stats.starPowerActive,
+      highwayLength,
     )
   }
 
@@ -1429,6 +1480,7 @@ export function drawHighway(
     height,
     frame,
     activeSustainLanes(chart, frame),
+    highwayLength,
   )
 
   for (let noteIndex = 0; noteIndex < chart.notes.length; noteIndex += 1) {
@@ -1436,7 +1488,12 @@ export function drawHighway(
     const render = noteRenderState(note, noteIndex, frame, travelSeconds)
     if (!render) continue
     if (render.activeSustain) continue
-    const point = highwayPoint(width, height, render.progress)
+    const point = highwayPoint(
+      width,
+      height,
+      render.progress,
+      highwayLength,
+    )
     const size = noteRadius(point)
     context.save()
     context.globalAlpha = render.depthAlpha
@@ -1458,6 +1515,7 @@ export function drawHighway(
         note,
         render,
         frame.stats.starPowerActive,
+        highwayLength,
       )
       for (const lane of note.lanes) {
         drawGem(
@@ -1474,7 +1532,7 @@ export function drawHighway(
     }
     context.restore()
   }
-  drawHitEffects(context, width, height, frame)
+  drawHitEffects(context, width, height, frame, highwayLength)
   drawCountdown(context, width, height, frame.songTimeSeconds)
 
   const songProgress = Math.max(

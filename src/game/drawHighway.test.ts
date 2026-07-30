@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   highwayLaneX,
+  highwayTopY,
   highwayTrackWidth,
   projectHighwayProgress,
   travelSecondsForNoteSpeed,
@@ -20,6 +21,22 @@ describe('highway note speed', () => {
 })
 
 describe('highway perspective', () => {
+  it('uses a shorter Clone Hero-style default on widescreen displays', () => {
+    const height = 1000
+
+    expect(highwayTopY(1600, height)).toBeCloseTo(422.5)
+    expect(highwayTopY(1600, height, 100)).toBeCloseTo(40)
+  })
+
+  it('retains more playable depth on portrait screens', () => {
+    const height = 1000
+
+    expect(highwayTopY(500, height)).toBeCloseTo(210)
+    expect(highwayTopY(1600, height)).toBeGreaterThan(
+      highwayTopY(500, height),
+    )
+  })
+
   it('creates increasing screen-space separation near the strike line', () => {
     const farGap =
       projectHighwayProgress(0.2) - projectHighwayProgress(0.1)

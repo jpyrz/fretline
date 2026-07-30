@@ -170,11 +170,35 @@ export function SettingsView() {
                   value={highwaySettings.noteSpeed}
                   onChange={(event) =>
                     setHighwaySettings({
+                      ...highwaySettings,
                       noteSpeed: Number(event.target.value),
                     })
                   }
                 />
                 <output>{highwaySettings.noteSpeed}</output>
+              </label>
+
+              <label className={styles.settingRow}>
+                <span>
+                  <strong>Highway length</strong>
+                  <small>
+                    Shorter values bring the horizon closer, like Clone Hero.
+                  </small>
+                </span>
+                <input
+                  type="range"
+                  min="45"
+                  max="100"
+                  step="1"
+                  value={highwaySettings.length}
+                  onChange={(event) =>
+                    setHighwaySettings({
+                      ...highwaySettings,
+                      length: Number(event.target.value),
+                    })
+                  }
+                />
+                <output>{highwaySettings.length}%</output>
               </label>
 
               <div className={styles.savedRow}>

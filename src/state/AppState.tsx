@@ -62,6 +62,7 @@ const defaultCalibration: CalibrationSettings = {
 
 const defaultHighwaySettings: HighwaySettings = {
   noteSpeed: 12,
+  length: 55,
 }
 
 const defaultPlayPreferences: PlayPreferences = {
@@ -75,6 +76,26 @@ function loadStored<T>(key: string, fallback: T): T {
     return value ? (JSON.parse(value) as T) : fallback
   } catch {
     return fallback
+  }
+}
+
+function loadHighwaySettings(): HighwaySettings {
+  const value = loadStored<unknown>(HIGHWAY_KEY, defaultHighwaySettings)
+  const stored =
+    typeof value === 'object' && value !== null
+      ? (value as Partial<HighwaySettings>)
+      : {}
+
+  return {
+    noteSpeed:
+      typeof stored.noteSpeed === 'number' &&
+      Number.isFinite(stored.noteSpeed)
+        ? Math.max(6, Math.min(18, stored.noteSpeed))
+        : defaultHighwaySettings.noteSpeed,
+    length:
+      typeof stored.length === 'number' && Number.isFinite(stored.length)
+        ? Math.max(45, Math.min(100, stored.length))
+        : defaultHighwaySettings.length,
   }
 }
 
@@ -99,7 +120,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     loadStored(SETTINGS_KEY, defaultCalibration),
   )
   const [highwaySettings, setHighwaySettings] = useState<HighwaySettings>(() =>
-    loadStored(HIGHWAY_KEY, defaultHighwaySettings),
+    loadHighwaySettings(),
   )
   const [playPreferences, setPlayPreferences] = useState<PlayPreferences>(() =>
     loadStored(PLAY_PREFERENCES_KEY, defaultPlayPreferences),

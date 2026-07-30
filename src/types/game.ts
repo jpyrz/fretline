@@ -142,6 +142,7 @@ export interface CalibrationSettings {
 
 export interface HighwaySettings {
   noteSpeed: number
+  length: number
 }
 
 export interface HitRecord {

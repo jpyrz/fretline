@@ -176,6 +176,7 @@ export function PlayView() {
         song.chart,
         loadingFrame,
         highwaySettings.noteSpeed,
+        highwaySettings.length,
       )
     const frame = requestAnimationFrame(drawLoadingHighway)
     const observer = new ResizeObserver(drawLoadingHighway)
@@ -186,6 +187,7 @@ export function PlayView() {
     }
   }, [
     highwaySettings.noteSpeed,
+    highwaySettings.length,
     immersiveLoading,
     loadingFrame,
     song.chart,
@@ -239,6 +241,7 @@ export function PlayView() {
               song.chart,
               frame,
               highwaySettings.noteSpeed,
+              highwaySettings.length,
             )
           }
         },
