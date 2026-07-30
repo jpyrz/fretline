@@ -44,6 +44,23 @@ const warpedHighwayCache = new WeakMap<
   HTMLImageElement,
   { key: string; canvas: HTMLCanvasElement }
 >()
+interface StaticHighwayCacheEntry {
+  canvas: HTMLCanvasElement
+  pixelWidth: number
+  pixelHeight: number
+  width: number
+  height: number
+  starPowerActive: boolean
+  highwayLength: number
+  backgroundImage: HTMLImageElement | null
+  backgroundDim: number
+  highwayImage: HTMLImageElement | null
+  highwayOpacity: number
+}
+const staticHighwayCache = new WeakMap<
+  HTMLCanvasElement,
+  StaticHighwayCacheEntry
+>()
 
 export interface HighwayVisualOptions {
   backgroundImage?: HTMLImageElement | null
@@ -304,12 +321,11 @@ function resizeCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | nul
   return context
 }
 
-function drawHighwaySurface(
+function drawHighwaySurfaceUnderlay(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
   starPowerActive: boolean,
-  songTimeSeconds: number,
   highwayLength: number,
   backgroundImage: HTMLImageElement | null,
   backgroundDim: number,
@@ -466,7 +482,29 @@ function drawHighwaySurface(
   context.fillStyle = vignette
   context.fillRect(0, 0, width, height)
 
+  context.restore()
+}
+
+function drawHighwaySurfaceOverlay(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  starPowerActive: boolean,
+  songTimeSeconds: number,
+  highwayLength: number,
+): void {
+  const top = highwayPoint(width, height, 0, highwayLength)
+  const bottom = highwayPoint(
+    width,
+    height,
+    SURFACE_END_PROGRESS,
+    highwayLength,
+  )
+
   if (starPowerActive) {
+    context.save()
+    trackPath(context, top, bottom)
+    context.clip()
     const pulse = 0.12 + (Math.sin(songTimeSeconds * 8) + 1) * 0.035
     const energy = context.createLinearGradient(0, top.y, 0, bottom.y)
     energy.addColorStop(0, 'rgba(140, 229, 255, 0.02)')
@@ -479,8 +517,8 @@ function drawHighwaySurface(
       bottom.trackWidth,
       bottom.y - top.y,
     )
+    context.restore()
   }
-  context.restore()
 
   for (let laneNumber = 0; laneNumber < 5; laneNumber += 1) {
     const lane = laneNumber as Lane
@@ -539,6 +577,70 @@ function drawHighwaySurface(
     context.stroke()
   }
   context.shadowBlur = 0
+}
+
+function cachedHighwaySurface(
+  target: HTMLCanvasElement,
+  width: number,
+  height: number,
+  starPowerActive: boolean,
+  highwayLength: number,
+  backgroundImage: HTMLImageElement | null,
+  backgroundDim: number,
+  highwayImage: HTMLImageElement | null,
+  highwayOpacity: number,
+): HTMLCanvasElement {
+  const cached = staticHighwayCache.get(target)
+  if (
+    cached &&
+    cached.pixelWidth === target.width &&
+    cached.pixelHeight === target.height &&
+    cached.width === width &&
+    cached.height === height &&
+    cached.starPowerActive === starPowerActive &&
+    cached.highwayLength === highwayLength &&
+    cached.backgroundImage === backgroundImage &&
+    cached.backgroundDim === backgroundDim &&
+    cached.highwayImage === highwayImage &&
+    cached.highwayOpacity === highwayOpacity
+  ) {
+    return cached.canvas
+  }
+
+  const canvas = document.createElement('canvas')
+  canvas.width = target.width
+  canvas.height = target.height
+  const context = canvas.getContext('2d', { alpha: false })
+  if (context) {
+    const density = Math.min(window.devicePixelRatio || 1, 2)
+    context.setTransform(density, 0, 0, density, 0, 0)
+    drawHighwaySurfaceUnderlay(
+      context,
+      width,
+      height,
+      starPowerActive,
+      highwayLength,
+      backgroundImage,
+      backgroundDim,
+      highwayImage,
+      highwayOpacity,
+    )
+  }
+
+  staticHighwayCache.set(target, {
+    canvas,
+    pixelWidth: target.width,
+    pixelHeight: target.height,
+    width,
+    height,
+    starPowerActive,
+    highwayLength,
+    backgroundImage,
+    backgroundDim,
+    highwayImage,
+    highwayOpacity,
+  })
+  return canvas
 }
 
 function drawTimingWindows(
@@ -1858,17 +1960,32 @@ export function drawHighway(
   const height = canvas.clientHeight
   const travelSeconds = travelSecondsForNoteSpeed(noteSpeed)
 
-  drawHighwaySurface(
+  const backgroundImage = visuals.backgroundImage ?? null
+  const backgroundDim = visuals.backgroundDim ?? 42
+  const highwayImage = visuals.highwayImage ?? null
+  const highwayOpacity = visuals.highwayOpacity ?? 72
+  const staticSurface = cachedHighwaySurface(
+    canvas,
+    width,
+    height,
+    frame.stats.starPowerActive,
+    highwayLength,
+    backgroundImage,
+    backgroundDim,
+    highwayImage,
+    highwayOpacity,
+  )
+  context.save()
+  context.setTransform(1, 0, 0, 1, 0, 0)
+  context.drawImage(staticSurface, 0, 0)
+  context.restore()
+  drawHighwaySurfaceOverlay(
     context,
     width,
     height,
     frame.stats.starPowerActive,
     frame.songTimeSeconds,
     highwayLength,
-    visuals.backgroundImage ?? null,
-    visuals.backgroundDim ?? 42,
-    visuals.highwayImage ?? null,
-    visuals.highwayOpacity ?? 72,
   )
   drawTimingWindows(
     context,

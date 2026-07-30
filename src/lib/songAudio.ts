@@ -7,7 +7,10 @@ import {
 import type { LocalSong } from '../types/game'
 
 const decodedAudio = new Map<string, Promise<AudioBuffer[]>>()
-const MAX_CACHED_SONGS = 3
+// Decoded multi-stem songs can occupy hundreds of megabytes. Retaining the
+// current song keeps restarts instant without pinning previous songs in memory
+// after the player moves on.
+const MAX_CACHED_SONGS = 1
 let decoderContext: AudioContext | null = null
 let preparedGameplayContext: AudioContext | null = null
 const gameplayContexts = new WeakSet<AudioContext>()

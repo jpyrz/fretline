@@ -101,6 +101,7 @@ export class GameEngine {
   private readonly onStats: (stats: SessionStats) => void
   private readonly onFinish: (stats: SessionStats) => void
   private readonly onPauseChange: (paused: boolean) => void
+  private readonly endTimeSeconds: number
   private readonly sources: AudioBufferSourceNode[] = []
   private readonly whammyEffects: WhammyEffectNodes[] = []
   private readonly keyboardLanes = new Set<Lane>()
@@ -133,6 +134,8 @@ export class GameEngine {
   private hitFlash: GameFrame['hitFlash'] = null
   private missFlash: GameFrame['missFlash'] = null
   private lastStatsPush = 0
+  private recordsSnapshot: SessionStats['records'] = []
+  private recordsDirty = true
   private mixGain: GainNode | null = null
 
   constructor(options: GameEngineOptions) {
@@ -156,6 +159,10 @@ export class GameEngine {
     this.onStats = options.onStats
     this.onFinish = options.onFinish
     this.onPauseChange = options.onPauseChange
+    this.endTimeSeconds = Math.max(
+      ...options.audioBuffers.map((buffer) => buffer.duration),
+      options.chart.durationSeconds,
+    )
     this.noteStates = options.chart.notes.map(() => 'pending')
     this.sustainStates = options.chart.notes.map(() => 'none')
     this.sustainBasePointsAwarded = options.chart.notes.map(() => 0)
@@ -205,6 +212,8 @@ export class GameEngine {
     this.gamepadWhammy = 0
     this.keyboardWhammy = false
     this.lastStatsPush = 0
+    this.recordsSnapshot = []
+    this.recordsDirty = true
     this.schedulePlayback(-COUNTDOWN_SECONDS)
     this.pushStats()
     this.onPauseChange(false)
@@ -217,6 +226,8 @@ export class GameEngine {
     this.paused = true
     cancelAnimationFrame(this.frameRequest)
     this.stopSources()
+    this.mixGain?.disconnect()
+    this.mixGain = null
     this.onPauseChange(true)
   }
 
@@ -246,6 +257,8 @@ export class GameEngine {
     window.removeEventListener('keydown', this.handleKeyDown)
     window.removeEventListener('keyup', this.handleKeyUp)
     this.stopSources()
+    this.mixGain?.disconnect()
+    this.mixGain = null
   }
 
   private stopSources(): void {
@@ -255,6 +268,7 @@ export class GameEngine {
       } catch {
         // A source that naturally ended cannot be stopped again.
       }
+      source.disconnect()
     }
     for (const effect of this.whammyEffects) {
       try {
@@ -772,6 +786,7 @@ export class GameEngine {
       errorMs,
       result: 'hit',
     })
+    this.recordsDirty = true
     this.completeStarPowerPhrases(candidateIndex)
     this.hitFlash = {
       lanes: note.lanes,
@@ -788,8 +803,6 @@ export class GameEngine {
     if (this.activeSustains.size === 0) return
 
     const heldLanes = this.heldLanes()
-    let changed = false
-
     for (const noteIndex of this.activeSustains) {
       const note = this.chart.notes[noteIndex]
       const sustainEndTime = note.timeSeconds + note.sustainSeconds
@@ -805,7 +818,6 @@ export class GameEngine {
           this.sustainStates[noteIndex] = 'released'
           this.stats.sustainsBroken += 1
           this.activeSustains.delete(noteIndex)
-          changed = true
           continue
         }
       } else {
@@ -836,18 +848,14 @@ export class GameEngine {
         this.sustainBasePointsAwarded[noteIndex] = targetBasePoints
         this.stats.score += awardedPoints
         this.stats.sustainPoints += awardedPoints
-        changed = true
       }
 
       if (sustainFinished) {
         this.sustainStates[noteIndex] = 'complete'
         this.stats.sustainsCompleted += 1
         this.activeSustains.delete(noteIndex)
-        changed = true
       }
     }
-
-    if (changed) this.pushStats()
   }
 
   private markMisses(scoringTime: number): void {
@@ -871,6 +879,7 @@ export class GameEngine {
           errorMs: HIT_WINDOW_MS,
           result: 'miss',
         })
+        this.recordsDirty = true
         this.missFlash = {
           lanes: [...missedNote.lanes],
           open: missedNote.open,
@@ -894,12 +903,17 @@ export class GameEngine {
     }
   }
 
-  private pushStats(): void {
+  private pushStats(now = performance.now()): void {
+    this.lastStatsPush = now
     this.onStats(this.snapshotStats())
   }
 
   private snapshotStats(): SessionStats {
-    return { ...this.stats, records: [...this.stats.records] }
+    if (this.recordsDirty) {
+      this.recordsSnapshot = [...this.stats.records]
+      this.recordsDirty = false
+    }
+    return { ...this.stats, records: this.recordsSnapshot }
   }
 
   private readonly tick = (now: number): void => {
@@ -921,8 +935,7 @@ export class GameEngine {
     }
 
     if (now - this.lastStatsPush > 100) {
-      this.lastStatsPush = now
-      this.pushStats()
+      this.pushStats(now)
     }
 
     this.onFrame({
@@ -939,11 +952,7 @@ export class GameEngine {
       missFlash: this.missFlash,
     })
 
-    const audioDuration = Math.max(
-      ...this.audioBuffers.map((buffer) => buffer.duration),
-    )
-    const endTime = Math.max(audioDuration, this.chart.durationSeconds)
-    if (songTimeSeconds > endTime + 0.35) {
+    if (songTimeSeconds > this.endTimeSeconds + 0.35) {
       this.finished = true
       const finalStats = this.snapshotStats()
       this.stop()
