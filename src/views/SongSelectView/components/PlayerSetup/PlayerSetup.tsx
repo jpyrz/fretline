@@ -6,11 +6,13 @@ import {
   type TrackChoice,
 } from '../../../../lib/trackSelection'
 import type { LocalSong } from '../../../../types/game'
+import type { PlayInputMode } from '../../../../lib/inputMode'
 import styles from '../../SongSelectView.module.scss'
 
 export type SetupStep =
   | 'browse'
   | 'configure'
+  | 'input'
   | 'instrument'
   | 'difficulty'
 
@@ -21,10 +23,15 @@ interface PlayerSetupProps {
   instruments: InstrumentChoice[]
   selectedInstrument: InstrumentChoice | null | undefined
   selectedTrack: TrackChoice | null | undefined
+  selectedInputMode: PlayInputMode
+  touchAvailable: boolean
+  controllerConfigured: boolean
   onBack: () => void
   onReady: (track: TrackChoice) => void
+  onShowInputModes: () => void
   onShowInstruments: () => void
   onShowDifficulties: () => void
+  onChooseInputMode: (mode: PlayInputMode) => void
   onChooseInstrument: (instrument: InstrumentChoice) => void
   onChooseDifficulty: (track: TrackChoice) => void
 }
@@ -36,10 +43,15 @@ export function PlayerSetup({
   instruments,
   selectedInstrument,
   selectedTrack,
+  selectedInputMode,
+  touchAvailable,
+  controllerConfigured,
   onBack,
   onReady,
+  onShowInputModes,
   onShowInstruments,
   onShowDifficulties,
+  onChooseInputMode,
   onChooseInstrument,
   onChooseDifficulty,
 }: PlayerSetupProps) {
@@ -97,6 +109,19 @@ export function PlayerSetup({
               <button
                 type="button"
                 data-controller-nav-item
+                aria-label={`Controls: ${
+                  selectedInputMode === 'tap' ? 'Tap' : 'Standard'
+                }`}
+                onClick={onShowInputModes}
+              >
+                <span>Controls</span>
+                <strong>
+                  {selectedInputMode === 'tap' ? 'Tap' : 'Standard'}
+                </strong>
+              </button>
+              <button
+                type="button"
+                data-controller-nav-item
                 onClick={onShowInstruments}
               >
                 <span>Instrument</span>
@@ -114,6 +139,57 @@ export function PlayerSetup({
                 <span>Modifiers</span>
                 <strong>None</strong>
               </div>
+            </div>
+          )}
+
+          {step === 'input' && (
+            <div className={styles.inlinePicker}>
+              <p>Controls</p>
+              <button
+                type="button"
+                data-controller-nav-item
+                data-controller-default={
+                  selectedInputMode === 'standard' || undefined
+                }
+                data-active={selectedInputMode === 'standard'}
+                onClick={() => onChooseInputMode('standard')}
+              >
+                <span>
+                  <strong>Keyboard / guitar</strong>
+                  <small>
+                    {controllerConfigured
+                      ? 'Mapped guitar ready, with keyboard fallback'
+                      : 'Use a physical keyboard or mapped guitar'}
+                  </small>
+                </span>
+                <b aria-hidden="true">
+                  {selectedInputMode === 'standard' ? '●' : '○'}
+                </b>
+              </button>
+              <button
+                type="button"
+                disabled={!touchAvailable}
+                data-controller-nav-item={touchAvailable || undefined}
+                data-controller-default={
+                  touchAvailable && selectedInputMode === 'tap'
+                    ? true
+                    : undefined
+                }
+                data-active={selectedInputMode === 'tap'}
+                onClick={() => onChooseInputMode('tap')}
+              >
+                <span>
+                  <strong>Tap controls</strong>
+                  <small>
+                    {touchAvailable
+                      ? 'Tap the five lanes directly on this screen'
+                      : 'Available on touchscreen devices'}
+                  </small>
+                </span>
+                <b aria-hidden="true">
+                  {selectedInputMode === 'tap' ? '●' : '○'}
+                </b>
+              </button>
             </div>
           )}
 
@@ -202,7 +278,10 @@ export function PlayerSetup({
           <i data-color="red" /> Back
         </span>
         <span>
-          <b>↕</b> Strum to navigate
+          <b>{selectedInputMode === 'tap' ? '☝' : '↕'}</b>{' '}
+          {selectedInputMode === 'tap'
+            ? 'Tap to navigate'
+            : 'Strum to navigate'}
         </span>
       </footer>
     </main>

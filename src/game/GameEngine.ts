@@ -24,6 +24,7 @@ import {
   isWhammyStarPowerSustain,
 } from '../lib/starPower'
 import { whammyAudioParameters } from './whammyAudio'
+import type { PlayInputMode } from '../lib/inputMode'
 import {
   normalizePerformanceTimestamp,
   readControllerState,
@@ -46,6 +47,7 @@ interface GameEngineOptions {
   calibration: CalibrationSettings
   controllerMapping: ControllerMapping | null
   keyboardMapping: KeyboardMapping
+  inputMode?: PlayInputMode
   whammyBufferIndices?: number[]
   onFrame: (frame: GameFrame) => void
   onStats: (stats: SessionStats) => void
@@ -87,6 +89,7 @@ export class GameEngine {
   private readonly calibration: CalibrationSettings
   private readonly controllerMapping: ControllerMapping | null
   private readonly keyboardMapping: KeyboardMapping
+  private readonly inputMode: PlayInputMode
   private readonly whammyBufferIndices: ReadonlySet<number>
   private readonly keyboardLanesByCode: Map<string, Lane>
   private readonly onFrame: (frame: GameFrame) => void
@@ -97,6 +100,7 @@ export class GameEngine {
   private readonly sources: AudioBufferSourceNode[] = []
   private readonly whammyEffects: WhammyEffectNodes[] = []
   private readonly keyboardLanes = new Set<Lane>()
+  private touchLanes: Lane[] = []
   private readonly noteStates: Array<'pending' | 'hit' | 'miss'>
   private readonly sustainStates: SustainState[]
   private readonly sustainBasePointsAwarded: number[]
@@ -121,6 +125,7 @@ export class GameEngine {
   private gamepadLanes: Lane[] = []
   private gamepadWhammy = 0
   private keyboardWhammy = false
+  private touchWhammy = 0
   private lastStarPowerTick: number | null = null
   private lastWhammyAudioAmount = -1
   private hitFlash: GameFrame['hitFlash'] = null
@@ -137,6 +142,7 @@ export class GameEngine {
     this.calibration = options.calibration
     this.controllerMapping = options.controllerMapping
     this.keyboardMapping = options.keyboardMapping
+    this.inputMode = options.inputMode ?? 'standard'
     this.whammyBufferIndices = new Set(options.whammyBufferIndices ?? [])
     this.keyboardLanesByCode = new Map(
       options.keyboardMapping.frets.map((code, index) => [
@@ -144,7 +150,10 @@ export class GameEngine {
         index as Lane,
       ]),
     )
-    if (this.controllerMapping?.source === 'hid') {
+    if (
+      this.inputMode === 'standard' &&
+      this.controllerMapping?.source === 'hid'
+    ) {
       void reconnectDirectHidDevice(this.controllerMapping.device)
     }
     this.onFrame = options.onFrame
@@ -174,8 +183,10 @@ export class GameEngine {
   }
 
   start(): void {
-    window.addEventListener('keydown', this.handleKeyDown)
-    window.addEventListener('keyup', this.handleKeyUp)
+    if (this.inputMode === 'standard') {
+      window.addEventListener('keydown', this.handleKeyDown)
+      window.addEventListener('keyup', this.handleKeyUp)
+    }
     this.restart()
   }
 
@@ -203,6 +214,8 @@ export class GameEngine {
     this.previousGamepadStarPower = false
     this.gamepadWhammy = 0
     this.keyboardWhammy = false
+    this.touchLanes = []
+    this.touchWhammy = 0
     this.lastStatsPush = 0
     this.recordsSnapshot = []
     this.recordsDirty = true
@@ -240,6 +253,27 @@ export class GameEngine {
     } else {
       this.pause()
     }
+  }
+
+  submitTap(lanes: Lane[], eventTimestamp: number): void {
+    if (this.inputMode !== 'tap') return
+    this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
+    this.strum(normalizePerformanceTimestamp(eventTimestamp))
+  }
+
+  setTapLanes(lanes: Lane[]): void {
+    if (this.inputMode !== 'tap') return
+    this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
+  }
+
+  setTapWhammy(amount: number): void {
+    if (this.inputMode !== 'tap') return
+    this.touchWhammy = Math.max(0, Math.min(1, amount))
+  }
+
+  activateTapStarPower(eventTimestamp: number): void {
+    if (this.inputMode !== 'tap') return
+    this.activateStarPower(normalizePerformanceTimestamp(eventTimestamp))
   }
 
   stop(): void {
@@ -412,9 +446,13 @@ export class GameEngine {
   }
 
   private heldLanes(): Lane[] {
-    return [...new Set([...this.keyboardLanes, ...this.gamepadLanes])].sort(
-      (a, b) => a - b,
-    )
+    return [
+      ...new Set([
+        ...this.keyboardLanes,
+        ...this.gamepadLanes,
+        ...this.touchLanes,
+      ]),
+    ].sort((a, b) => a - b)
   }
 
   private activeSustainLanes(): Lane[] {
@@ -428,7 +466,11 @@ export class GameEngine {
   }
 
   private whammyAmount(): number {
-    return Math.max(this.keyboardWhammy ? 1 : 0, this.gamepadWhammy)
+    return Math.max(
+      this.keyboardWhammy ? 1 : 0,
+      this.gamepadWhammy,
+      this.touchWhammy,
+    )
   }
 
   private whammyStarPowerSustainActive(scoringTime: number): boolean {
@@ -856,7 +898,9 @@ export class GameEngine {
     const scoringTime =
       songTimeSeconds - this.calibration.inputOffsetMs / 1000
 
-    this.readGamepad(now)
+    if (this.inputMode === 'standard') {
+      this.readGamepad(now)
+    }
     this.updateStarPower(scoringTime)
     this.updateSustains(scoringTime)
     this.updateWhammyAudio(scoringTime)

@@ -1,4 +1,5 @@
 import type { LocalSong, ParsedChart } from '../types/game'
+import type { PlayInputMode } from './inputMode'
 
 export const DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Expert'] as const
 export type Difficulty = (typeof DIFFICULTIES)[number]
@@ -6,6 +7,7 @@ export type Difficulty = (typeof DIFFICULTIES)[number]
 export interface PlayPreferences {
   difficulty: Difficulty
   instrumentId: string
+  inputMode: PlayInputMode
 }
 
 export interface TrackChoice {

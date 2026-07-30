@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -21,6 +22,7 @@ import type { GameFrame, LocalSong, SessionStats } from '../../types/game'
 import { PauseScreen } from './components/PauseScreen'
 import { ResultsOverlay } from './components/ResultsOverlay'
 import { ScoreHud } from './components/ScoreHud'
+import { TouchControls } from './components/TouchControls'
 import { useVisualImage } from './hooks/useVisualImage'
 import { calculateSessionResults } from './sessionResults'
 import styles from './PlayView.module.scss'
@@ -81,7 +83,13 @@ export function PlayView() {
     visualSettings,
     controllerMapping,
     keyboardMapping,
+    playPreferences,
   } = useAppState()
+  const requestedInputMode = location.state?.inputMode
+  const inputMode =
+    requestedInputMode === 'tap' || requestedInputMode === 'standard'
+      ? requestedInputMode
+      : playPreferences.inputMode
   const autoStartRequested =
     song.kind === 'folder' && location.state?.autoStart === true
   const loadingPhrase =
@@ -260,6 +268,7 @@ export function PlayView() {
         calibration,
         controllerMapping,
         keyboardMapping,
+        inputMode,
         whammyBufferIndices: whammyBufferIndices(song),
         onFrame: (frame) => {
           if (canvasRef.current) {
@@ -330,6 +339,31 @@ export function PlayView() {
     setAppliedOffsetMs(null)
     engineRef.current?.restart()
   }
+
+  const handleTap = useCallback(
+    (
+      lanes: Parameters<GameEngine['submitTap']>[0],
+      timestamp: number,
+    ) => {
+      engineRef.current?.submitTap(lanes, timestamp)
+    },
+    [],
+  )
+
+  const handleTapLanesChange = useCallback(
+    (lanes: Parameters<GameEngine['setTapLanes']>[0]) => {
+      engineRef.current?.setTapLanes(lanes)
+    },
+    [],
+  )
+
+  const handleTapStarPower = useCallback((timestamp: number) => {
+    engineRef.current?.activateTapStarPower(timestamp)
+  }, [])
+
+  const handleTapWhammy = useCallback((amount: number) => {
+    engineRef.current?.setTapWhammy(amount)
+  }, [])
 
   const handleControllerAction = useEffectEvent((event: Event) => {
     if (
@@ -451,14 +485,17 @@ export function PlayView() {
               ) : (
                 <>
                   <p>
-                    Read the gem center: dark caps require a strum, white caps
-                    are HOPOs, and translucent glowing gems are taps.
+                    {inputMode === 'tap'
+                      ? 'Tap a colored lane as its note reaches the target. Hold for sustains and use multiple fingers for chords.'
+                      : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
                   </p>
-                  <div className={styles.noteLegend} aria-label="Note types">
-                    <span data-note-type="strum"><i /> Strum</span>
-                    <span data-note-type="hopo"><i /> HOPO</span>
-                    <span data-note-type="tap"><i /> Tap</span>
-                  </div>
+                  {inputMode === 'standard' && (
+                    <div className={styles.noteLegend} aria-label="Note types">
+                      <span data-note-type="strum"><i /> Strum</span>
+                      <span data-note-type="hopo"><i /> HOPO</span>
+                      <span data-note-type="tap"><i /> Tap</span>
+                    </div>
+                  )}
                 </>
               )}
               <button
@@ -495,6 +532,15 @@ export function PlayView() {
               appliedOffsetMs={appliedOffsetMs}
               onApplySuggestion={applySuggestion}
               onRunAgain={() => void startSession()}
+            />
+          )}
+
+          {phase === 'playing' && inputMode === 'tap' && (
+            <TouchControls
+              onTap={handleTap}
+              onLanesChange={handleTapLanesChange}
+              onStarPower={handleTapStarPower}
+              onWhammy={handleTapWhammy}
             />
           )}
 

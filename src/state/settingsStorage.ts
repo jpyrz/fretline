@@ -1,4 +1,8 @@
 import type { PlayPreferences } from '../lib/trackSelection'
+import {
+  recommendedInputMode,
+  touchInputAvailable,
+} from '../lib/inputMode'
 import { normalizeKeyboardMapping } from '../lib/keyboardMapping'
 import type {
   AudioSettings,
@@ -47,6 +51,7 @@ export const defaultVisualSettings: VisualSettings = {
 export const defaultPlayPreferences: PlayPreferences = {
   difficulty: 'Expert',
   instrumentId: 'Single',
+  inputMode: 'standard',
 }
 
 export function loadStoredValue<T>(key: string, fallback: T): T {
@@ -121,6 +126,14 @@ export function loadInitialSettings(): {
   controller: ControllerMapping | null
   keyboard: KeyboardMapping
 } {
+  const controller = loadStoredValue<ControllerMapping | null>(
+    STORAGE_KEYS.controller,
+    null,
+  )
+  const storedPlay = loadStoredValue<Partial<PlayPreferences>>(
+    STORAGE_KEYS.playPreferences,
+    defaultPlayPreferences,
+  )
   return {
     calibration: loadStoredValue(
       STORAGE_KEYS.calibration,
@@ -129,14 +142,24 @@ export function loadInitialSettings(): {
     highway: loadHighwaySettings(),
     audio: loadStoredValue(STORAGE_KEYS.audio, defaultAudioSettings),
     visual: loadVisualSettings(),
-    play: loadStoredValue(
-      STORAGE_KEYS.playPreferences,
-      defaultPlayPreferences,
-    ),
-    controller: loadStoredValue<ControllerMapping | null>(
-      STORAGE_KEYS.controller,
-      null,
-    ),
+    play: {
+      difficulty:
+        storedPlay.difficulty === 'Easy' ||
+        storedPlay.difficulty === 'Medium' ||
+        storedPlay.difficulty === 'Hard' ||
+        storedPlay.difficulty === 'Expert'
+          ? storedPlay.difficulty
+          : defaultPlayPreferences.difficulty,
+      instrumentId:
+        typeof storedPlay.instrumentId === 'string'
+          ? storedPlay.instrumentId
+          : defaultPlayPreferences.instrumentId,
+      inputMode: recommendedInputMode(storedPlay.inputMode, {
+        touchAvailable: touchInputAvailable(),
+        controllerConfigured: controller !== null,
+      }),
+    },
+    controller,
     keyboard: normalizeKeyboardMapping(
       loadStoredValue<unknown>(STORAGE_KEYS.keyboard, null),
     ),

@@ -7,6 +7,10 @@ import {
 } from '../../lib/songAudio'
 import { pickLoadingPhrase } from '../../lib/loadingPhrases'
 import {
+  touchInputAvailable,
+  type PlayInputMode,
+} from '../../lib/inputMode'
+import {
   instrumentChoices,
   preferredInstrument,
   preferredTrack,
@@ -45,6 +49,7 @@ export function SongSelectView() {
     libraryError,
     playPreferences,
     setPlayPreferences,
+    controllerMapping,
     selectTrack,
   } = useAppState()
   const [query, setQuery] = useState('')
@@ -60,6 +65,9 @@ export function SongSelectView() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>(
     playPreferences.difficulty,
   )
+  const [selectedInputMode, setSelectedInputMode] =
+    useState<PlayInputMode>(playPreferences.inputMode)
+  const tapAvailable = touchInputAvailable()
   const gameplayHandoffRef = useRef(false)
   const {
     inputRef,
@@ -150,7 +158,12 @@ export function SongSelectView() {
         ?.focus({ preventScroll: true })
     })
     return () => cancelAnimationFrame(frame)
-  }, [selectedDifficulty, selectedInstrumentId, setupStep])
+  }, [
+    selectedDifficulty,
+    selectedInputMode,
+    selectedInstrumentId,
+    setupStep,
+  ])
 
   useEffect(
     () => () => {
@@ -178,6 +191,13 @@ export function SongSelectView() {
     selectSong(targetSong.id)
     setSelectedInstrumentId(instrument.id)
     setSelectedDifficulty(track.difficulty)
+    setSelectedInputMode(playPreferences.inputMode)
+    setSetupStep('configure')
+  }
+
+  const chooseInputMode = (inputMode: PlayInputMode) => {
+    if (inputMode === 'tap' && !tapAvailable) return
+    setSelectedInputMode(inputMode)
     setSetupStep('configure')
   }
 
@@ -194,7 +214,11 @@ export function SongSelectView() {
   }
 
   const closeSetup = () => {
-    if (setupStep === 'instrument' || setupStep === 'difficulty') {
+    if (
+      setupStep === 'input' ||
+      setupStep === 'instrument' ||
+      setupStep === 'difficulty'
+    ) {
       setSetupStep('configure')
     } else {
       setSetupStep('browse')
@@ -213,6 +237,7 @@ export function SongSelectView() {
         ? track.difficulty
         : playPreferences.difficulty,
       instrumentId: selectedInstrument.id,
+      inputMode: selectedInputMode,
     })
     selectTrack(track.chart.trackName)
     gameplayHandoffRef.current = false
@@ -222,6 +247,7 @@ export function SongSelectView() {
       state: {
         autoStart: true,
         loadingPhrase: pickLoadingPhrase(),
+        inputMode: selectedInputMode,
       },
     })
   }
@@ -235,10 +261,15 @@ export function SongSelectView() {
         instruments={instruments}
         selectedInstrument={selectedInstrument}
         selectedTrack={selectedTrack}
+        selectedInputMode={selectedInputMode}
+        touchAvailable={tapAvailable}
+        controllerConfigured={controllerMapping !== null}
         onBack={closeSetup}
         onReady={beginLoading}
+        onShowInputModes={() => setSetupStep('input')}
         onShowInstruments={() => setSetupStep('instrument')}
         onShowDifficulties={() => setSetupStep('difficulty')}
+        onChooseInputMode={chooseInputMode}
         onChooseInstrument={chooseInstrument}
         onChooseDifficulty={chooseDifficulty}
       />
