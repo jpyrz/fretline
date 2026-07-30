@@ -3,30 +3,60 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LocalSong } from '../types/game'
 import { useHomeAudio } from './useHomeAudio'
 
-class FakeHomeAudio extends EventTarget {
-  static instances: FakeHomeAudio[] = []
+const audioBuffers = [
+  { duration: 120 } as AudioBuffer,
+  { duration: 120 } as AudioBuffer,
+]
 
-  readonly play = vi.fn(() => Promise.resolve())
-  readonly pause = vi.fn()
-  readonly load = vi.fn()
-  readonly removeAttribute = vi.fn()
-  readyState = HTMLMediaElement.HAVE_METADATA
-  duration = 120
-  currentTime = 0
-  volume = 0
-  preload = ''
-  src = ''
-  onended: (() => void) | null = null
+vi.mock('../lib/songAudio', () => ({
+  decodeSongAudio: vi.fn(() => Promise.resolve(audioBuffers)),
+}))
 
-  constructor() {
-    super()
-    FakeHomeAudio.instances.push(this)
+class FakeHomeAudioContext {
+  static sources: Array<{
+    start: ReturnType<typeof vi.fn>
+    stop: ReturnType<typeof vi.fn>
+    buffer: AudioBuffer | null
+  }> = []
+
+  state: AudioContextState = 'running'
+  currentTime = 2
+  destination = {} as AudioDestinationNode
+
+  createDynamicsCompressor() {
+    return { connect: vi.fn() } as unknown as DynamicsCompressorNode
   }
+
+  createGain() {
+    return {
+      context: this,
+      connect: vi.fn(),
+      gain: {
+        value: 0,
+        setTargetAtTime: vi.fn(),
+      },
+    } as unknown as GainNode
+  }
+
+  createBufferSource() {
+    const source = {
+      buffer: null as AudioBuffer | null,
+      connect: vi.fn(),
+      start: vi.fn(),
+      stop: vi.fn(),
+      onended: null,
+    }
+    FakeHomeAudioContext.sources.push(source)
+    return source as unknown as AudioBufferSourceNode
+  }
+
+  resume = vi.fn(() => Promise.resolve())
+  close = vi.fn(() => Promise.resolve())
 }
 
 function homeSong(): LocalSong {
   return {
-    id: 'home-stream-test',
+    id: 'home-sync-test',
     kind: 'folder',
     chart: {} as LocalSong['chart'],
     charts: [],
@@ -39,20 +69,15 @@ function homeSong(): LocalSong {
 
 describe('useHomeAudio', () => {
   beforeEach(() => {
-    FakeHomeAudio.instances = []
-    vi.stubGlobal('Audio', FakeHomeAudio)
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn((file: File) => `blob:${file.name}`),
-      revokeObjectURL: vi.fn(),
-    })
+    FakeHomeAudioContext.sources = []
+    vi.stubGlobal('AudioContext', FakeHomeAudioContext)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('streams every stem once without restarting on navigation input', async () => {
+  it('schedules every stem once on one clock without restarting on navigation', async () => {
     const songs = [homeSong()]
     const { result, unmount } = renderHook(() =>
       useHomeAudio(songs),
@@ -62,10 +87,14 @@ describe('useHomeAudio', () => {
       expect(result.current.status).toBe('playing')
     })
 
-    expect(FakeHomeAudio.instances).toHaveLength(2)
+    expect(FakeHomeAudioContext.sources).toHaveLength(2)
     expect(
-      FakeHomeAudio.instances.map((audio) => audio.play.mock.calls.length),
+      FakeHomeAudioContext.sources.map(
+        (source) => source.start.mock.calls.length,
+      ),
     ).toEqual([1, 1])
+    expect(FakeHomeAudioContext.sources[0].start).toHaveBeenCalledWith(2.04)
+    expect(FakeHomeAudioContext.sources[1].start).toHaveBeenCalledWith(2.04)
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
@@ -73,7 +102,9 @@ describe('useHomeAudio', () => {
     })
 
     expect(
-      FakeHomeAudio.instances.map((audio) => audio.play.mock.calls.length),
+      FakeHomeAudioContext.sources.map(
+        (source) => source.start.mock.calls.length,
+      ),
     ).toEqual([1, 1])
     unmount()
   })

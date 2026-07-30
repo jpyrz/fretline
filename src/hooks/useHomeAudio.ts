@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { decodeSongAudio } from '../lib/songAudio'
 import type { LocalSong } from '../types/game'
 
 type HomeAudioStatus = 'idle' | 'loading' | 'waiting' | 'playing' | 'error'
@@ -10,11 +11,6 @@ interface HomeAudioState {
   muted: boolean
   start: () => void
   toggleMuted: () => void
-}
-
-interface HomeAudioTrack {
-  audio: HTMLAudioElement
-  objectUrl: string
 }
 
 function randomSongId(
@@ -29,54 +25,12 @@ function randomSongId(
   return choices[Math.floor(Math.random() * choices.length)]?.id ?? null
 }
 
-function waitForMetadata(
-  audio: HTMLAudioElement,
-  signal: AbortSignal,
-): Promise<void> {
-  if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
-    return Promise.resolve()
-  }
-
-  return new Promise((resolve, reject) => {
-    const loaded = () => {
-      cleanup()
-      resolve()
-    }
-    const failed = () => {
-      cleanup()
-      reject(new Error('The home audio could not be loaded.'))
-    }
-    const aborted = () => {
-      cleanup()
-      reject(new DOMException('Home audio superseded.', 'AbortError'))
-    }
-    const cleanup = () => {
-      audio.removeEventListener('loadedmetadata', loaded)
-      audio.removeEventListener('error', failed)
-      signal.removeEventListener('abort', aborted)
-    }
-    audio.addEventListener('loadedmetadata', loaded)
-    audio.addEventListener('error', failed)
-    signal.addEventListener('abort', aborted, { once: true })
-    if (signal.aborted) aborted()
-  })
-}
-
-function disposeTracks(tracks: HomeAudioTrack[]): void {
-  for (const track of tracks) {
-    track.audio.pause()
-    track.audio.removeAttribute('src')
-    track.audio.load()
-    URL.revokeObjectURL(track.objectUrl)
-  }
-}
-
 export function useHomeAudio(songs: LocalSong[]): HomeAudioState {
   const [songId, setSongId] = useState<string | null>(null)
   const [status, setStatus] = useState<HomeAudioStatus>('idle')
   const [progress, setProgress] = useState(0)
   const [muted, setMuted] = useState(false)
-  const tracksRef = useRef<HomeAudioTrack[]>([])
+  const gainRef = useRef<GainNode | null>(null)
   const startRef = useRef<() => void>(() => undefined)
   const mutedRef = useRef(muted)
   mutedRef.current = muted
@@ -107,102 +61,108 @@ export function useHomeAudio(songs: LocalSong[]): HomeAudioState {
   }, [songs])
 
   useEffect(() => {
-    const volume = muted ? 0 : 0.58
-    for (const track of tracksRef.current) {
-      track.audio.volume = volume
-    }
+    const gain = gainRef.current
+    if (!gain) return
+    gain.gain.setTargetAtTime(muted ? 0 : 0.58, gain.context.currentTime, 0.025)
   }, [muted])
 
   useEffect(() => {
-    if (!currentSong || currentSong.audioFiles.length === 0) {
+    if (!currentSong) {
       setStatus('idle')
       setProgress(0)
       return
     }
 
     let cancelled = false
-    let playbackState: 'idle' | 'starting' | 'playing' = 'idle'
+    let started = false
+    let buffers: AudioBuffer[] | null = null
+    let sources: AudioBufferSourceNode[] = []
+    let startedAt = 0
     let duration = 0
     let frame = 0
-    let remainingTracks = 0
-    const abortController = new AbortController()
-    const tracks = currentSong.audioFiles.map((file) => {
-      const audio = new Audio()
-      const objectUrl = URL.createObjectURL(file)
-      audio.preload = 'auto'
-      audio.volume = mutedRef.current ? 0 : 0.58
-      audio.src = objectUrl
-      return { audio, objectUrl }
-    })
-    tracksRef.current = tracks
+    let remainingSources = 0
+    const audioContext = new AudioContext({ latencyHint: 'playback' })
+    const masterGain = audioContext.createGain()
+    const compressor = audioContext.createDynamicsCompressor()
+    masterGain.gain.value = mutedRef.current ? 0 : 0.58
+    masterGain.connect(compressor)
+    compressor.connect(audioContext.destination)
+    gainRef.current = masterGain
 
     const updateProgress = () => {
-      if (!cancelled && playbackState === 'playing' && duration > 0) {
-        const currentTime = Math.max(
-          0,
-          ...tracks.map((track) => track.audio.currentTime),
+      if (!cancelled && started && duration > 0) {
+        setProgress(
+          Math.max(
+            0,
+            Math.min(1, (audioContext.currentTime - startedAt) / duration),
+          ),
         )
-        setProgress(Math.max(0, Math.min(1, currentTime / duration)))
       }
       frame = requestAnimationFrame(updateProgress)
     }
 
-    const startTracks = async () => {
-      if (cancelled || playbackState !== 'idle') return
-      playbackState = 'starting'
-      try {
-        for (const track of tracks) track.audio.currentTime = 0
-        await Promise.all(tracks.map((track) => track.audio.play()))
-        if (cancelled) {
-          disposeTracks(tracks)
-          return
-        }
-        playbackState = 'playing'
-        startRef.current = () => undefined
-        setStatus('playing')
-      } catch (reason) {
-        if (cancelled) return
-        playbackState = 'idle'
-        for (const track of tracks) track.audio.pause()
-        if (
-          reason instanceof DOMException &&
-          reason.name === 'NotAllowedError'
-        ) {
-          setStatus('waiting')
-          return
-        }
-        setStatus('error')
+    const startSources = () => {
+      if (
+        cancelled ||
+        started ||
+        !buffers ||
+        audioContext.state !== 'running'
+      ) {
+        return
       }
+      started = true
+      sources = buffers.map((buffer) => {
+        const source = audioContext.createBufferSource()
+        source.buffer = buffer
+        source.connect(masterGain)
+        return source
+      })
+      remainingSources = sources.length
+      startedAt = audioContext.currentTime + 0.04
+      for (const source of sources) {
+        source.onended = () => {
+          remainingSources -= 1
+          if (!cancelled && remainingSources === 0) advanceRef.current()
+        }
+        source.start(startedAt)
+      }
+      setStatus('playing')
     }
 
-    const unlockAndStart = () => void startTracks()
+    const unlockAndStart = () => {
+      if (cancelled) return
+      if (audioContext.state === 'running') {
+        startSources()
+        return
+      }
+      void audioContext
+        .resume()
+        .then(startSources)
+        .catch(() => {
+          if (!cancelled) setStatus('waiting')
+        })
+    }
     startRef.current = unlockAndStart
+
+    const handleControllerAction = () => unlockAndStart()
     window.addEventListener('pointerdown', unlockAndStart)
     window.addEventListener('keydown', unlockAndStart)
-    window.addEventListener('fretline:controller-action', unlockAndStart)
+    window.addEventListener(
+      'fretline:controller-action',
+      handleControllerAction,
+    )
 
     setStatus('loading')
     setProgress(0)
     frame = requestAnimationFrame(updateProgress)
 
-    void Promise.all(
-      tracks.map((track) =>
-        waitForMetadata(track.audio, abortController.signal),
-      ),
-    )
-      .then(() => {
+    void decodeSongAudio(currentSong)
+      .then((decoded) => {
         if (cancelled) return
-        duration = Math.max(...tracks.map((track) => track.audio.duration))
-        remainingTracks = tracks.length
-        for (const track of tracks) {
-          track.audio.onended = () => {
-            remainingTracks -= 1
-            if (!cancelled && remainingTracks === 0) {
-              advanceRef.current()
-            }
-          }
-        }
-        void startTracks()
+        buffers = decoded
+        duration = Math.max(...decoded.map((buffer) => buffer.duration))
+        if (audioContext.state !== 'running') setStatus('waiting')
+        unlockAndStart()
       })
       .catch(() => {
         if (!cancelled) setStatus('error')
@@ -210,16 +170,25 @@ export function useHomeAudio(songs: LocalSong[]): HomeAudioState {
 
     return () => {
       cancelled = true
-      abortController.abort()
       cancelAnimationFrame(frame)
       window.removeEventListener('pointerdown', unlockAndStart)
       window.removeEventListener('keydown', unlockAndStart)
-      window.removeEventListener('fretline:controller-action', unlockAndStart)
-      disposeTracks(tracks)
-      if (tracksRef.current === tracks) tracksRef.current = []
+      window.removeEventListener(
+        'fretline:controller-action',
+        handleControllerAction,
+      )
+      for (const source of sources) {
+        try {
+          source.stop()
+        } catch {
+          // The source may already have ended.
+        }
+      }
+      if (gainRef.current === masterGain) gainRef.current = null
       if (startRef.current === unlockAndStart) {
         startRef.current = () => undefined
       }
+      void audioContext.close()
     }
   }, [currentSong])
 

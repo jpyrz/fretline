@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  previewFilesForSong,
-  previewOffsetSeconds,
-} from '../lib/songPreview'
+  decodeSongAudio,
+  registerPreviewAudioContext,
+  releasePreviewAudioContext,
+  unlockSongAudioDecoder,
+} from '../lib/songAudio'
 import type { LocalSong } from '../types/game'
 
 export type SongPreviewStatus =
@@ -12,89 +14,15 @@ export type SongPreviewStatus =
   | 'playing'
   | 'error'
 
-interface PreviewTrack {
-  audio: HTMLAudioElement
-  objectUrl: string
-}
-
 interface ActivePreview {
-  tracks: PreviewTrack[]
-  startOffsetSeconds: number
-  animationFrame: number
-  disposed: boolean
+  gain: GainNode
+  sources: AudioBufferSourceNode[]
 }
 
-function disposePreview(preview: ActivePreview): void {
-  if (preview.disposed) return
-  preview.disposed = true
-  cancelAnimationFrame(preview.animationFrame)
-  for (const track of preview.tracks) {
-    track.audio.pause()
-    track.audio.removeAttribute('src')
-    track.audio.load()
-    URL.revokeObjectURL(track.objectUrl)
-  }
-}
-
-function fadePreview(
-  preview: ActivePreview,
-  targetVolume: number,
-  durationMs: number,
-  onComplete?: () => void,
-): void {
-  cancelAnimationFrame(preview.animationFrame)
-  const initialVolume = preview.tracks[0]?.audio.volume ?? 0
-  const startedAt = performance.now()
-
-  const update = (now: number) => {
-    if (preview.disposed) return
-    const progress = Math.min(1, (now - startedAt) / durationMs)
-    const volume =
-      initialVolume + (targetVolume - initialVolume) * progress
-    for (const track of preview.tracks) {
-      track.audio.volume = volume
-    }
-    if (progress < 1) {
-      preview.animationFrame = requestAnimationFrame(update)
-      return
-    }
-    onComplete?.()
-  }
-
-  preview.animationFrame = requestAnimationFrame(update)
-}
-
-function waitForMetadata(
-  audio: HTMLAudioElement,
-  signal: AbortSignal,
-): Promise<void> {
-  if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
-    return Promise.resolve()
-  }
-
-  return new Promise((resolve, reject) => {
-    const loaded = () => {
-      cleanup()
-      resolve()
-    }
-    const failed = () => {
-      cleanup()
-      reject(new Error('The preview audio could not be loaded.'))
-    }
-    const aborted = () => {
-      cleanup()
-      reject(new DOMException('Preview superseded.', 'AbortError'))
-    }
-    const cleanup = () => {
-      audio.removeEventListener('loadedmetadata', loaded)
-      audio.removeEventListener('error', failed)
-      signal.removeEventListener('abort', aborted)
-    }
-    audio.addEventListener('loadedmetadata', loaded)
-    audio.addEventListener('error', failed)
-    signal.addEventListener('abort', aborted, { once: true })
-    if (signal.aborted) aborted()
-  })
+function previewOffset(song: LocalSong, buffers: AudioBuffer[]): number {
+  const longestDuration = Math.max(...buffers.map((buffer) => buffer.duration))
+  const requested = song.previewStartSeconds ?? longestDuration * 0.22
+  return Math.max(0, Math.min(requested, Math.max(0, longestDuration - 1)))
 }
 
 export function useSongPreview(
@@ -102,157 +30,142 @@ export function useSongPreview(
   enabled = true,
 ): SongPreviewStatus {
   const [status, setStatus] = useState<SongPreviewStatus>('idle')
+  const contextRef = useRef<AudioContext | null>(null)
+  const outputRef = useRef<AudioNode | null>(null)
   const activeRef = useRef<ActivePreview | null>(null)
-  const pendingRef = useRef<ActivePreview | null>(null)
+  const pendingRef = useRef<{
+    song: LocalSong
+    buffers: AudioBuffer[]
+  } | null>(null)
   const unlockRef = useRef<() => void>(() => undefined)
 
   const fadeActive = () => {
     const active = activeRef.current
-    if (!active) return
-    activeRef.current = null
-    fadePreview(active, 0, 140, () => disposePreview(active))
+    const context = contextRef.current
+    if (!active || !context) return
+    const now = context.currentTime
+    active.gain.gain.cancelScheduledValues(now)
+    active.gain.gain.setValueAtTime(active.gain.gain.value, now)
+    active.gain.gain.linearRampToValueAtTime(0, now + 0.14)
+    window.setTimeout(() => {
+      for (const source of active.sources) {
+        try {
+          source.stop()
+        } catch {
+          // A preview source may have naturally ended.
+        }
+      }
+    }, 180)
+    if (activeRef.current === active) activeRef.current = null
   }
 
   useEffect(() => {
     const unlock = () => unlockRef.current()
-    window.addEventListener('pointerdown', unlock)
-    window.addEventListener('keydown', unlock)
-    window.addEventListener('fretline:controller-action', unlock)
+    const unlockAudio = () => {
+      unlockSongAudioDecoder()
+      unlock()
+    }
+    window.addEventListener('pointerdown', unlockAudio)
+    window.addEventListener('keydown', unlockAudio)
+    window.addEventListener('fretline:controller-action', unlockAudio)
     return () => {
-      window.removeEventListener('pointerdown', unlock)
-      window.removeEventListener('keydown', unlock)
-      window.removeEventListener('fretline:controller-action', unlock)
+      window.removeEventListener('pointerdown', unlockAudio)
+      window.removeEventListener('keydown', unlockAudio)
+      window.removeEventListener(
+        'fretline:controller-action',
+        unlockAudio,
+      )
     }
   }, [])
 
   useEffect(() => {
-    if (pendingRef.current) disposePreview(pendingRef.current)
-    pendingRef.current = null
-    unlockRef.current = () => undefined
-    fadeActive()
-
     if (!song || !enabled) {
+      pendingRef.current = null
+      fadeActive()
       setStatus('idle')
       return
     }
 
-    const selection = previewFilesForSong(song)
-    if (!selection) {
-      setStatus('error')
-      return
-    }
-
     let cancelled = false
-    const abortController = new AbortController()
     setStatus('loading')
 
     const timer = window.setTimeout(() => {
       void (async () => {
-        const tracks = selection.files.map((file) => {
-          const audio = new Audio()
-          const objectUrl = URL.createObjectURL(file)
-          audio.preload = 'auto'
-          audio.volume = 0
-          audio.src = objectUrl
-          return { audio, objectUrl }
-        })
-        const preview: ActivePreview = {
-          tracks,
-          startOffsetSeconds: 0,
-          animationFrame: 0,
-          disposed: false,
+        let context = contextRef.current
+        if (!context || context.state === 'closed') {
+          context = new AudioContext({ latencyHint: 'interactive' })
+          const compressor = context.createDynamicsCompressor()
+          compressor.connect(context.destination)
+          contextRef.current = context
+          outputRef.current = compressor
+          registerPreviewAudioContext(context)
         }
-        pendingRef.current = preview
-        let playbackState: 'idle' | 'starting' | 'playing' = 'idle'
 
-        const beginPlayback = async () => {
+        const playPending = () => {
+          const pending = pendingRef.current
+          const currentContext = contextRef.current
+          const output = outputRef.current
           if (
-            cancelled ||
-            preview.disposed ||
-            playbackState !== 'idle'
+            !pending ||
+            !currentContext ||
+            !output ||
+            currentContext.state !== 'running'
           ) {
             return
           }
-          playbackState = 'starting'
-          try {
-            for (const track of preview.tracks) {
-              track.audio.currentTime = preview.startOffsetSeconds
-            }
-            await Promise.all(
-              preview.tracks.map((track) => track.audio.play()),
-            )
-            if (cancelled || preview.disposed) {
-              disposePreview(preview)
-              return
-            }
-            pendingRef.current = null
-            activeRef.current = preview
-            playbackState = 'playing'
-            unlockRef.current = () => undefined
-            fadePreview(preview, 0.52, 160)
-            setStatus('playing')
-          } catch (reason) {
-            if (cancelled || preview.disposed) return
-            playbackState = 'idle'
-            if (
-              reason instanceof DOMException &&
-              reason.name === 'NotAllowedError'
-            ) {
-              for (const track of preview.tracks) track.audio.pause()
-              setStatus('waiting')
-              return
-            }
-            disposePreview(preview)
-            pendingRef.current = null
-            setStatus('error')
-          }
+
+          pendingRef.current = null
+          fadeActive()
+          const now = currentContext.currentTime
+          const gain = currentContext.createGain()
+          gain.gain.setValueAtTime(0, now)
+          gain.gain.linearRampToValueAtTime(0.52, now + 0.16)
+          gain.connect(output)
+          const offset = previewOffset(pending.song, pending.buffers)
+          const startAt = now + 0.03
+          const sources = pending.buffers
+            .filter((buffer) => buffer.duration > offset)
+            .map((buffer) => {
+              const source = currentContext.createBufferSource()
+              source.buffer = buffer
+              source.connect(gain)
+              source.start(startAt, offset)
+              return source
+            })
+
+          activeRef.current = { gain, sources }
+          setStatus('playing')
         }
 
-        unlockRef.current = () => void beginPlayback()
+        unlockRef.current = () => {
+          const currentContext = contextRef.current
+          if (!currentContext) return
+          void currentContext.resume().then(() => {
+            if (currentContext.state === 'running') playPending()
+          })
+        }
 
         try {
-          await Promise.all(
-            preview.tracks.map((track) =>
-              waitForMetadata(track.audio, abortController.signal),
-            ),
-          )
-          if (cancelled || preview.disposed) {
-            disposePreview(preview)
-            return
+          const buffers = await decodeSongAudio(song)
+          if (cancelled) return
+          pendingRef.current = { song, buffers }
+          await context.resume()
+          if (cancelled) return
+          if (context.state === 'running') {
+            playPending()
+          } else {
+            setStatus('waiting')
           }
-          const longestDuration = Math.max(
-            ...preview.tracks.map((track) => track.audio.duration),
-          )
-          preview.startOffsetSeconds = previewOffsetSeconds(
-            song,
-            longestDuration,
-            selection.dedicatedPreview,
-          )
-          preview.tracks = preview.tracks.filter((track) => {
-            if (track.audio.duration > preview.startOffsetSeconds) return true
-            track.audio.removeAttribute('src')
-            track.audio.load()
-            URL.revokeObjectURL(track.objectUrl)
-            return false
-          })
-          if (preview.tracks.length === 0) {
-            throw new Error('No preview stems reach the requested start time.')
-          }
-          await beginPlayback()
         } catch {
           if (!cancelled) setStatus('error')
-          disposePreview(preview)
-          if (pendingRef.current === preview) pendingRef.current = null
         }
       })()
-    }, 180)
+    }, 260)
 
     return () => {
       cancelled = true
-      abortController.abort()
       window.clearTimeout(timer)
-      if (pendingRef.current) {
-        disposePreview(pendingRef.current)
+      if (pendingRef.current?.song.id === song.id) {
         pendingRef.current = null
       }
     }
@@ -260,11 +173,15 @@ export function useSongPreview(
 
   useEffect(
     () => () => {
-      unlockRef.current = () => undefined
-      if (pendingRef.current) disposePreview(pendingRef.current)
-      if (activeRef.current) disposePreview(activeRef.current)
       pendingRef.current = null
-      activeRef.current = null
+      fadeActive()
+      unlockRef.current = () => undefined
+      const context = contextRef.current
+      if (context && !releasePreviewAudioContext(context)) {
+        void context.close()
+      }
+      contextRef.current = null
+      outputRef.current = null
     },
     [],
   )
