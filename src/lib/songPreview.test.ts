@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LocalSong } from '../types/game'
 import {
-  previewFileForSong,
+  previewFilesForSong,
   previewOffsetSeconds,
 } from './songPreview'
 
@@ -24,18 +24,21 @@ describe('song previews', () => {
     const mix = new File(['mix'], 'song.ogg')
     const preview = new File(['preview'], 'preview.ogg')
 
-    expect(previewFileForSong(songWithAudio([mix], preview))).toEqual({
-      file: preview,
+    expect(previewFilesForSong(songWithAudio([mix], preview))).toEqual({
+      files: [preview],
       dedicatedPreview: true,
     })
   })
 
-  it('prefers the full song mix over individual stems', () => {
+  it('streams every gameplay stem when no rendered preview exists', () => {
     const guitar = new File(['guitar'], 'guitar.ogg')
+    const drums = new File(['drums'], 'drums.ogg')
     const mix = new File(['mix'], 'song.ogg')
 
-    expect(previewFileForSong(songWithAudio([guitar, mix]))).toEqual({
-      file: mix,
+    expect(
+      previewFilesForSong(songWithAudio([mix, guitar, drums])),
+    ).toEqual({
+      files: [mix, guitar, drums],
       dedicatedPreview: false,
     })
   })

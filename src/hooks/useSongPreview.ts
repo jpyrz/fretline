@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  previewFileForSong,
+  previewFilesForSong,
   previewOffsetSeconds,
 } from '../lib/songPreview'
 import type { LocalSong } from '../types/game'
@@ -12,9 +12,14 @@ export type SongPreviewStatus =
   | 'playing'
   | 'error'
 
-interface ActivePreview {
+interface PreviewTrack {
   audio: HTMLAudioElement
   objectUrl: string
+}
+
+interface ActivePreview {
+  tracks: PreviewTrack[]
+  startOffsetSeconds: number
   animationFrame: number
   disposed: boolean
 }
@@ -23,10 +28,12 @@ function disposePreview(preview: ActivePreview): void {
   if (preview.disposed) return
   preview.disposed = true
   cancelAnimationFrame(preview.animationFrame)
-  preview.audio.pause()
-  preview.audio.removeAttribute('src')
-  preview.audio.load()
-  URL.revokeObjectURL(preview.objectUrl)
+  for (const track of preview.tracks) {
+    track.audio.pause()
+    track.audio.removeAttribute('src')
+    track.audio.load()
+    URL.revokeObjectURL(track.objectUrl)
+  }
 }
 
 function fadePreview(
@@ -36,14 +43,17 @@ function fadePreview(
   onComplete?: () => void,
 ): void {
   cancelAnimationFrame(preview.animationFrame)
-  const initialVolume = preview.audio.volume
+  const initialVolume = preview.tracks[0]?.audio.volume ?? 0
   const startedAt = performance.now()
 
   const update = (now: number) => {
     if (preview.disposed) return
     const progress = Math.min(1, (now - startedAt) / durationMs)
-    preview.audio.volume =
+    const volume =
       initialVolume + (targetVolume - initialVolume) * progress
+    for (const track of preview.tracks) {
+      track.audio.volume = volume
+    }
     if (progress < 1) {
       preview.animationFrame = requestAnimationFrame(update)
       return
@@ -126,7 +136,7 @@ export function useSongPreview(
       return
     }
 
-    const selection = previewFileForSong(song)
+    const selection = previewFilesForSong(song)
     if (!selection) {
       setStatus('error')
       return
@@ -138,23 +148,31 @@ export function useSongPreview(
 
     const timer = window.setTimeout(() => {
       void (async () => {
-        const objectUrl = URL.createObjectURL(selection.file)
-        const audio = new Audio()
+        const tracks = selection.files.map((file) => {
+          const audio = new Audio()
+          const objectUrl = URL.createObjectURL(file)
+          audio.preload = 'auto'
+          audio.volume = 0
+          audio.src = objectUrl
+          return { audio, objectUrl }
+        })
         const preview: ActivePreview = {
-          audio,
-          objectUrl,
+          tracks,
+          startOffsetSeconds: 0,
           animationFrame: 0,
           disposed: false,
         }
         pendingRef.current = preview
-        audio.preload = 'auto'
-        audio.volume = 0
-        audio.src = objectUrl
 
         const beginPlayback = async () => {
           if (cancelled || preview.disposed) return
           try {
-            await audio.play()
+            for (const track of preview.tracks) {
+              track.audio.currentTime = preview.startOffsetSeconds
+            }
+            await Promise.all(
+              preview.tracks.map((track) => track.audio.play()),
+            )
             if (cancelled || preview.disposed) {
               disposePreview(preview)
               return
@@ -169,6 +187,7 @@ export function useSongPreview(
               reason instanceof DOMException &&
               reason.name === 'NotAllowedError'
             ) {
+              for (const track of preview.tracks) track.audio.pause()
               setStatus('waiting')
               return
             }
@@ -181,16 +200,33 @@ export function useSongPreview(
         unlockRef.current = () => void beginPlayback()
 
         try {
-          await waitForMetadata(audio, abortController.signal)
+          await Promise.all(
+            preview.tracks.map((track) =>
+              waitForMetadata(track.audio, abortController.signal),
+            ),
+          )
           if (cancelled || preview.disposed) {
             disposePreview(preview)
             return
           }
-          audio.currentTime = previewOffsetSeconds(
+          const longestDuration = Math.max(
+            ...preview.tracks.map((track) => track.audio.duration),
+          )
+          preview.startOffsetSeconds = previewOffsetSeconds(
             song,
-            audio.duration,
+            longestDuration,
             selection.dedicatedPreview,
           )
+          preview.tracks = preview.tracks.filter((track) => {
+            if (track.audio.duration > preview.startOffsetSeconds) return true
+            track.audio.removeAttribute('src')
+            track.audio.load()
+            URL.revokeObjectURL(track.objectUrl)
+            return false
+          })
+          if (preview.tracks.length === 0) {
+            throw new Error('No preview stems reach the requested start time.')
+          }
           await beginPlayback()
         } catch {
           if (!cancelled) setStatus('error')

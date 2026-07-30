@@ -1,27 +1,26 @@
 import type { LocalSong } from '../types/game'
 
-const SONG_MIX = /^song\.[^.]+$/i
-
-export interface SongPreviewFile {
-  file: File
+export interface SongPreviewSelection {
+  files: File[]
   dedicatedPreview: boolean
 }
 
-export function previewFileForSong(
+export function previewFilesForSong(
   song: LocalSong,
-): SongPreviewFile | null {
+): SongPreviewSelection | null {
   if (song.previewAudioFile) {
     return {
-      file: song.previewAudioFile,
+      files: [song.previewAudioFile],
       dedicatedPreview: true,
     }
   }
 
-  const file =
-    song.audioFiles.find((candidate) => SONG_MIX.test(candidate.name)) ??
-    song.audioFiles[0]
-
-  return file ? { file, dedicatedPreview: false } : null
+  return song.audioFiles.length > 0
+    ? {
+        files: song.audioFiles,
+        dedicatedPreview: false,
+      }
+    : null
 }
 
 export function previewOffsetSeconds(
