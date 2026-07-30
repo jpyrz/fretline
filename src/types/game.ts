@@ -218,6 +218,7 @@ export interface GameFrame {
   heldLanes: Lane[]
   noteStates: Array<'pending' | 'hit' | 'miss'>
   sustainStates: SustainState[]
+  activeSustainIndices?: number[]
   stats: SessionStats
   whammyAmount: number
   hitFlash: {

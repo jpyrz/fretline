@@ -26,7 +26,6 @@
     radial-gradient(ellipse at 48% 31%, rgba(226, 38, 54, 0.2), transparent 34%),
     radial-gradient(ellipse at 77% 92%, rgba(126, 17, 28, 0.22), transparent 42%);
   filter: blur(1px);
-  animation: drift 18s ease-in-out infinite alternate;
 
   &::after {
     position: absolute;
@@ -35,12 +34,6 @@
     opacity: 0.17;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.4'/%3E%3C/svg%3E");
     mix-blend-mode: soft-light;
-  }
-}
-
-@keyframes drift {
-  to {
-    transform: scale(1.04) translate3d(1%, -0.8%, 0);
   }
 }
 
@@ -338,7 +331,7 @@
     height: 100%;
     background: linear-gradient(90deg, var(--accent-deep), var(--accent));
     box-shadow: 0 0 12px rgba(226, 38, 54, 0.72);
-    transition: width 180ms linear;
+    transition: width 350ms linear;
   }
 }
 

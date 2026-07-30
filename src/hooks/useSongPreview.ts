@@ -77,13 +77,27 @@ export function useSongPreview(
 
   useEffect(() => {
     const unlock = () => unlockRef.current()
+    const handleVisibilityChange = () => {
+      const active = activeRef.current
+      if (!active) return
+      if (document.hidden) {
+        active.audio.pause()
+        return
+      }
+      void active.audio.play().catch(() => setStatus('waiting'))
+    }
     window.addEventListener('pointerdown', unlock)
     window.addEventListener('keydown', unlock)
     window.addEventListener('fretline:controller-action', unlock)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       window.removeEventListener('pointerdown', unlock)
       window.removeEventListener('keydown', unlock)
       window.removeEventListener('fretline:controller-action', unlock)
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange,
+      )
     }
   }, [])
 

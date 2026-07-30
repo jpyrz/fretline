@@ -5,7 +5,9 @@ import {
   highwayTrackWidth,
   projectHighwayProgress,
   travelSecondsForNoteSpeed,
+  visibleNoteIndices,
 } from './drawHighway'
+import type { GameFrame, ParsedChart } from '../types/game'
 
 describe('highway note speed', () => {
   it('creates more visual spacing by shortening travel time', () => {
@@ -72,5 +74,37 @@ describe('highway perspective', () => {
         )
       }
     }
+  })
+})
+
+describe('highway render culling', () => {
+  it('returns only the visible time window plus active sustains', () => {
+    const notes = Array.from({ length: 1_000 }, (_, index) => ({
+      tick: index * 192,
+      timeSeconds: index * 0.5,
+      lanes: [0] as const,
+      open: false,
+      sustainTicks: 0,
+      sustainSeconds: 0,
+      hopo: false,
+      forced: false,
+      tap: false,
+    }))
+    const chart = {
+      notes,
+    } as unknown as ParsedChart
+    const frame = {
+      visualTimeSeconds: 200,
+      activeSustainIndices: [12],
+    } as GameFrame
+
+    const indices = visibleNoteIndices(chart, frame, 2)
+
+    expect(indices).toContain(12)
+    expect(indices).toContain(400)
+    expect(indices).toContain(404)
+    expect(indices.length).toBeLessThan(10)
+    expect(indices).not.toContain(399)
+    expect(indices).not.toContain(405)
   })
 })

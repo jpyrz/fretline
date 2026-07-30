@@ -201,8 +201,6 @@ export function MenuControllerNavigation() {
   useEffect(() => {
     if (!controllerMapping) return
 
-    let frame = 0
-
     const perform = (action: MenuAction) => {
       if (document.querySelector('[data-controller-capturing="true"]')) return
       const gameplayActive = Boolean(
@@ -257,7 +255,9 @@ export function MenuControllerNavigation() {
       if (action === 'blue') adjustFocusedControl(1)
     }
 
-    const poll = (now: number) => {
+    const poll = () => {
+      if (document.hidden) return
+      const now = performance.now()
       const current = readInput(controllerMapping)
       const previous = previousRef.current
 
@@ -287,11 +287,11 @@ export function MenuControllerNavigation() {
       }
 
       previousRef.current = current
-      frame = requestAnimationFrame(poll)
     }
 
-    frame = requestAnimationFrame(poll)
-    return () => cancelAnimationFrame(frame)
+    poll()
+    const interval = window.setInterval(poll, 32)
+    return () => window.clearInterval(interval)
   }, [controllerMapping, location.pathname, navigate])
 
   useEffect(() => {

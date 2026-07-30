@@ -226,6 +226,7 @@ export function PlayView() {
       heldLanes: [],
       noteStates: song.chart.notes.map(() => 'pending'),
       sustainStates: song.chart.notes.map(() => 'none'),
+      activeSustainIndices: [],
       stats: emptyStats,
       whammyAmount: 0,
       hitFlash: null,
@@ -412,6 +413,17 @@ export function PlayView() {
         handleControllerAction,
       )
   }, [])
+
+  useEffect(() => {
+    const pauseWhenHidden = () => {
+      if (document.hidden && phase === 'playing') {
+        engineRef.current?.pause()
+      }
+    }
+    document.addEventListener('visibilitychange', pauseWhenHidden)
+    return () =>
+      document.removeEventListener('visibilitychange', pauseWhenHidden)
+  }, [phase])
 
   return (
     <main

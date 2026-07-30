@@ -40,6 +40,10 @@ const DEFAULT_HIGHWAY_LENGTH = 55
 // lane guides, and side rails continuous below the receptor row even on
 // unusually tall or high-DPI displays.
 const SURFACE_END_PROGRESS = 1.18
+const warpedHighwayCache = new WeakMap<
+  HTMLImageElement,
+  { key: string; canvas: HTMLCanvasElement }
+>()
 
 export interface HighwayVisualOptions {
   backgroundImage?: HTMLImageElement | null
@@ -109,6 +113,59 @@ function highwayPoint(
     hitY,
     topY,
   }
+}
+
+function warpedHighwayTexture(
+  image: HTMLImageElement,
+  width: number,
+  height: number,
+  highwayLength: number,
+): HTMLCanvasElement {
+  const density = Math.min(window.devicePixelRatio || 1, 2)
+  const key =
+    `${Math.ceil(width)}:${Math.ceil(height)}:${highwayLength}:${density}`
+  const cached = warpedHighwayCache.get(image)
+  if (cached?.key === key) return cached.canvas
+
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.ceil(width * density))
+  canvas.height = Math.max(1, Math.ceil(height * density))
+  const context = canvas.getContext('2d')
+  if (context) {
+    context.setTransform(density, 0, 0, density, 0, 0)
+    const slices = 72
+    for (let slice = 0; slice < slices; slice += 1) {
+      const progressStart =
+        (slice / slices) * SURFACE_END_PROGRESS
+      const progressEnd =
+        ((slice + 1) / slices) * SURFACE_END_PROGRESS
+      const start = highwayPoint(
+        width,
+        height,
+        progressStart,
+        highwayLength,
+      )
+      const end = highwayPoint(
+        width,
+        height,
+        progressEnd,
+        highwayLength,
+      )
+      context.drawImage(
+        image,
+        0,
+        (slice / slices) * image.naturalHeight,
+        image.naturalWidth,
+        image.naturalHeight / slices + 1,
+        trackEdge(start, -1),
+        start.y,
+        start.trackWidth,
+        Math.max(1, end.y - start.y + 1),
+      )
+    }
+  }
+  warpedHighwayCache.set(image, { key, canvas })
+  return canvas
 }
 
 function noteRadius(point: HighwayPoint): number {
@@ -239,7 +296,10 @@ function resizeCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | nul
     canvas.width = width
     canvas.height = height
   }
-  const context = canvas.getContext('2d')
+  const context = canvas.getContext('2d', {
+    alpha: false,
+    desynchronized: true,
+  })
   context?.setTransform(ratio, 0, 0, ratio, 0, 0)
   return context
 }
@@ -348,43 +408,23 @@ function drawHighwaySurface(
     highwayImage.complete &&
     highwayImage.naturalWidth > 0
   ) {
-    const slices = 72
     context.save()
     context.globalAlpha = Math.max(
       0.2,
       Math.min(1, highwayOpacity / 100),
     )
-    for (let slice = 0; slice < slices; slice += 1) {
-      const progressStart =
-        (slice / slices) * SURFACE_END_PROGRESS
-      const progressEnd =
-        ((slice + 1) / slices) * SURFACE_END_PROGRESS
-      const start = highwayPoint(
-        width,
-        height,
-        progressStart,
-        highwayLength,
-      )
-      const end = highwayPoint(
-        width,
-        height,
-        progressEnd,
-        highwayLength,
-      )
-      const sourceY = (slice / slices) * highwayImage.naturalHeight
-      const sourceHeight = highwayImage.naturalHeight / slices + 1
-      context.drawImage(
+    context.drawImage(
+      warpedHighwayTexture(
         highwayImage,
-        0,
-        sourceY,
-        highwayImage.naturalWidth,
-        sourceHeight,
-        trackEdge(start, -1),
-        start.y,
-        start.trackWidth,
-        Math.max(1, end.y - start.y + 1),
-      )
-    }
+        width,
+        height,
+        highwayLength,
+      ),
+      0,
+      0,
+      width,
+      height,
+    )
     context.restore()
   }
 
@@ -611,6 +651,45 @@ function noteRenderState(
     progress,
     depthAlpha,
   }
+}
+
+function lowerBoundNoteTime(
+  notes: ChartNote[],
+  timeSeconds: number,
+): number {
+  let low = 0
+  let high = notes.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (notes[middle].timeSeconds < timeSeconds) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
+export function visibleNoteIndices(
+  chart: ParsedChart,
+  frame: GameFrame,
+  travelSeconds: number,
+): number[] {
+  const start = lowerBoundNoteTime(
+    chart.notes,
+    frame.visualTimeSeconds - 0.21,
+  )
+  const end = lowerBoundNoteTime(
+    chart.notes,
+    frame.visualTimeSeconds + travelSeconds + 0.001,
+  )
+  const indices = Array.from(
+    { length: Math.max(0, end - start) },
+    (_, offset) => start + offset,
+  )
+  const included = new Set(indices)
+  for (const noteIndex of frame.activeSustainIndices ?? []) {
+    if (included.has(noteIndex)) continue
+    indices.push(noteIndex)
+  }
+  return indices.sort((a, b) => a - b)
 }
 
 function drawSustainTail(
@@ -1271,7 +1350,12 @@ function activeSustainLanes(
   frame: GameFrame,
 ): Set<Lane> {
   const lanes = new Set<Lane>()
-  chart.notes.forEach((note, index) => {
+  const candidates =
+    frame.activeSustainIndices ??
+    chart.notes.map((_, noteIndex) => noteIndex)
+  for (const index of candidates) {
+    const note = chart.notes[index]
+    if (!note) continue
     if (
       frame.noteStates[index] === 'hit' &&
       frame.sustainStates[index] === 'holding' &&
@@ -1279,7 +1363,7 @@ function activeSustainLanes(
     ) {
       note.lanes.forEach((lane) => lanes.add(lane))
     }
-  })
+  }
   return lanes
 }
 
@@ -1774,7 +1858,6 @@ export function drawHighway(
   const height = canvas.clientHeight
   const travelSeconds = travelSecondsForNoteSpeed(noteSpeed)
 
-  context.clearRect(0, 0, width, height)
   drawHighwaySurface(
     context,
     width,
@@ -1804,10 +1887,25 @@ export function drawHighway(
     highwayLength,
   )
 
-  for (let noteIndex = 0; noteIndex < chart.notes.length; noteIndex += 1) {
-    const note = chart.notes[noteIndex]
-    const render = noteRenderState(note, noteIndex, frame, travelSeconds)
-    if (!render) continue
+  const noteRenders = visibleNoteIndices(chart, frame, travelSeconds)
+    .map((noteIndex) => ({
+      noteIndex,
+      note: chart.notes[noteIndex],
+      render: noteRenderState(
+        chart.notes[noteIndex],
+        noteIndex,
+        frame,
+        travelSeconds,
+      ),
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is typeof entry & { render: NoteRenderState } =>
+        entry.render !== null,
+    )
+
+  for (const { note, render } of noteRenders) {
     drawSustainTail(
       context,
       width,
@@ -1831,10 +1929,7 @@ export function drawHighway(
     highwayLength,
   )
 
-  for (let noteIndex = 0; noteIndex < chart.notes.length; noteIndex += 1) {
-    const note = chart.notes[noteIndex]
-    const render = noteRenderState(note, noteIndex, frame, travelSeconds)
-    if (!render) continue
+  for (const { note, render } of noteRenders) {
     if (render.activeSustain) continue
     const point = highwayPoint(
       width,

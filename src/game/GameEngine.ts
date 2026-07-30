@@ -932,6 +932,7 @@ export class GameEngine {
       heldLanes: this.heldLanes(),
       noteStates: this.noteStates,
       sustainStates: this.sustainStates,
+      activeSustainIndices: [...this.activeSustains],
       stats: this.stats,
       whammyAmount: this.whammyAmount(),
       hitFlash: this.hitFlash,

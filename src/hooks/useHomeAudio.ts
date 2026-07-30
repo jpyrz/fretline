@@ -80,7 +80,6 @@ export function useHomeAudio(
     let playbackState: 'idle' | 'starting' | 'playing' = 'idle'
     let audio: HTMLAudioElement | null = null
     let objectUrl = ''
-    let frame = 0
 
     const updateProgress = () => {
       if (
@@ -91,7 +90,6 @@ export function useHomeAudio(
       ) {
         setProgress(Math.max(0, Math.min(1, audio.currentTime / audio.duration)))
       }
-      frame = requestAnimationFrame(updateProgress)
     }
 
     const startAudio = async () => {
@@ -120,14 +118,24 @@ export function useHomeAudio(
     }
 
     const unlockAndStart = () => void startAudio()
+    const handleVisibilityChange = () => {
+      if (!audio) return
+      if (document.hidden) {
+        audio.pause()
+        return
+      }
+      if (playbackState === 'playing') {
+        void audio.play().catch(() => setStatus('waiting'))
+      }
+    }
     startRef.current = unlockAndStart
     window.addEventListener('pointerdown', unlockAndStart)
     window.addEventListener('keydown', unlockAndStart)
     window.addEventListener('fretline:controller-action', unlockAndStart)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     setStatus('loading')
     setProgress(0)
-    frame = requestAnimationFrame(updateProgress)
 
     void prepareSongPreview(currentSong)
       .then((file) => {
@@ -140,6 +148,8 @@ export function useHomeAudio(
         audio.onended = () => {
           if (!cancelled) advanceRef.current()
         }
+        audio.addEventListener('timeupdate', updateProgress)
+        audio.addEventListener('loadedmetadata', updateProgress)
         audioRef.current = audio
         void startAudio()
       })
@@ -149,12 +159,17 @@ export function useHomeAudio(
 
     return () => {
       cancelled = true
-      cancelAnimationFrame(frame)
       window.removeEventListener('pointerdown', unlockAndStart)
       window.removeEventListener('keydown', unlockAndStart)
       window.removeEventListener('fretline:controller-action', unlockAndStart)
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange,
+      )
       audio?.pause()
       if (audio) {
+        audio.removeEventListener('timeupdate', updateProgress)
+        audio.removeEventListener('loadedmetadata', updateProgress)
         audio.removeAttribute('src')
         audio.load()
       }

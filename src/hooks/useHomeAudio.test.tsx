@@ -93,4 +93,20 @@ describe('useHomeAudio', () => {
     expect(FakeHomeAudio.instances[0].play).toHaveBeenCalledTimes(1)
     unmount()
   })
+
+  it('updates progress from media events instead of a continuous frame loop', async () => {
+    const frameSpy = vi.spyOn(window, 'requestAnimationFrame')
+    const songs = [homeSong()]
+    const { result, unmount } = renderHook(() =>
+      useHomeAudio(songs),
+    )
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('playing')
+    })
+    expect(FakeHomeAudio.instances).toHaveLength(1)
+    expect(frameSpy).not.toHaveBeenCalled()
+    frameSpy.mockRestore()
+    unmount()
+  })
 })
