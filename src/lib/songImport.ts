@@ -4,7 +4,7 @@ import { parseSongIni } from './songIni'
 import type { LocalSong } from '../types/game'
 
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
-const NON_PLAYABLE_AUDIO = /^(preview)\.[^.]+$/i
+const PREVIEW_AUDIO = /^preview\.[^.]+$/i
 const ARTWORK_FILE = /^(album|cover)\.(png|jpe?g|webp)$/i
 const STEM_ORDER = [
   'song',
@@ -56,9 +56,12 @@ export async function importCloneHeroFolder(
     .filter(
       (file) =>
         AUDIO_EXTENSIONS.test(file.name) &&
-        !NON_PLAYABLE_AUDIO.test(file.name),
+        !PREVIEW_AUDIO.test(file.name),
     )
     .sort((a, b) => stemRank(a) - stemRank(b))
+  const previewAudioFile = folderFiles.find((file) =>
+    PREVIEW_AUDIO.test(file.name),
+  )
   const artworkFile = folderFiles.find((file) =>
     ARTWORK_FILE.test(file.name),
   )
@@ -95,6 +98,7 @@ export async function importCloneHeroFolder(
     chart,
     charts,
     audioFiles,
+    previewAudioFile,
     previewStartSeconds: iniMetadata?.previewStartSeconds,
     artworkFile,
     folderName: folder || 'Selected folder',

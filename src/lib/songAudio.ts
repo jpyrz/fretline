@@ -4,7 +4,6 @@ import type { LocalSong } from '../types/game'
 const decodedAudio = new Map<string, Promise<AudioBuffer[]>>()
 const MAX_CACHED_SONGS = 3
 let decoderContext: AudioContext | null = null
-let previewAudioContext: AudioContext | null = null
 let preparedGameplayContext: AudioContext | null = null
 const gameplayContexts = new WeakSet<AudioContext>()
 
@@ -57,32 +56,9 @@ export function decodeSongAudio(
   return pending
 }
 
-export function unlockSongAudioDecoder(): void {
-  resumeDecoder()
-}
-
-export function registerPreviewAudioContext(context: AudioContext): void {
-  previewAudioContext = context
-}
-
-export function releasePreviewAudioContext(
-  context: AudioContext,
-): boolean {
-  if (previewAudioContext === context) {
-    previewAudioContext = null
-  }
-  return gameplayContexts.has(context)
-}
-
 export function prepareGameplayAudioContext(): AudioContext {
   if (preparedGameplayContext) {
     void preparedGameplayContext.close()
-  }
-  if (previewAudioContext?.state === 'running') {
-    preparedGameplayContext = previewAudioContext
-    previewAudioContext = null
-    gameplayContexts.add(preparedGameplayContext)
-    return preparedGameplayContext
   }
   if (decoderContext?.state === 'running') {
     preparedGameplayContext = decoderContext

@@ -35,6 +35,7 @@ describe('importCloneHeroFolder', () => {
     ])
 
     expect(song.audioFiles).toEqual([songAudio])
+    expect(song.previewAudioFile).toBe(previewAudio)
     expect(song.artworkFile).toBe(artwork)
   })
 

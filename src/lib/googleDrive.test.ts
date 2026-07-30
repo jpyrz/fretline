@@ -55,7 +55,7 @@ describe('createDriveFingerprint', () => {
     )
   })
 
-  it('tracks MIDI charts, metadata, and artwork but ignores preview audio', () => {
+  it('tracks MIDI charts, metadata, artwork, and preview audio', () => {
     const midi: DriveFileMetadata = {
       id: 'midi-id',
       name: 'notes.mid',
@@ -94,8 +94,6 @@ describe('createDriveFingerprint', () => {
     expect(fingerprint).toContain('midi-id')
     expect(fingerprint).toContain('ini-id')
     expect(fingerprint).toContain('artwork-id')
-    expect(fingerprint).not.toContain(
-      'preview-id',
-    )
+    expect(fingerprint).toContain('preview-id')
   })
 })

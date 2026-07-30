@@ -51,6 +51,7 @@ export interface LocalSong {
   chart: ParsedChart
   charts: ParsedChart[]
   audioFiles: File[]
+  previewAudioFile?: File
   previewStartSeconds?: number
   artworkFile?: File
   folderName?: string

@@ -9,7 +9,7 @@ const SOURCE_SCOPE_VERSION = 2
 const CHART_IMPORT_VERSION = 3
 const MAX_DRIVE_ITEMS = 5000
 const AUDIO_EXTENSIONS = /\.(ogg|mp3|wav|m4a|aac|opus|webm)$/i
-const NON_PLAYABLE_AUDIO = /^(preview)\.[^.]+$/i
+const PREVIEW_AUDIO = /^preview\.[^.]+$/i
 const CHART_EXTENSION = /\.(chart|mid)$/i
 const METADATA_FILE = /^song\.ini$/i
 const ARTWORK_FILE = /^(album|cover)\.(png|jpe?g|webp)$/i
@@ -448,8 +448,7 @@ async function scanDriveTree(
 function isSongFile(file: DriveFileMetadata): boolean {
   return (
     CHART_EXTENSION.test(file.name) ||
-    (AUDIO_EXTENSIONS.test(file.name) &&
-      !NON_PLAYABLE_AUDIO.test(file.name)) ||
+    AUDIO_EXTENSIONS.test(file.name) ||
     METADATA_FILE.test(file.name) ||
     ARTWORK_FILE.test(file.name)
   )
@@ -501,7 +500,7 @@ export async function syncGoogleDriveLibrary(
     )
     const hasAudio = directory.files.some((file) =>
       AUDIO_EXTENSIONS.test(file.name) &&
-      !NON_PLAYABLE_AUDIO.test(file.name),
+      !PREVIEW_AUDIO.test(file.name),
     )
     return hasChart && hasAudio
   })
