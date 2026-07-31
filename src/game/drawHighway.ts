@@ -25,6 +25,7 @@ import {
   visibleNoteIndices,
   type NoteRenderState,
 } from './rendering/noteVisibility'
+import { drawTapSweepPaths } from './rendering/tapSweepPath'
 import {
   cachedHighwaySurface,
   drawHighwaySurfaceOverlay,
@@ -1629,6 +1630,22 @@ export function drawHighway(
       ): entry is typeof entry & { render: NoteRenderState } =>
         entry.render !== null,
     )
+
+  if (tapMode) {
+    drawTapSweepPaths(
+      context,
+      width,
+      height,
+      chart,
+      frame,
+      noteRenders,
+      travelSeconds,
+      highwayLength,
+      hitLineRatio,
+      LANE_COLORS,
+      STAR_POWER_COLOR,
+    )
+  }
 
   for (const { note, render } of noteRenders) {
     drawSustainTail(
