@@ -1536,6 +1536,105 @@ function drawHighwayHorizonFade(
   context.restore()
 }
 
+function drawStarPowerIgnition(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  frame: GameFrame,
+  highwayLength: number,
+  hitLineRatio: number,
+): void {
+  const flash = frame.starPowerFlash
+  if (!flash) return
+
+  const duration = flash.expiresAt - flash.startedAt
+  if (duration <= 0) return
+  const progress = Math.max(
+    0,
+    Math.min(1, (frame.songTimeSeconds - flash.startedAt) / duration),
+  )
+  const intensity = Math.sin(Math.PI * progress)
+  const reach = 1 - Math.pow(1 - Math.min(1, progress * 1.65), 3)
+  const strike = highwayPoint(
+    width,
+    height,
+    1,
+    highwayLength,
+    hitLineRatio,
+  )
+  const strikeHalfWidth =
+    (trackEdge(strike, 1) - trackEdge(strike, -1)) / 2
+
+  context.save()
+  context.globalCompositeOperation = 'screen'
+
+  const bloomRadius = Math.max(width, height) * (0.12 + progress * 0.22)
+  const bloom = context.createRadialGradient(
+    width / 2,
+    strike.y,
+    0,
+    width / 2,
+    strike.y,
+    bloomRadius,
+  )
+  bloom.addColorStop(0, `rgba(164, 240, 255, ${0.28 * intensity})`)
+  bloom.addColorStop(0.3, `rgba(44, 196, 255, ${0.16 * intensity})`)
+  bloom.addColorStop(1, 'rgba(18, 125, 255, 0)')
+  context.fillStyle = bloom
+  context.fillRect(0, 0, width, height)
+
+  const segments = 13
+  for (const side of [-1, 1] as const) {
+    context.beginPath()
+    for (let segment = 0; segment <= segments; segment += 1) {
+      const segmentRatio = segment / segments
+      const depth = 1 - reach * segmentRatio
+      const point = highwayPoint(
+        width,
+        height,
+        depth,
+        highwayLength,
+        hitLineRatio,
+      )
+      const jitter =
+        Math.sin(segment * 8.17 + flash.startedAt * 19 + side * 1.7) *
+        width *
+        0.0045 *
+        (0.35 + segmentRatio)
+      const x = trackEdge(point, side) - side * width * 0.006 + jitter
+      if (segment === 0) context.moveTo(x, point.y)
+      else context.lineTo(x, point.y)
+    }
+    context.strokeStyle = `rgba(65, 204, 255, ${0.52 * intensity})`
+    context.lineWidth = Math.max(3, width * 0.005)
+    context.shadowColor = '#5ce6ff'
+    context.shadowBlur = 22
+    context.stroke()
+
+    context.strokeStyle = `rgba(225, 252, 255, ${0.88 * intensity})`
+    context.lineWidth = Math.max(1, width * 0.0016)
+    context.shadowBlur = 8
+    context.stroke()
+  }
+
+  context.beginPath()
+  context.ellipse(
+    width / 2,
+    strike.y,
+    strikeHalfWidth * (0.22 + progress * 1.05),
+    Math.max(5, height * (0.008 + progress * 0.025)),
+    0,
+    0,
+    Math.PI * 2,
+  )
+  context.strokeStyle = `rgba(203, 249, 255, ${0.7 * (1 - progress)})`
+  context.lineWidth = Math.max(2, width * 0.003)
+  context.shadowColor = '#5ce6ff'
+  context.shadowBlur = 18
+  context.stroke()
+  context.restore()
+}
+
 export function drawHighway(
   canvas: HTMLCanvasElement,
   chart: ParsedChart,
@@ -1724,6 +1823,14 @@ export function drawHighway(
     context.restore()
   }
   drawHitEffects(
+    context,
+    width,
+    height,
+    frame,
+    highwayLength,
+    hitLineRatio,
+  )
+  drawStarPowerIgnition(
     context,
     width,
     height,

@@ -251,4 +251,8 @@ export interface GameFrame {
     startedAt: number
     expiresAt: number
   } | null
+  starPowerFlash?: {
+    startedAt: number
+    expiresAt: number
+  } | null
 }

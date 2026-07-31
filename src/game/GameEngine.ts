@@ -24,6 +24,7 @@ import {
   isWhammyStarPowerSustain,
 } from '../lib/starPower'
 import { whammyAudioParameters } from './whammyAudio'
+import { playStarPowerIgnition } from './starPowerIgnitionAudio'
 import type { PlayInputMode } from '../lib/inputMode'
 import {
   normalizePerformanceTimestamp,
@@ -135,6 +136,7 @@ export class GameEngine {
   private lastWhammyAudioAmount = -1
   private hitFlash: GameFrame['hitFlash'] = null
   private missFlash: GameFrame['missFlash'] = null
+  private starPowerFlash: GameFrame['starPowerFlash'] = null
   private lastStatsPush = 0
   private statsDirty = true
   private recordsSnapshot: SessionStats['records'] = []
@@ -216,6 +218,7 @@ export class GameEngine {
     this.pausedSongTimeSeconds = -COUNTDOWN_SECONDS
     this.hitFlash = null
     this.missFlash = null
+    this.starPowerFlash = null
     this.lastStarPowerTick = null
     this.lastWhammyAudioAmount = -1
     this.previousGamepadStrum = false
@@ -622,6 +625,14 @@ export class GameEngine {
 
     this.stats.starPowerActive = true
     this.stats.starPowerActivations += 1
+    const songTimeSeconds = this.songTimeAt(performanceTime)
+    this.starPowerFlash = {
+      startedAt: songTimeSeconds,
+      expiresAt: songTimeSeconds + 0.68,
+    }
+    if (this.mixGain) {
+      playStarPowerIgnition(this.audioContext, this.mixGain)
+    }
     this.lastStarPowerTick = secondsToTick(
       scoringTime,
       this.chart.tempos,
@@ -991,6 +1002,12 @@ export class GameEngine {
     if (this.missFlash && this.missFlash.expiresAt < scoringTime) {
       this.missFlash = null
     }
+    if (
+      this.starPowerFlash &&
+      this.starPowerFlash.expiresAt < songTimeSeconds
+    ) {
+      this.starPowerFlash = null
+    }
 
     if (this.statsDirty && now - this.lastStatsPush > 100) {
       this.pushStats(now)
@@ -1008,6 +1025,7 @@ export class GameEngine {
       whammyAmount: this.whammyAmount(),
       hitFlash: this.hitFlash,
       missFlash: this.missFlash,
+      starPowerFlash: this.starPowerFlash,
     })
 
     if (songTimeSeconds > this.endTimeSeconds + 0.35) {
