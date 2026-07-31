@@ -358,9 +358,15 @@ export function groupNotes(
 export function parseChart(
   source: string,
   requestedTrack?: string,
+  additionalOffsetSeconds = 0,
 ): ParsedChart {
   const sections = readSections(source)
-  const metadata = readMetadata(sections.get('Song'))
+  const parsedMetadata = readMetadata(sections.get('Song'))
+  const metadata = {
+    ...parsedMetadata,
+    offsetSeconds:
+      parsedMetadata.offsetSeconds + additionalOffsetSeconds,
+  }
   const tempos = readTempos(sections.get('SyncTrack'), metadata.resolution)
   const availableTracks = [...sections.keys()].filter((name) =>
     /^(Easy|Medium|Hard|Expert)(Single|DoubleGuitar|DoubleBass|DoubleRhythm)$/.test(

@@ -137,8 +137,34 @@ export function SettingsView() {
             <div className={styles.settingList}>
               <label className={styles.settingRow}>
                 <span>
+                  <strong>Audio correction</strong>
+                  <small>
+                    Positive values play song audio earlier. Timing Lab sets
+                    this automatically.
+                  </small>
+                </span>
+                <input
+                  type="range"
+                  min="-200"
+                  max="200"
+                  step="1"
+                  value={calibration.audioOffsetMs}
+                  onChange={(event) =>
+                    setCalibration({
+                      ...calibration,
+                      audioOffsetMs: Number(event.target.value),
+                    })
+                  }
+                />
+                <output>{calibration.audioOffsetMs} ms</output>
+              </label>
+
+              <label className={styles.settingRow}>
+                <span>
                   <strong>Input correction</strong>
-                  <small>Moves scored strums earlier or later.</small>
+                  <small>
+                    Compensates only for controller or keyboard input delay.
+                  </small>
                 </span>
                 <input
                   type="range"

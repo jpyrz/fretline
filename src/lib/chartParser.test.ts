@@ -27,6 +27,13 @@ describe('parseChart', () => {
     expect(secondsToTick(1.5, tempos, 192)).toBe(384)
   })
 
+  it('adds an imported song delay to the chart offset', () => {
+    const chart = parseChart(calibrationChartSource, undefined, 0.125)
+
+    expect(chart.metadata.offsetSeconds).toBe(0.125)
+    expect(chart.notes[0].timeSeconds).toBe(2.125)
+  })
+
   it('parses the bundled real-song chart at its analyzed beat offset', () => {
     const source = readFileSync(
       new URL('../../public/songs/techno-chiptale/notes.chart', import.meta.url),

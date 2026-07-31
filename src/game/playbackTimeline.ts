@@ -2,7 +2,7 @@ export const COUNTDOWN_SECONDS = 3
 export const RESUME_LEAD_SECONDS = 0.08
 
 export interface PlaybackSchedule {
-  audioStartContextTime: number
+  chartStartContextTime: number
   sourceStartContextTime: number
   sourceOffsetSeconds: number
 }
@@ -16,18 +16,22 @@ export function createPlaybackSchedule(
   currentContextTime: number,
   songTimeSeconds: number,
   leadSeconds = 0,
+  audioOffsetSeconds = 0,
 ): PlaybackSchedule {
-  const sourceStartContextTime = currentContextTime + leadSeconds
-  const audioStartContextTime =
-    sourceStartContextTime - songTimeSeconds
+  const requestedStartContextTime = currentContextTime + leadSeconds
+  const chartStartContextTime =
+    requestedStartContextTime - songTimeSeconds
+  const audioPositionAtRequestedStart =
+    songTimeSeconds + audioOffsetSeconds
+  const sourceStartContextTime =
+    audioPositionAtRequestedStart < 0
+      ? requestedStartContextTime - audioPositionAtRequestedStart
+      : requestedStartContextTime
 
   return {
-    audioStartContextTime,
-    sourceStartContextTime:
-      songTimeSeconds < 0
-        ? audioStartContextTime
-        : sourceStartContextTime,
-    sourceOffsetSeconds: Math.max(0, songTimeSeconds),
+    chartStartContextTime,
+    sourceStartContextTime,
+    sourceOffsetSeconds: Math.max(0, audioPositionAtRequestedStart),
   }
 }
 

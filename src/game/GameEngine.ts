@@ -338,8 +338,9 @@ export class GameEngine {
       this.audioContext.currentTime,
       songTimeSeconds,
       leadSeconds,
+      this.calibration.audioOffsetMs / 1000,
     )
-    this.startContextTime = schedule.audioStartContextTime
+    this.startContextTime = schedule.chartStartContextTime
 
     this.lastWhammyAudioAmount = -1
     for (const [bufferIndex, buffer] of this.audioBuffers.entries()) {

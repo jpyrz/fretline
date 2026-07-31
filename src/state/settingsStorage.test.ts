@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   defaultHighwaySettings,
   defaultVisualSettings,
+  loadCalibrationSettings,
   loadHighwaySettings,
   loadStoredValue,
   loadVisualSettings,
@@ -37,6 +38,36 @@ describe('settings storage', () => {
       ...defaultVisualSettings,
       backgroundDim: 0,
       highwayOpacity: 100,
+    })
+  })
+
+  it('migrates legacy Timing Lab correction to audio correction', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.calibration,
+      JSON.stringify({ inputOffsetMs: 34, videoOffsetMs: -8 }),
+    )
+
+    expect(loadCalibrationSettings()).toEqual({
+      audioOffsetMs: 34,
+      inputOffsetMs: 0,
+      videoOffsetMs: -8,
+    })
+  })
+
+  it('preserves independent timing corrections in the current format', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.calibration,
+      JSON.stringify({
+        audioOffsetMs: 22,
+        inputOffsetMs: 7,
+        videoOffsetMs: -4,
+      }),
+    )
+
+    expect(loadCalibrationSettings()).toEqual({
+      audioOffsetMs: 22,
+      inputOffsetMs: 7,
+      videoOffsetMs: -4,
     })
   })
 

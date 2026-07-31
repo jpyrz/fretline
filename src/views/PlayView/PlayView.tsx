@@ -106,8 +106,8 @@ export function PlayView() {
   const immersiveLoading = autoStartRequested && phase === 'loading'
   const [stats, setStats] = useState<SessionStats>(emptyStats)
   const [error, setError] = useState('')
-  const [runInputOffsetMs, setRunInputOffsetMs] = useState(
-    calibration.inputOffsetMs,
+  const [runAudioOffsetMs, setRunAudioOffsetMs] = useState(
+    calibration.audioOffsetMs,
   )
   const [appliedOffsetMs, setAppliedOffsetMs] = useState<number | null>(null)
   const backgroundAsset = useMemo(
@@ -235,7 +235,7 @@ export function PlayView() {
     setPhase('loading')
     setStats(emptyStats)
     setError('')
-    setRunInputOffsetMs(calibration.inputOffsetMs)
+    setRunAudioOffsetMs(calibration.audioOffsetMs)
     setAppliedOffsetMs(null)
 
     try {
@@ -322,12 +322,16 @@ export function PlayView() {
 
   const applySuggestion = () => {
     if (suggestedCorrection === null || appliedOffsetMs !== null) return
-    const nextOffsetMs = Math.round(
-      runInputOffsetMs + suggestedCorrection,
+    const nextOffsetMs = Math.max(
+      -200,
+      Math.min(
+        200,
+        Math.round(runAudioOffsetMs + suggestedCorrection),
+      ),
     )
     setCalibration({
       ...calibration,
-      inputOffsetMs: nextOffsetMs,
+      audioOffsetMs: nextOffsetMs,
     })
     setAppliedOffsetMs(nextOffsetMs)
   }
@@ -497,9 +501,11 @@ export function PlayView() {
               ) : (
                 <>
                   <p>
-                    {inputMode === 'tap'
-                      ? 'Tap a colored lane as its note reaches the target. Hold for sustains, drag a held fret upward to whammy, and use multiple fingers for chords.'
-                      : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
+                    {song.kind === 'calibration'
+                      ? 'Follow the click sound—not the highway—and play each beat. The result will move song audio into line with the chart without changing your controller timing.'
+                      : inputMode === 'tap'
+                        ? 'Tap a colored lane as its note reaches the target. Hold for sustains, drag a held fret upward to whammy, and use multiple fingers for chords.'
+                        : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
                   </p>
                   {inputMode === 'standard' && (
                     <div className={styles.noteLegend} aria-label="Note types">
@@ -541,7 +547,7 @@ export function PlayView() {
                 chartProgress,
                 multiplier,
               }}
-              runInputOffsetMs={runInputOffsetMs}
+              runAudioOffsetMs={runAudioOffsetMs}
               appliedOffsetMs={appliedOffsetMs}
               onApplySuggestion={applySuggestion}
               onRunAgain={() => void startSession()}

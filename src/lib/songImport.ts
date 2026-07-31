@@ -83,11 +83,16 @@ export async function importCloneHeroFolder(
     charts = parseMidiCharts(await chartFile.arrayBuffer(), iniMetadata)
   } else {
     const chartSource = await chartFile.text()
-    const firstChart = parseChart(chartSource)
+    const iniDelaySeconds = iniMetadata?.offsetSeconds ?? 0
+    const firstChart = parseChart(
+      chartSource,
+      undefined,
+      iniDelaySeconds,
+    )
     charts = firstChart.availableTracks.map((trackName) =>
       trackName === firstChart.trackName
         ? firstChart
-        : parseChart(chartSource, trackName),
+        : parseChart(chartSource, trackName, iniDelaySeconds),
     )
   }
   const chart = charts[0]

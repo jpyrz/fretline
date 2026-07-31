@@ -152,6 +152,7 @@ export interface KeyboardMapping {
 }
 
 export interface CalibrationSettings {
+  audioOffsetMs: number
   inputOffsetMs: number
   videoOffsetMs: number
 }

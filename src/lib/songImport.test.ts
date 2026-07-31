@@ -52,6 +52,20 @@ describe('importCloneHeroFolder', () => {
     expect(song.previewStartSeconds).toBe(42)
   })
 
+  it('applies song.ini delay to notes.chart timing', async () => {
+    const chart = new File([calibrationChartSource], 'notes.chart')
+    const audio = new File(['song-audio'], 'song.ogg')
+    const ini = new File(
+      ['[song]\nname = Delayed chart\ndelay = 125'],
+      'song.ini',
+    )
+
+    const song = await importCloneHeroFolder([chart, audio, ini])
+
+    expect(song.chart.metadata.offsetSeconds).toBe(0.125)
+    expect(song.chart.notes[0].timeSeconds).toBe(2.125)
+  })
+
   it('reports a missing chart clearly', async () => {
     const audio = new File(['test-audio'], 'song.ogg', {
       type: 'audio/ogg',

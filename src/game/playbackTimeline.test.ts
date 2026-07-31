@@ -7,7 +7,7 @@ import {
 describe('playback timeline', () => {
   it('schedules a fresh song after its countdown', () => {
     expect(createPlaybackSchedule(10, -3)).toEqual({
-      audioStartContextTime: 13,
+      chartStartContextTime: 13,
       sourceStartContextTime: 13,
       sourceOffsetSeconds: 0,
     })
@@ -15,9 +15,25 @@ describe('playback timeline', () => {
 
   it('resumes audio from a saved song position after a short lead', () => {
     expect(createPlaybackSchedule(10, 42.5, 0.08)).toEqual({
-      audioStartContextTime: -32.42,
+      chartStartContextTime: -32.42,
       sourceStartContextTime: 10.08,
       sourceOffsetSeconds: 42.5,
+    })
+  })
+
+  it('advances audio without moving the authoritative chart timeline', () => {
+    expect(createPlaybackSchedule(10, -3, 0, 0.04)).toEqual({
+      chartStartContextTime: 13,
+      sourceStartContextTime: 12.96,
+      sourceOffsetSeconds: 0,
+    })
+  })
+
+  it('delays audio without moving the authoritative chart timeline', () => {
+    expect(createPlaybackSchedule(10, -3, 0, -0.04)).toEqual({
+      chartStartContextTime: 13,
+      sourceStartContextTime: 13.04,
+      sourceOffsetSeconds: 0,
     })
   })
 

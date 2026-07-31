@@ -25,6 +25,7 @@ export const STORAGE_KEYS = {
 } as const
 
 export const defaultCalibration: CalibrationSettings = {
+  audioOffsetMs: 0,
   inputOffsetMs: 0,
   videoOffsetMs: 0,
 }
@@ -117,6 +118,39 @@ export function loadVisualSettings(): VisualSettings {
   }
 }
 
+function finiteOffset(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(-200, Math.min(200, value))
+    : fallback
+}
+
+export function loadCalibrationSettings(): CalibrationSettings {
+  const value = loadStoredValue<unknown>(
+    STORAGE_KEYS.calibration,
+    defaultCalibration,
+  )
+  const stored =
+    typeof value === 'object' && value !== null
+      ? (value as Partial<CalibrationSettings>)
+      : {}
+  const hasAudioOffset =
+    typeof stored.audioOffsetMs === 'number' &&
+    Number.isFinite(stored.audioOffsetMs)
+
+  // Before audio correction existed, Timing Lab saved its result as input
+  // correction. Preserve that work by migrating it to the audio timeline,
+  // which is what the generated click test actually measures.
+  return {
+    audioOffsetMs: hasAudioOffset
+      ? finiteOffset(stored.audioOffsetMs)
+      : finiteOffset(stored.inputOffsetMs),
+    inputOffsetMs: hasAudioOffset
+      ? finiteOffset(stored.inputOffsetMs)
+      : 0,
+    videoOffsetMs: finiteOffset(stored.videoOffsetMs),
+  }
+}
+
 export function loadInitialSettings(): {
   calibration: CalibrationSettings
   highway: HighwaySettings
@@ -135,10 +169,7 @@ export function loadInitialSettings(): {
     defaultPlayPreferences,
   )
   return {
-    calibration: loadStoredValue(
-      STORAGE_KEYS.calibration,
-      defaultCalibration,
-    ),
+    calibration: loadCalibrationSettings(),
     highway: loadHighwaySettings(),
     audio: loadStoredValue(STORAGE_KEYS.audio, defaultAudioSettings),
     visual: loadVisualSettings(),
