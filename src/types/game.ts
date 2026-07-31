@@ -55,6 +55,7 @@ export interface LocalSong {
   previewStartSeconds?: number
   artworkFile?: File
   folderName?: string
+  audioOffsetMs?: number
   persistedFiles?: {
     version: 2
     audio: PersistedFileReference[]
@@ -152,6 +153,7 @@ export interface KeyboardMapping {
 }
 
 export interface CalibrationSettings {
+  modelVersion: 2
   audioOffsetMs: number
   inputOffsetMs: number
   videoOffsetMs: number

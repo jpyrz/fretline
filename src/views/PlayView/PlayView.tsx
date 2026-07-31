@@ -76,6 +76,7 @@ export function PlayView() {
   const location = useLocation()
   const {
     song,
+    setSong,
     calibration,
     setCalibration,
     highwaySettings,
@@ -106,8 +107,8 @@ export function PlayView() {
   const immersiveLoading = autoStartRequested && phase === 'loading'
   const [stats, setStats] = useState<SessionStats>(emptyStats)
   const [error, setError] = useState('')
-  const [runAudioOffsetMs, setRunAudioOffsetMs] = useState(
-    calibration.audioOffsetMs,
+  const [runInputOffsetMs, setRunInputOffsetMs] = useState(
+    calibration.inputOffsetMs,
   )
   const [appliedOffsetMs, setAppliedOffsetMs] = useState<number | null>(null)
   const backgroundAsset = useMemo(
@@ -192,6 +193,13 @@ export function PlayView() {
     }),
     [song.chart.notes],
   )
+  const displayChart = useMemo(
+    () =>
+      song.kind === 'calibration'
+        ? { ...song.chart, notes: [], starPowerPhrases: [] }
+        : song.chart,
+    [song.chart, song.kind],
+  )
 
   const stopSession = () => {
     engineRef.current?.stop()
@@ -208,7 +216,7 @@ export function PlayView() {
     const drawLoadingHighway = () =>
       drawHighway(
         canvas,
-        song.chart,
+        displayChart,
         loadingFrame,
         highwaySettings.noteSpeed,
         highwaySettings.length,
@@ -227,7 +235,7 @@ export function PlayView() {
     highwayVisuals,
     immersiveLoading,
     loadingFrame,
-    song.chart,
+    displayChart,
   ])
 
   const startSession = async () => {
@@ -235,7 +243,7 @@ export function PlayView() {
     setPhase('loading')
     setStats(emptyStats)
     setError('')
-    setRunAudioOffsetMs(calibration.audioOffsetMs)
+    setRunInputOffsetMs(calibration.inputOffsetMs)
     setAppliedOffsetMs(null)
 
     try {
@@ -267,16 +275,21 @@ export function PlayView() {
         audioContext,
         audioBuffers,
         chart: song.chart,
-        calibration,
+        calibration: {
+          ...calibration,
+          audioOffsetMs:
+            calibration.audioOffsetMs + (song.audioOffsetMs ?? 0),
+        },
         controllerMapping,
         keyboardMapping,
         inputMode,
+        calibrationMode: song.kind === 'calibration',
         whammyBufferIndices: whammyBufferIndices(song),
         onFrame: (frame) => {
           if (canvasRef.current) {
             drawHighway(
               canvasRef.current,
-              song.chart,
+              displayChart,
               frame,
               highwaySettings.noteSpeed,
               highwaySettings.length,
@@ -326,12 +339,12 @@ export function PlayView() {
       -200,
       Math.min(
         200,
-        Math.round(runAudioOffsetMs + suggestedCorrection),
+        Math.round(runInputOffsetMs + suggestedCorrection),
       ),
     )
     setCalibration({
       ...calibration,
-      audioOffsetMs: nextOffsetMs,
+      inputOffsetMs: nextOffsetMs,
     })
     setAppliedOffsetMs(nextOffsetMs)
   }
@@ -344,6 +357,15 @@ export function PlayView() {
     setStats(emptyStats)
     setAppliedOffsetMs(null)
     engineRef.current?.restart()
+  }
+
+  const setSongSyncOffset = (offsetMs: number) => {
+    if (song.kind !== 'folder') return
+    const nextOffsetMs = Math.max(-250, Math.min(250, Math.round(offsetMs)))
+    setSong({ ...song, audioOffsetMs: nextOffsetMs })
+    engineRef.current?.setAudioOffsetMs(
+      calibration.audioOffsetMs + nextOffsetMs,
+    )
   }
 
   const handleTap = useCallback(
@@ -379,6 +401,10 @@ export function PlayView() {
 
   const handleTapWhammy = useCallback((amount: number) => {
     engineRef.current?.setTapWhammy(amount)
+  }, [])
+
+  const handleCalibrationTap = useCallback((timestamp: number) => {
+    engineRef.current?.submitCalibrationHit(timestamp)
   }, [])
 
   const handleControllerAction = useEffectEvent((event: Event) => {
@@ -502,12 +528,13 @@ export function PlayView() {
                 <>
                   <p>
                     {song.kind === 'calibration'
-                      ? 'Follow the click sound—not the highway—and play each beat. The result will move song audio into line with the chart without changing your controller timing.'
+                      ? 'Play each beat naturally. Timing Lab corrects when your controller or taps are judged—it never moves the song audio.'
                       : inputMode === 'tap'
                         ? 'Tap a colored lane as its note reaches the target. Hold for sustains, drag a held fret upward to whammy, and use multiple fingers for chords.'
                         : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
                   </p>
-                  {inputMode === 'standard' && (
+                  {inputMode === 'standard' &&
+                    song.kind !== 'calibration' && (
                     <div className={styles.noteLegend} aria-label="Note types">
                       <span data-note-type="strum"><i /> Strum</span>
                       <span data-note-type="hopo"><i /> HOPO</span>
@@ -547,14 +574,41 @@ export function PlayView() {
                 chartProgress,
                 multiplier,
               }}
-              runAudioOffsetMs={runAudioOffsetMs}
+              runInputOffsetMs={runInputOffsetMs}
               appliedOffsetMs={appliedOffsetMs}
               onApplySuggestion={applySuggestion}
               onRunAgain={() => void startSession()}
             />
           )}
 
-          {phase === 'playing' && inputMode === 'tap' && (
+          {phase === 'playing' && song.kind === 'calibration' && (
+            <div className={styles.audioCalibration}>
+              <p>Audio-only calibration</p>
+              <h1>Follow the clicks</h1>
+              <span>
+                {inputMode === 'tap'
+                  ? 'Tap anywhere in this pad on each beat.'
+                  : 'Strum once on each beat. No frets are needed.'}
+              </span>
+              {inputMode === 'tap' && (
+                <button
+                  type="button"
+                  aria-label="Calibration tap pad"
+                  onPointerDown={(event) => {
+                    event.preventDefault()
+                    handleCalibrationTap(event.timeStamp)
+                  }}
+                >
+                  Tap to the beat
+                </button>
+              )}
+              <small>Close your eyes if it helps—there are no visual notes.</small>
+            </div>
+          )}
+
+          {phase === 'playing' &&
+            inputMode === 'tap' &&
+            song.kind !== 'calibration' && (
             <TouchControls
               highwayLength={highwaySettings.length}
               starPowerActive={stats.starPowerActive}
@@ -585,6 +639,8 @@ export function PlayView() {
         <PauseScreen
           song={song}
           stats={stats}
+          songSyncOffsetMs={song.audioOffsetMs ?? 0}
+          onSongSyncOffsetChange={setSongSyncOffset}
           onResume={togglePause}
           onRestart={restartSession}
           onLeave={stopSession}

@@ -139,8 +139,8 @@ export function SettingsView() {
                 <span>
                   <strong>Audio correction</strong>
                   <small>
-                    Positive values play song audio earlier. Timing Lab sets
-                    this automatically.
+                    Manually moves song audio. Positive values play it earlier;
+                    Timing Lab never changes this.
                   </small>
                 </span>
                 <input

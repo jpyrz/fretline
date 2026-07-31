@@ -13,7 +13,7 @@ describe('parseChart', () => {
     expect(chart.metadata.resolution).toBe(192)
     expect(chart.trackName).toBe('ExpertSingle')
     expect(chart.notes).toHaveLength(32)
-    expect(chart.notes[0].timeSeconds).toBe(2)
+    expect(chart.notes[0].timeSeconds).toBe(0)
     expect(chart.notes[8].lanes).toEqual([0, 4])
   })
 
@@ -31,7 +31,7 @@ describe('parseChart', () => {
     const chart = parseChart(calibrationChartSource, undefined, 0.125)
 
     expect(chart.metadata.offsetSeconds).toBe(0.125)
-    expect(chart.notes[0].timeSeconds).toBe(2.125)
+    expect(chart.notes[0].timeSeconds).toBe(0.125)
   })
 
   it('parses the bundled real-song chart at its analyzed beat offset', () => {

@@ -2,14 +2,13 @@ import { parseChart } from './chartParser'
 import type { LocalSong } from '../types/game'
 
 const resolution = 192
-const countInBeats = 4
 const playableBeats = 32
 
 function buildCalibrationChart(): string {
   const notes: string[] = []
 
   for (let index = 0; index < playableBeats; index += 1) {
-    const tick = (countInBeats + index) * resolution
+    const tick = index * resolution
     if (index > 0 && index % 8 === 0) {
       notes.push(`  ${tick} = N 0 0`, `  ${tick} = N 4 0`)
     } else {
@@ -32,8 +31,7 @@ function buildCalibrationChart(): string {
 }
 [Events]
 {
-  0 = E "section Count-in"
-  ${countInBeats * resolution} = E "section Calibration run"
+  0 = E "section Calibration run"
 }
 [ExpertSingle]
 {
@@ -56,7 +54,7 @@ export const calibrationSong: LocalSong = {
 export function createCalibrationAudio(audioContext: AudioContext): AudioBuffer {
   const bpm = 120
   const beatSeconds = 60 / bpm
-  const totalBeats = countInBeats + playableBeats + 2
+  const totalBeats = playableBeats + 2
   const duration = totalBeats * beatSeconds
   const sampleRate = audioContext.sampleRate
   const buffer = audioContext.createBuffer(

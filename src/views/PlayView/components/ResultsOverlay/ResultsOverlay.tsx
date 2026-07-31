@@ -9,7 +9,7 @@ interface ResultsOverlayProps {
   calibrationRun: boolean
   inputMode: PlayInputMode
   results: SessionResults
-  runAudioOffsetMs: number
+  runInputOffsetMs: number
   appliedOffsetMs: number | null
   onApplySuggestion: () => void
   onRunAgain: () => void
@@ -21,7 +21,7 @@ export function ResultsOverlay({
   calibrationRun,
   inputMode,
   results,
-  runAudioOffsetMs,
+  runInputOffsetMs,
   appliedOffsetMs,
   onApplySuggestion,
   onRunAgain,
@@ -98,11 +98,11 @@ export function ResultsOverlay({
         </p>
       ) : appliedOffsetMs !== null ? (
         <div className={styles.appliedNotice} role="status">
-          <strong>Audio correction saved</strong>
+          <strong>Input correction saved</strong>
           <span>
-            {runAudioOffsetMs} ms → {appliedOffsetMs} ms
+            {runInputOffsetMs} ms → {appliedOffsetMs} ms
           </span>
-          <small>Replay the lab to verify the click and chart agree.</small>
+          <small>The song audio was not moved.</small>
         </div>
       ) : (
         <p>
@@ -122,7 +122,7 @@ export function ResultsOverlay({
           >
             {appliedOffsetMs !== null
               ? 'Correction saved ✓'
-              : 'Apply audio correction'}
+              : 'Apply input correction'}
           </button>
         )}
         <button

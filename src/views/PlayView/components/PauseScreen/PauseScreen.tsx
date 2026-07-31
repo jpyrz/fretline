@@ -17,6 +17,8 @@ function formatTrackName(trackName: string): string {
 interface PauseScreenProps {
   song: LocalSong
   stats: SessionStats
+  songSyncOffsetMs: number
+  onSongSyncOffsetChange: (offsetMs: number) => void
   onResume: () => void
   onRestart: () => void
   onLeave: () => void
@@ -25,6 +27,8 @@ interface PauseScreenProps {
 export function PauseScreen({
   song,
   stats,
+  songSyncOffsetMs,
+  onSongSyncOffsetChange,
   onResume,
   onRestart,
   onLeave,
@@ -96,6 +100,45 @@ export function PauseScreen({
             Main menu
           </Link>
         </nav>
+        {song.kind === 'folder' && (
+          <div className={styles.songSyncControl}>
+            <span>
+              <strong>Song sync</strong>
+              <small>Positive plays this song earlier</small>
+            </span>
+            <div>
+              <button
+                type="button"
+                data-controller-nav-item
+                aria-label="Move this song audio 5 milliseconds later"
+                onClick={() =>
+                  onSongSyncOffsetChange(songSyncOffsetMs - 5)
+                }
+              >
+                −5
+              </button>
+              <output>{songSyncOffsetMs} ms</output>
+              <button
+                type="button"
+                data-controller-nav-item
+                aria-label="Move this song audio 5 milliseconds earlier"
+                onClick={() =>
+                  onSongSyncOffsetChange(songSyncOffsetMs + 5)
+                }
+              >
+                +5
+              </button>
+              <button
+                type="button"
+                data-controller-nav-item
+                disabled={songSyncOffsetMs === 0}
+                onClick={() => onSongSyncOffsetChange(0)}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
         <small>
           Press <kbd>Start</kbd>, <kbd>Esc</kbd>, or <kbd>P</kbd> to resume
         </small>

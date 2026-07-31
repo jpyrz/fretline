@@ -49,6 +49,7 @@ interface GameEngineOptions {
   controllerMapping: ControllerMapping | null
   keyboardMapping: KeyboardMapping
   inputMode?: PlayInputMode
+  calibrationMode?: boolean
   whammyBufferIndices?: number[]
   onFrame: (frame: GameFrame) => void
   onStats: (stats: SessionStats) => void
@@ -88,9 +89,11 @@ export class GameEngine {
   private readonly audioBuffers: AudioBuffer[]
   private readonly chart: ParsedChart
   private readonly calibration: CalibrationSettings
+  private audioOffsetMs: number
   private readonly controllerMapping: ControllerMapping | null
   private readonly keyboardMapping: KeyboardMapping
   private readonly inputMode: PlayInputMode
+  private readonly calibrationMode: boolean
   private readonly whammyBufferIndices: ReadonlySet<number>
   private readonly keyboardLanesByCode: Map<string, Lane>
   private readonly onFrame: (frame: GameFrame) => void
@@ -143,9 +146,11 @@ export class GameEngine {
     this.audioBuffers = options.audioBuffers
     this.chart = options.chart
     this.calibration = options.calibration
+    this.audioOffsetMs = options.calibration.audioOffsetMs
     this.controllerMapping = options.controllerMapping
     this.keyboardMapping = options.keyboardMapping
     this.inputMode = options.inputMode ?? 'standard'
+    this.calibrationMode = options.calibrationMode ?? false
     this.whammyBufferIndices = new Set(options.whammyBufferIndices ?? [])
     this.keyboardLanesByCode = new Map(
       options.keyboardMapping.frets.map((code, index) => [
@@ -268,6 +273,13 @@ export class GameEngine {
     this.recordOverstrum(performanceTime)
   }
 
+  submitCalibrationHit(eventTimestamp: number): void {
+    if (!this.calibrationMode) return
+    const performanceTime = normalizePerformanceTimestamp(eventTimestamp)
+    if (this.attemptHit(performanceTime, 'calibration')) return
+    this.recordOverstrum(performanceTime)
+  }
+
   submitTapFretChange(lanes: Lane[], eventTimestamp: number): void {
     if (this.inputMode !== 'tap') return
     this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
@@ -287,6 +299,11 @@ export class GameEngine {
   activateTapStarPower(eventTimestamp: number): void {
     if (this.inputMode !== 'tap') return
     this.activateStarPower(normalizePerformanceTimestamp(eventTimestamp))
+  }
+
+  setAudioOffsetMs(offsetMs: number): void {
+    if (!Number.isFinite(offsetMs)) return
+    this.audioOffsetMs = Math.max(-400, Math.min(400, offsetMs))
   }
 
   stop(): void {
@@ -338,7 +355,7 @@ export class GameEngine {
       this.audioContext.currentTime,
       songTimeSeconds,
       leadSeconds,
-      this.calibration.audioOffsetMs / 1000,
+      this.audioOffsetMs / 1000,
     )
     this.startContextTime = schedule.chartStartContextTime
 
@@ -718,12 +735,13 @@ export class GameEngine {
   }
 
   private fretChange(performanceTime: number): void {
+    if (this.calibrationMode) return
     this.attemptHit(performanceTime, 'fret')
   }
 
   private attemptHit(
     performanceTime: number,
-    inputType: 'strum' | 'fret' | 'tap',
+    inputType: 'strum' | 'fret' | 'tap' | 'calibration',
   ): boolean {
     if (this.stopped || this.finished || this.paused) return false
     const rawSongTime = this.songTimeAt(performanceTime)
@@ -781,6 +799,7 @@ export class GameEngine {
     const matchingLanes = assistedLanes ?? heldLanes
 
     if (
+      !this.calibrationMode &&
       !lanesMatchWithActiveSustains(
         note,
         matchingLanes,

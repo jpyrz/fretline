@@ -63,7 +63,7 @@ describe('importCloneHeroFolder', () => {
     const song = await importCloneHeroFolder([chart, audio, ini])
 
     expect(song.chart.metadata.offsetSeconds).toBe(0.125)
-    expect(song.chart.notes[0].timeSeconds).toBe(2.125)
+    expect(song.chart.notes[0].timeSeconds).toBe(0.125)
   })
 
   it('reports a missing chart clearly', async () => {

@@ -25,6 +25,7 @@ export const STORAGE_KEYS = {
 } as const
 
 export const defaultCalibration: CalibrationSettings = {
+  modelVersion: 2,
   audioOffsetMs: 0,
   inputOffsetMs: 0,
   videoOffsetMs: 0,
@@ -133,20 +134,25 @@ export function loadCalibrationSettings(): CalibrationSettings {
     typeof value === 'object' && value !== null
       ? (value as Partial<CalibrationSettings>)
       : {}
-  const hasAudioOffset =
-    typeof stored.audioOffsetMs === 'number' &&
-    Number.isFinite(stored.audioOffsetMs)
+  if (stored.modelVersion === 2) {
+    return {
+      modelVersion: 2,
+      audioOffsetMs: finiteOffset(stored.audioOffsetMs),
+      inputOffsetMs: finiteOffset(stored.inputOffsetMs),
+      videoOffsetMs: finiteOffset(stored.videoOffsetMs),
+    }
+  }
 
-  // Before audio correction existed, Timing Lab saved its result as input
-  // correction. Preserve that work by migrating it to the audio timeline,
-  // which is what the generated click test actually measures.
+  // The short-lived audio-calibration model moved music based on human taps.
+  // Fold either legacy correction back into input timing once, then leave song
+  // audio untouched unless the player explicitly adjusts Audio correction.
+  const migratedInputOffset =
+    finiteOffset(stored.inputOffsetMs) +
+    finiteOffset(stored.audioOffsetMs)
   return {
-    audioOffsetMs: hasAudioOffset
-      ? finiteOffset(stored.audioOffsetMs)
-      : finiteOffset(stored.inputOffsetMs),
-    inputOffsetMs: hasAudioOffset
-      ? finiteOffset(stored.inputOffsetMs)
-      : 0,
+    modelVersion: 2,
+    audioOffsetMs: 0,
+    inputOffsetMs: finiteOffset(migratedInputOffset),
     videoOffsetMs: finiteOffset(stored.videoOffsetMs),
   }
 }

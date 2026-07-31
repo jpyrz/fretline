@@ -41,20 +41,21 @@ describe('settings storage', () => {
     })
   })
 
-  it('migrates legacy Timing Lab correction to audio correction', () => {
+  it('preserves legacy Timing Lab correction as input correction', () => {
     localStorage.setItem(
       STORAGE_KEYS.calibration,
       JSON.stringify({ inputOffsetMs: 34, videoOffsetMs: -8 }),
     )
 
     expect(loadCalibrationSettings()).toEqual({
-      audioOffsetMs: 34,
-      inputOffsetMs: 0,
+      modelVersion: 2,
+      audioOffsetMs: 0,
+      inputOffsetMs: 34,
       videoOffsetMs: -8,
     })
   })
 
-  it('preserves independent timing corrections in the current format', () => {
+  it('undoes the flawed automatic audio correction once', () => {
     localStorage.setItem(
       STORAGE_KEYS.calibration,
       JSON.stringify({
@@ -65,6 +66,26 @@ describe('settings storage', () => {
     )
 
     expect(loadCalibrationSettings()).toEqual({
+      modelVersion: 2,
+      audioOffsetMs: 0,
+      inputOffsetMs: 29,
+      videoOffsetMs: -4,
+    })
+  })
+
+  it('preserves independent timing corrections in the current format', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.calibration,
+      JSON.stringify({
+        modelVersion: 2,
+        audioOffsetMs: 22,
+        inputOffsetMs: 7,
+        videoOffsetMs: -4,
+      }),
+    )
+
+    expect(loadCalibrationSettings()).toEqual({
+      modelVersion: 2,
       audioOffsetMs: 22,
       inputOffsetMs: 7,
       videoOffsetMs: -4,
