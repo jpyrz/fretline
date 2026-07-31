@@ -133,6 +133,7 @@ export class GameEngine {
   private hitFlash: GameFrame['hitFlash'] = null
   private missFlash: GameFrame['missFlash'] = null
   private lastStatsPush = 0
+  private statsDirty = true
   private recordsSnapshot: SessionStats['records'] = []
   private recordsDirty = true
   private mixGain: GainNode | null = null
@@ -220,6 +221,7 @@ export class GameEngine {
     this.touchAssistedSustains.clear()
     this.touchWhammy = 0
     this.lastStatsPush = 0
+    this.statsDirty = true
     this.recordsSnapshot = []
     this.recordsDirty = true
     this.schedulePlayback(-COUNTDOWN_SECONDS)
@@ -631,6 +633,8 @@ export class GameEngine {
       return
     }
 
+    const previousMeter = this.stats.starPowerMeter
+    const previouslyActive = this.stats.starPowerActive
     if (currentTick > this.lastStarPowerTick) {
       const tickDelta = currentTick - this.lastStarPowerTick
       this.stats.starPowerMeter = addWhammyStarPower(
@@ -655,6 +659,12 @@ export class GameEngine {
       }
     }
 
+    if (
+      this.stats.starPowerMeter !== previousMeter ||
+      this.stats.starPowerActive !== previouslyActive
+    ) {
+      this.statsDirty = true
+    }
     this.lastStarPowerTick = currentTick
   }
 
@@ -837,6 +847,7 @@ export class GameEngine {
         } else if (sustainReleaseExpired(mismatchStartedAt, scoringTime)) {
           this.sustainStates[noteIndex] = 'released'
           this.stats.sustainsBroken += 1
+          this.statsDirty = true
           this.activeSustains.delete(noteIndex)
           this.touchAssistedSustains.delete(noteIndex)
           continue
@@ -869,11 +880,13 @@ export class GameEngine {
         this.sustainBasePointsAwarded[noteIndex] = targetBasePoints
         this.stats.score += awardedPoints
         this.stats.sustainPoints += awardedPoints
+        this.statsDirty = true
       }
 
       if (sustainFinished) {
         this.sustainStates[noteIndex] = 'complete'
         this.stats.sustainsCompleted += 1
+        this.statsDirty = true
         this.activeSustains.delete(noteIndex)
         this.touchAssistedSustains.delete(noteIndex)
       }
@@ -927,6 +940,7 @@ export class GameEngine {
 
   private pushStats(now = performance.now()): void {
     this.lastStatsPush = now
+    this.statsDirty = false
     this.onStats(this.snapshotStats())
   }
 
@@ -958,7 +972,7 @@ export class GameEngine {
       this.missFlash = null
     }
 
-    if (now - this.lastStatsPush > 100) {
+    if (this.statsDirty && now - this.lastStatsPush > 100) {
       this.pushStats(now)
     }
 

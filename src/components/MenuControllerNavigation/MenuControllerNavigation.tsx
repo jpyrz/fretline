@@ -138,7 +138,12 @@ export function MenuControllerNavigation() {
     }
 
     poll()
-    const interval = window.setInterval(poll, 32)
+    // Gameplay already polls the mapped controller every animation frame.
+    // This second loop only needs to catch the Start button for pause/resume.
+    const interval = window.setInterval(
+      poll,
+      location.pathname === '/play' ? 80 : 32,
+    )
     return () => window.clearInterval(interval)
   }, [controllerMapping, location.pathname, navigate])
 

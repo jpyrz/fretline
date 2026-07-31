@@ -281,12 +281,11 @@ function drawHighwaySurfaceUnderlay(
   context.restore()
 }
 
-export function drawHighwaySurfaceOverlay(
+function drawHighwayTrackDetails(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
   starPowerActive: boolean,
-  songTimeSeconds: number,
   highwayLength: number,
   hitLineRatio: number,
 ): void {
@@ -304,24 +303,6 @@ export function drawHighwaySurfaceOverlay(
     highwayLength,
     hitLineRatio,
   )
-  if (starPowerActive) {
-    context.save()
-    trackPath(context, top, bottom)
-    context.clip()
-    const pulse = 0.12 + (Math.sin(songTimeSeconds * 8) + 1) * 0.035
-    const energy = context.createLinearGradient(0, top.y, 0, bottom.y)
-    energy.addColorStop(0, 'rgba(140, 229, 255, 0.02)')
-    energy.addColorStop(0.72, `rgba(78, 194, 255, ${pulse})`)
-    energy.addColorStop(1, 'rgba(196, 246, 255, 0.2)')
-    context.fillStyle = energy
-    context.fillRect(
-      trackEdge(bottom, -1),
-      top.y,
-      bottom.trackWidth,
-      bottom.y - top.y,
-    )
-    context.restore()
-  }
 
   for (let laneNumber = 0; laneNumber < 5; laneNumber += 1) {
     const lane = laneNumber as Lane
@@ -382,6 +363,61 @@ export function drawHighwaySurfaceOverlay(
   context.shadowBlur = 0
 }
 
+export function drawHighwaySurfaceOverlay(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  starPowerActive: boolean,
+  songTimeSeconds: number,
+  highwayLength: number,
+  hitLineRatio: number,
+): void {
+  // The inactive rails and lane guides are part of the cached surface. During
+  // Star Power they stay dynamic so the animated energy remains behind them.
+  if (!starPowerActive) return
+
+  const top = highwayPoint(
+    width,
+    height,
+    0,
+    highwayLength,
+    hitLineRatio,
+  )
+  const bottom = highwayPoint(
+    width,
+    height,
+    SURFACE_END_PROGRESS,
+    highwayLength,
+    hitLineRatio,
+  )
+
+  context.save()
+  trackPath(context, top, bottom)
+  context.clip()
+  const pulse = 0.12 + (Math.sin(songTimeSeconds * 8) + 1) * 0.035
+  const energy = context.createLinearGradient(0, top.y, 0, bottom.y)
+  energy.addColorStop(0, 'rgba(140, 229, 255, 0.02)')
+  energy.addColorStop(0.72, `rgba(78, 194, 255, ${pulse})`)
+  energy.addColorStop(1, 'rgba(196, 246, 255, 0.2)')
+  context.fillStyle = energy
+  context.fillRect(
+    trackEdge(bottom, -1),
+    top.y,
+    bottom.trackWidth,
+    bottom.y - top.y,
+  )
+  context.restore()
+
+  drawHighwayTrackDetails(
+    context,
+    width,
+    height,
+    starPowerActive,
+    highwayLength,
+    hitLineRatio,
+  )
+}
+
 export function cachedHighwaySurface(
   target: HTMLCanvasElement,
   width: number,
@@ -431,6 +467,16 @@ export function cachedHighwaySurface(
       highwayOpacity,
       hitLineRatio,
     )
+    if (!starPowerActive) {
+      drawHighwayTrackDetails(
+        context,
+        width,
+        height,
+        false,
+        highwayLength,
+        hitLineRatio,
+      )
+    }
   }
 
   staticHighwayCache.set(target, {
