@@ -13,6 +13,7 @@ import {
 } from '../../../../game/rendering/highwayGeometry'
 import { TouchContactTracker } from './touchContacts'
 import { TouchWhammyTracker } from './touchWhammy'
+import { StarPowerRail } from './StarPowerRail'
 import styles from './TouchControls.module.scss'
 
 const LANE_NAMES = ['Green', 'Red', 'Yellow', 'Blue', 'Orange']
@@ -21,6 +22,8 @@ const MAX_WHAMMY_DRAG_PX = 120
 
 interface TouchControlsProps {
   highwayLength: number
+  starPowerActive: boolean
+  starPowerMeter: number
   onTap: (lanes: Lane[], timestamp: number) => void
   onFretChange: (lanes: Lane[], timestamp: number) => void
   onLanesChange: (lanes: Lane[]) => void
@@ -30,6 +33,8 @@ interface TouchControlsProps {
 
 export function TouchControls({
   highwayLength,
+  starPowerActive,
+  starPowerMeter,
   onTap,
   onFretChange,
   onLanesChange,
@@ -43,7 +48,6 @@ export function TouchControls({
   const frameRef = useRef(0)
   const [activeLanes, setActiveLanes] = useState<Lane[]>([])
   const [openActive, setOpenActive] = useState(false)
-
   useLayoutEffect(() => {
     const controls = controlsRef.current
     const lanes = lanesRef.current
@@ -212,18 +216,12 @@ export function TouchControls({
       className={styles.controls}
       aria-label="Tap controls"
     >
-      <button
-        type="button"
-        className={styles.power}
-        aria-label="Activate Star Power"
-        onPointerDown={(event) => {
-          event.preventDefault()
-          onStarPower(event.timeStamp)
-        }}
-      >
-        <span aria-hidden="true">★</span>
-        Power
-      </button>
+      <StarPowerRail
+        highwayLength={highwayLength}
+        active={starPowerActive}
+        charge={starPowerMeter}
+        onActivate={onStarPower}
+      />
 
       <button
         type="button"

@@ -1,0 +1,222 @@
+.rail {
+  position: absolute;
+  z-index: 3;
+  display: block;
+  width: 52px;
+  min-height: 120px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
+  transform-origin: center;
+
+  &[style*='height'] {
+    opacity: 1;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #b8f2ff;
+    outline-offset: 2px;
+  }
+}
+
+.track {
+  position: absolute;
+  top: 11px;
+  right: 2px;
+  bottom: 17px;
+  width: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(165, 225, 245, 0.54);
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(
+      to top,
+      rgba(180, 224, 238, 0.13) 0 2px,
+      transparent 2px 12px
+    ),
+    rgba(3, 9, 15, 0.9);
+  box-shadow:
+    0 0 0 2px rgba(4, 10, 16, 0.68),
+    inset 0 0 7px rgba(0, 0, 0, 0.9);
+}
+
+.fill {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  left: 1px;
+  height: calc(var(--power-charge) * 100%);
+  border-radius: inherit;
+  background: linear-gradient(
+    to top,
+    #187eab,
+    #42d9ff 58%,
+    #d9fbff
+  );
+  box-shadow:
+    0 0 7px #46dcff,
+    0 0 14px rgba(53, 211, 255, 0.72);
+  transition: height 160ms linear;
+}
+
+.readyLine {
+  position: absolute;
+  right: -2px;
+  bottom: 50%;
+  left: -2px;
+  height: 2px;
+  background: #d9fbff;
+  box-shadow: 0 0 7px #48ddff;
+}
+
+.ignition {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(180, 226, 240, 0.66);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 32%, #283943, #071018 66%);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.8),
+    0 0 0 3px rgba(4, 10, 15, 0.72);
+
+  i {
+    color: rgba(178, 204, 214, 0.48);
+    font-size: 0.92rem;
+    font-style: normal;
+    line-height: 1;
+    text-shadow: 0 1px 3px black;
+    transition:
+      color 120ms ease,
+      filter 120ms ease,
+      transform 120ms ease;
+  }
+}
+
+.swipeCue {
+  position: absolute;
+  top: 1px;
+  right: 13px;
+  color: rgba(151, 220, 242, 0.55);
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 8px rgba(55, 207, 255, 0.45);
+}
+
+.rail[data-ready='true'] {
+  .track {
+    border-color: #a9efff;
+    box-shadow:
+      0 0 0 2px rgba(4, 10, 16, 0.72),
+      0 0 12px rgba(55, 207, 255, 0.52),
+      inset 0 0 7px rgba(0, 0, 0, 0.9);
+  }
+
+  .ignition {
+    animation: ignitionReady 900ms ease-in-out infinite;
+    border-color: #d7f8ff;
+    background:
+      radial-gradient(circle at 38% 32%, #e8fbff, #159bc8 55%, #062635);
+
+    i {
+      color: white;
+      filter:
+        drop-shadow(0 0 3px #0d6380)
+        drop-shadow(0 0 8px #53ddff);
+    }
+  }
+
+  .swipeCue {
+    animation: swipeCue 900ms ease-in-out infinite;
+    color: #baf3ff;
+  }
+
+}
+
+.rail[data-active='true'] {
+  .track {
+    border-color: white;
+    box-shadow:
+      0 0 0 2px rgba(4, 10, 16, 0.72),
+      0 0 14px #39d7ff,
+      inset 0 0 7px rgba(0, 0, 0, 0.9);
+  }
+
+  .fill {
+    background: linear-gradient(to top, #56dfff, white);
+    box-shadow:
+      0 0 9px white,
+      0 0 20px #39d7ff;
+  }
+
+  .ignition {
+    animation: ignitionLive 440ms ease-in-out infinite alternate;
+    border-color: white;
+    background:
+      radial-gradient(circle at 38% 32%, white, #62e4ff 46%, #076f9a);
+
+    i {
+      color: white;
+      filter:
+        drop-shadow(0 0 6px white)
+        drop-shadow(0 0 12px #39d7ff);
+    }
+  }
+
+  .swipeCue {
+    display: none;
+  }
+
+}
+
+@keyframes ignitionReady {
+  0%,
+  100% {
+    box-shadow:
+      0 3px 8px rgba(0, 0, 0, 0.8),
+      0 0 0 3px rgba(4, 10, 15, 0.72),
+      0 0 5px rgba(55, 207, 255, 0.4);
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow:
+      0 3px 8px rgba(0, 0, 0, 0.8),
+      0 0 0 3px rgba(4, 10, 15, 0.72),
+      0 0 16px rgba(55, 207, 255, 0.9);
+    transform: scale(1.08);
+  }
+}
+
+@keyframes ignitionLive {
+  from {
+    filter: brightness(1);
+    transform: scale(1.02);
+  }
+
+  to {
+    filter: brightness(1.35);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes swipeCue {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: translateY(5px);
+  }
+
+  55% {
+    opacity: 1;
+    transform: translateY(-7px);
+  }
+}

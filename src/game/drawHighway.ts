@@ -1475,6 +1475,62 @@ function drawMissFeedback(
   context.restore()
 }
 
+function drawHighwayHorizonFade(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  highwayLength: number,
+  hitLineRatio: number,
+  starPowerActive: boolean,
+): void {
+  const horizon = highwayPoint(
+    width,
+    height,
+    0,
+    highwayLength,
+    hitLineRatio,
+  )
+  const fadeEnd = highwayPoint(
+    width,
+    height,
+    0.28,
+    highwayLength,
+    hitLineRatio,
+  )
+  const topPadding = 18
+  const endPadding = 10
+
+  context.save()
+  context.beginPath()
+  context.moveTo(trackEdge(horizon, -1) - topPadding, horizon.y - 2)
+  context.lineTo(trackEdge(horizon, 1) + topPadding, horizon.y - 2)
+  context.lineTo(trackEdge(fadeEnd, 1) + endPadding, fadeEnd.y)
+  context.lineTo(trackEdge(fadeEnd, -1) - endPadding, fadeEnd.y)
+  context.closePath()
+
+  const fade = context.createLinearGradient(
+    0,
+    horizon.y - 2,
+    0,
+    fadeEnd.y,
+  )
+  const horizonColor = starPowerActive
+    ? 'rgba(2, 12, 20, 1)'
+    : 'rgba(2, 3, 7, 1)'
+  fade.addColorStop(0, horizonColor)
+  fade.addColorStop(0.24, horizonColor)
+  fade.addColorStop(
+    0.62,
+    starPowerActive
+      ? 'rgba(2, 12, 20, 0.42)'
+      : 'rgba(2, 3, 7, 0.42)',
+  )
+  fade.addColorStop(1, 'rgba(2, 3, 7, 0)')
+  context.fillStyle = fade
+  context.fill()
+  context.restore()
+}
+
 export function drawHighway(
   canvas: HTMLCanvasElement,
   chart: ParsedChart,
@@ -1664,6 +1720,14 @@ export function drawHighway(
       hitLineRatio,
     )
   }
+  drawHighwayHorizonFade(
+    context,
+    width,
+    height,
+    highwayLength,
+    hitLineRatio,
+    frame.stats.starPowerActive,
+  )
   drawCountdown(context, width, height, frame.songTimeSeconds)
 
   const songProgress = Math.max(

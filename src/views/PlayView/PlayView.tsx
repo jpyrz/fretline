@@ -551,6 +551,8 @@ export function PlayView() {
           {phase === 'playing' && inputMode === 'tap' && (
             <TouchControls
               highwayLength={highwaySettings.length}
+              starPowerActive={stats.starPowerActive}
+              starPowerMeter={stats.starPowerMeter}
               onTap={handleTap}
               onFretChange={handleTapFretChange}
               onLanesChange={handleTapLanesChange}
