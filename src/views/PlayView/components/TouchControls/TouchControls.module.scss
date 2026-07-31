@@ -1,8 +1,9 @@
 .controls {
-  --gesture-safe-bottom: calc(
-    max(env(safe-area-inset-bottom), 10px) + 4px
+  --fret-touch-bottom: max(
+    4svh,
+    calc(env(safe-area-inset-bottom) + 4px),
+    14px
   );
-  --fret-visual-lift: clamp(28px, 4svh, 34px);
   --fret-lane-height: max(14svh, 76px);
 
   position: absolute;
@@ -29,18 +30,18 @@
 .lanes {
   position: absolute;
   z-index: 2;
-  bottom: var(--gesture-safe-bottom);
+  bottom: var(--fret-touch-bottom);
   left: 50%;
   display: grid;
   width: min(88vw, 760px);
-  height: calc(var(--fret-lane-height) + var(--fret-visual-lift));
+  height: var(--fret-lane-height);
   grid-template-columns: repeat(5, 1fr);
   transform: translateX(-50%);
 
   button {
     display: grid;
     place-items: end center;
-    padding: 0 0 calc(var(--fret-visual-lift) + 0.65rem);
+    padding: 0 0 0.65rem;
     border: 0;
     background: transparent;
   }
@@ -89,9 +90,8 @@
   z-index: 1;
   top: max(12svh, 72px);
   bottom: calc(
-    var(--gesture-safe-bottom) +
-    var(--fret-lane-height) +
-    var(--fret-visual-lift)
+    var(--fret-touch-bottom) +
+    var(--fret-lane-height)
   );
   left: 50%;
   width: min(88vw, 760px);
