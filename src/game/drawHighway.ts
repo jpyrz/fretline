@@ -1024,6 +1024,7 @@ function drawTapControlDeck(
   height: number,
   highwayLength: number,
   hitLineRatio: number,
+  frame: GameFrame,
 ): void {
   const strike = highwayPoint(
     width,
@@ -1053,6 +1054,50 @@ function drawTapControlDeck(
   deck.addColorStop(1, 'rgba(2, 3, 7, 0.7)')
   context.fillStyle = deck
   context.fill()
+  context.clip()
+
+  const control = highwayPoint(
+    width,
+    height,
+    1.14,
+    highwayLength,
+    hitLineRatio,
+  )
+  const whammyAmount = frame.whammyAmount
+
+  for (const lane of frame.heldLanes) {
+    const color = LANE_COLORS[lane]
+    const startX = highwayLaneX(width, lane, 1)
+    const controlX = highwayLaneX(width, lane, 1.14)
+
+    context.save()
+    context.globalCompositeOperation = 'lighter'
+    context.globalAlpha = 0.16 + whammyAmount * 0.68
+    context.beginPath()
+    context.moveTo(startX, strike.hitY)
+    context.lineTo(controlX, control.y)
+    context.strokeStyle = color
+    context.lineWidth = 3 + whammyAmount * 7
+    context.lineCap = 'round'
+    context.shadowColor = color
+    context.shadowBlur = 10 + whammyAmount * 24
+    context.stroke()
+
+    if (whammyAmount > 0.01) {
+      context.globalAlpha = 0.34 + whammyAmount * 0.54
+      context.setLineDash([7, 13])
+      context.lineDashOffset = -frame.songTimeSeconds * 110
+      context.beginPath()
+      context.moveTo(controlX, control.y)
+      context.lineTo(startX, strike.hitY)
+      context.strokeStyle = 'rgba(245, 252, 255, 0.96)'
+      context.lineWidth = 1.5 + whammyAmount * 2.5
+      context.shadowColor = color
+      context.shadowBlur = 14 + whammyAmount * 18
+      context.stroke()
+    }
+    context.restore()
+  }
 
   context.restore()
 }
@@ -1485,6 +1530,7 @@ export function drawHighway(
       height,
       highwayLength,
       hitLineRatio,
+      frame,
     )
   }
   drawTimingWindows(

@@ -498,7 +498,7 @@ export function PlayView() {
                 <>
                   <p>
                     {inputMode === 'tap'
-                      ? 'Tap a colored lane as its note reaches the target. Hold for sustains and use multiple fingers for chords.'
+                      ? 'Tap a colored lane as its note reaches the target. Hold for sustains, drag a held fret upward to whammy, and use multiple fingers for chords.'
                       : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
                   </p>
                   {inputMode === 'standard' && (

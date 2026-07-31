@@ -1,10 +1,10 @@
 .controls {
   --fret-touch-bottom: max(
-    4svh,
-    calc(env(safe-area-inset-bottom) + 4px),
-    14px
+    8svh,
+    calc(env(safe-area-inset-bottom) + 38px),
+    56px
   );
-  --fret-lane-height: max(14svh, 76px);
+  --fret-lane-height: max(7svh, 58px);
 
   position: absolute;
   z-index: 7;
@@ -51,8 +51,8 @@
     aspect-ratio: 1.75;
     border: 2px solid var(--lane-color);
     border-radius: 50%;
-    opacity: 0.24;
-    background: color-mix(in srgb, var(--lane-color) 18%, transparent);
+    opacity: 0.34;
+    background: color-mix(in srgb, var(--lane-color) 22%, transparent);
     box-shadow: 0 0 14px transparent;
     transition:
       opacity 70ms linear,
@@ -75,8 +75,7 @@
   button[data-lane='4'] { --lane-color: #f28a22; }
 }
 
-.power,
-.whammy {
+.power {
   position: absolute;
   min-height: 48px;
   border: 1px solid rgba(240, 244, 248, 0.24);
@@ -89,12 +88,12 @@
   position: absolute;
   z-index: 1;
   top: min(
-    76%,
+    calc(76% + min(3.2svh, 26px)),
     calc(
       100% -
       var(--fret-touch-bottom) -
       var(--fret-lane-height) -
-      44px
+      48px
     )
   );
   bottom: calc(
@@ -120,7 +119,7 @@
 
 .power {
   z-index: 3;
-  bottom: 22svh;
+  bottom: 29svh;
   left: max(0.65rem, env(safe-area-inset-left));
   display: grid;
   width: 58px;
@@ -137,32 +136,5 @@
     border-color: #63dfff;
     background: rgba(19, 99, 128, 0.8);
     box-shadow: 0 0 26px rgba(55, 207, 255, 0.68);
-  }
-}
-
-.whammy {
-  z-index: 3;
-  bottom: 22svh;
-  right: max(0.65rem, env(safe-area-inset-right));
-  display: grid;
-  width: 58px;
-  height: 86px;
-  align-content: end;
-  justify-items: center;
-  gap: 0.25rem;
-  padding: 0.45rem;
-  border-radius: 4px;
-
-  span {
-    width: 7px;
-    height: 44px;
-    border-radius: 999px;
-    background:
-      linear-gradient(
-        to top,
-        #d9edf5 calc(var(--whammy) * 100%),
-        rgba(217, 237, 245, 0.14) 0
-      );
-    box-shadow: 0 0 calc(14px * var(--whammy)) #73dcff;
   }
 }

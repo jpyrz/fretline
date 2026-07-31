@@ -89,4 +89,14 @@ describe('touch contact tracker', () => {
     expect(tracker.snapshot().lanes).toEqual([0])
     expect(tracker.release(2)).toBeNull()
   })
+
+  it('retains the released lane long enough to classify its release', () => {
+    const tracker = new TouchContactTracker()
+    tracker.press(7, 4, 100)
+    tracker.consumePendingTap()
+
+    expect(tracker.contact(7)).toBe(4)
+    expect(tracker.release(7)).toBe('held')
+    expect(tracker.contact(7)).toBeUndefined()
+  })
 })

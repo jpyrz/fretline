@@ -51,6 +51,10 @@ export class TouchContactTracker {
     return releaseType
   }
 
+  contact(pointerId: number): Lane | null | undefined {
+    return this.contacts.get(pointerId)
+  }
+
   snapshot(): TouchContactSnapshot {
     const lanes = [...this.contacts.values()]
       .filter((lane): lane is Lane => lane !== null)
