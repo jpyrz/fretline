@@ -1,6 +1,10 @@
 .controls {
   --gesture-safe-bottom: calc(
-    max(env(safe-area-inset-bottom), 12px) + 6px
+    max(env(safe-area-inset-bottom), 10px) + 4px
+  );
+  --open-control-height: clamp(28px, 4svh, 34px);
+  --fret-row-bottom: calc(
+    var(--open-control-height) + var(--gesture-safe-bottom)
   );
 
   position: absolute;
@@ -26,7 +30,8 @@
 
 .lanes {
   position: absolute;
-  bottom: calc(max(5.5svh, 36px) + var(--gesture-safe-bottom));
+  z-index: 2;
+  bottom: var(--fret-row-bottom);
   left: 50%;
   display: grid;
   width: min(88vw, 760px);
@@ -72,7 +77,6 @@
   button[data-lane='4'] { --lane-color: #f28a22; }
 }
 
-.open,
 .power,
 .whammy {
   position: absolute;
@@ -84,29 +88,29 @@
 }
 
 .open {
-  bottom: var(--gesture-safe-bottom);
+  position: absolute;
+  z-index: 1;
+  top: max(12svh, 72px);
+  bottom: calc(var(--fret-row-bottom) + max(14svh, 76px));
   left: 50%;
   width: min(88vw, 760px);
-  height: max(5.5svh, 36px);
-  border-color: rgba(230, 238, 245, 0.32);
-  border-radius: 6px 6px 0 0;
+  border: 0;
   transform: translateX(-50%);
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(235, 240, 245, 0.16),
-      rgba(7, 8, 12, 0.72)
-    );
+  background: transparent;
+  box-shadow: none;
 
   &[data-active='true'] {
-    color: white;
-    border-color: #cb8cff;
-    background: rgba(109, 44, 165, 0.78);
-    box-shadow: 0 0 24px rgba(194, 122, 255, 0.72);
+    background:
+      radial-gradient(
+        ellipse at 50% 82%,
+        rgba(194, 122, 255, 0.13),
+        transparent 48%
+      );
   }
 }
 
 .power {
+  z-index: 3;
   bottom: 22svh;
   left: max(0.65rem, env(safe-area-inset-left));
   display: grid;
@@ -128,6 +132,7 @@
 }
 
 .whammy {
+  z-index: 3;
   bottom: 22svh;
   right: max(0.65rem, env(safe-area-inset-right));
   display: grid;

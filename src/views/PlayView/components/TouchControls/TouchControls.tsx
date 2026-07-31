@@ -141,9 +141,7 @@ export function TouchControls({
         onPointerUp={(event) => releaseContact(event, null)}
         onPointerCancel={(event) => releaseContact(event, null)}
         onLostPointerCapture={(event) => releaseContact(event, null)}
-      >
-        Open
-      </button>
+      />
 
       <button
         type="button"
