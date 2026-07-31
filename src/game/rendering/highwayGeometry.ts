@@ -3,6 +3,8 @@ import type { Lane } from '../../types/game'
 const MAX_HIGHWAY_WIDTH = 760
 const PERSPECTIVE_POWER = 1.68
 export const DEFAULT_HIGHWAY_LENGTH = 55
+export const DEFAULT_HIT_LINE_RATIO = 0.89
+export const TAP_HIT_LINE_RATIO = 0.76
 export const SURFACE_END_PROGRESS = 1.18
 
 export interface HighwayPoint {
@@ -43,13 +45,14 @@ export function highwayTopY(
   width: number,
   height: number,
   highwayLength = DEFAULT_HIGHWAY_LENGTH,
+  hitLineRatio = DEFAULT_HIT_LINE_RATIO,
 ): number {
   const boundedLength = Math.max(45, Math.min(100, highwayLength))
   const aspectRatio = width / Math.max(1, height)
   const portraitDepth =
     Math.max(0, Math.min(1, (1.05 - aspectRatio) / 0.45)) * 25
   const responsiveLength = Math.min(100, boundedLength + portraitDepth)
-  const hitY = height * 0.89
+  const hitY = height * hitLineRatio
 
   return hitY - height * 0.85 * (responsiveLength / 100)
 }
@@ -59,9 +62,15 @@ export function highwayPoint(
   height: number,
   progress: number,
   highwayLength = DEFAULT_HIGHWAY_LENGTH,
+  hitLineRatio = DEFAULT_HIT_LINE_RATIO,
 ): HighwayPoint {
-  const topY = highwayTopY(width, height, highwayLength)
-  const hitY = height * 0.89
+  const topY = highwayTopY(
+    width,
+    height,
+    highwayLength,
+    hitLineRatio,
+  )
+  const hitY = height * hitLineRatio
   const projected = projectHighwayProgress(progress)
   const center = width / 2
   const trackWidth = highwayTrackWidth(width, progress)
@@ -73,6 +82,35 @@ export function highwayPoint(
     hitY,
     topY,
   }
+}
+
+export function highwayGuideWidthAtY(
+  width: number,
+  height: number,
+  y: number,
+  highwayLength = DEFAULT_HIGHWAY_LENGTH,
+  hitLineRatio = DEFAULT_HIT_LINE_RATIO,
+): number {
+  const top = highwayPoint(
+    width,
+    height,
+    0,
+    highwayLength,
+    hitLineRatio,
+  )
+  const bottom = highwayPoint(
+    width,
+    height,
+    SURFACE_END_PROGRESS,
+    highwayLength,
+    hitLineRatio,
+  )
+  const depth = Math.max(
+    0,
+    Math.min(1, (y - top.y) / Math.max(1, bottom.y - top.y)),
+  )
+
+  return top.trackWidth + (bottom.trackWidth - top.trackWidth) * depth
 }
 
 export function noteRadius(point: HighwayPoint): number {

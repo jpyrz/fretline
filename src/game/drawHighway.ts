@@ -9,11 +9,14 @@ import { countdownCue } from './playbackTimeline'
 import { visibleBeatMarkers } from './rendering/beatMarkers'
 import {
   DEFAULT_HIGHWAY_LENGTH,
+  DEFAULT_HIT_LINE_RATIO,
+  TAP_HIT_LINE_RATIO,
   highwayLaneX,
   highwayPoint,
   noteRadius,
   receptorRadius,
   trackEdge,
+  trackPath,
   travelSecondsForNoteSpeed,
   type HighwayPoint,
 } from './rendering/highwayGeometry'
@@ -98,6 +101,7 @@ function drawTimingWindows(
   height: number,
   travelSeconds: number,
   highwayLength: number,
+  hitLineRatio: number,
 ): void {
   const hitWindowSeconds = HIT_WINDOW_MS / 1000
   const early = highwayPoint(
@@ -105,12 +109,14 @@ function drawTimingWindows(
     height,
     1 - hitWindowSeconds / travelSeconds,
     highwayLength,
+    hitLineRatio,
   )
   const late = highwayPoint(
     width,
     height,
     1 + hitWindowSeconds / travelSeconds,
     highwayLength,
+    hitLineRatio,
   )
   context.beginPath()
   context.moveTo(trackEdge(early, -1), early.y)
@@ -134,6 +140,7 @@ function drawBeatLines(
   visualTimeSeconds: number,
   travelSeconds: number,
   highwayLength: number,
+  hitLineRatio: number,
 ): void {
   const markers = visibleBeatMarkers(
     chart,
@@ -145,7 +152,13 @@ function drawBeatLines(
     const progress =
       1 - (marker.timeSeconds - visualTimeSeconds) / travelSeconds
     if (progress < 0 || progress > 1.14) continue
-    const point = highwayPoint(width, height, progress, highwayLength)
+    const point = highwayPoint(
+      width,
+      height,
+      progress,
+      highwayLength,
+      hitLineRatio,
+    )
     const fade = Math.max(0.16, 1 - Math.max(0, progress - 0.82) * 4.5)
     context.beginPath()
     context.moveTo(trackEdge(point, -1), point.y)
@@ -169,18 +182,26 @@ function drawSustainTail(
   whammyAmount: number,
   starPowerActive: boolean,
   highwayLength: number,
+  hitLineRatio: number,
 ): void {
   if (note.sustainSeconds <= 0.03) return
 
   const sustainEnd = note.timeSeconds + note.sustainSeconds
   const tailProgress =
     1 - (sustainEnd - visualTimeSeconds) / travelSeconds
-  const head = highwayPoint(width, height, render.progress, highwayLength)
+  const head = highwayPoint(
+    width,
+    height,
+    render.progress,
+    highwayLength,
+    hitLineRatio,
+  )
   const tail = highwayPoint(
     width,
     height,
     Math.max(-0.05, tailProgress),
     highwayLength,
+    hitLineRatio,
   )
   const headSize = noteRadius(head)
   const lanes: Array<Lane | null> = note.open ? [null] : note.lanes
@@ -275,6 +296,7 @@ function drawChordBridge(
   starPowerActive: boolean,
   highwayLength: number,
   tapMode: boolean,
+  hitLineRatio: number,
 ): void {
   if (note.lanes.length < 2) return
   const positions = note.lanes.map((lane) =>
@@ -285,6 +307,7 @@ function drawChordBridge(
     height,
     render.progress,
     highwayLength,
+    hitLineRatio,
   )
   const size = noteRadius(point)
   const left = Math.min(...positions)
@@ -874,8 +897,16 @@ function drawStrikeLineAndReceptors(
   frame: GameFrame,
   sustainingLanes: Set<Lane>,
   highwayLength: number,
+  hitLineRatio: number,
+  tapMode: boolean,
 ): void {
-  const bottom = highwayPoint(width, height, 1, highwayLength)
+  const bottom = highwayPoint(
+    width,
+    height,
+    1,
+    highwayLength,
+    hitLineRatio,
+  )
 
   context.beginPath()
   context.moveTo(trackEdge(bottom, -1), bottom.hitY)
@@ -900,6 +931,9 @@ function drawStrikeLineAndReceptors(
     const color = LANE_COLORS[lane]
 
     context.save()
+    if (tapMode && !held && !sustaining && !impacting) {
+      context.globalAlpha = 0.52
+    }
     context.beginPath()
     context.ellipse(
       x,
@@ -984,12 +1018,52 @@ function drawStrikeLineAndReceptors(
   }
 }
 
+function drawTapControlDeck(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  highwayLength: number,
+  hitLineRatio: number,
+): void {
+  const strike = highwayPoint(
+    width,
+    height,
+    1,
+    highwayLength,
+    hitLineRatio,
+  )
+  const end = highwayPoint(
+    width,
+    height,
+    1.18,
+    highwayLength,
+    hitLineRatio,
+  )
+
+  context.save()
+  trackPath(context, strike, end)
+  const deck = context.createLinearGradient(
+    0,
+    strike.hitY,
+    0,
+    end.y,
+  )
+  deck.addColorStop(0, 'rgba(5, 8, 14, 0.12)')
+  deck.addColorStop(0.18, 'rgba(5, 8, 14, 0.34)')
+  deck.addColorStop(1, 'rgba(2, 3, 7, 0.7)')
+  context.fillStyle = deck
+  context.fill()
+
+  context.restore()
+}
+
 function drawHitEffects(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
   frame: GameFrame,
   highwayLength: number,
+  hitLineRatio: number,
 ): void {
   if (!frame.hitFlash) return
   const duration = Math.max(
@@ -1003,7 +1077,13 @@ function drawHitEffects(
       (frame.songTimeSeconds - frame.hitFlash.startedAt) / duration,
     ),
   )
-  const bottom = highwayPoint(width, height, 1, highwayLength)
+  const bottom = highwayPoint(
+    width,
+    height,
+    1,
+    highwayLength,
+    hitLineRatio,
+  )
   const opacity = Math.pow(1 - impactProgress, 1.15)
   const radius = receptorRadius(bottom)
 
@@ -1288,6 +1368,7 @@ function drawMissFeedback(
   height: number,
   frame: GameFrame,
   highwayLength: number,
+  hitLineRatio: number,
 ): void {
   const miss = frame.missFlash
   if (!miss) return
@@ -1297,7 +1378,13 @@ function drawMissFeedback(
     Math.min(1, (frame.songTimeSeconds - miss.startedAt) / duration),
   )
   const alpha = 1 - progress
-  const point = highwayPoint(width, height, 1, highwayLength)
+  const point = highwayPoint(
+    width,
+    height,
+    1,
+    highwayLength,
+    hitLineRatio,
+  )
   const radius = receptorRadius(point)
 
   context.save()
@@ -1357,6 +1444,10 @@ export function drawHighway(
   const width = canvas.clientWidth
   const height = canvas.clientHeight
   const travelSeconds = travelSecondsForNoteSpeed(noteSpeed)
+  const tapMode = visuals.tapMode === true
+  const hitLineRatio = tapMode
+    ? TAP_HIT_LINE_RATIO
+    : DEFAULT_HIT_LINE_RATIO
 
   const backgroundImage = visuals.backgroundImage ?? null
   const backgroundDim = visuals.backgroundDim ?? 42
@@ -1372,6 +1463,7 @@ export function drawHighway(
     backgroundDim,
     highwayImage,
     highwayOpacity,
+    hitLineRatio,
   )
   context.save()
   context.setTransform(1, 0, 0, 1, 0, 0)
@@ -1384,13 +1476,24 @@ export function drawHighway(
     frame.stats.starPowerActive,
     frame.songTimeSeconds,
     highwayLength,
+    hitLineRatio,
   )
+  if (tapMode) {
+    drawTapControlDeck(
+      context,
+      width,
+      height,
+      highwayLength,
+      hitLineRatio,
+    )
+  }
   drawTimingWindows(
     context,
     width,
     height,
     travelSeconds,
     highwayLength,
+    hitLineRatio,
   )
   drawBeatLines(
     context,
@@ -1400,6 +1503,7 @@ export function drawHighway(
     frame.visualTimeSeconds,
     travelSeconds,
     highwayLength,
+    hitLineRatio,
   )
 
   const noteRenders = visibleNoteIndices(chart, frame, travelSeconds)
@@ -1432,6 +1536,7 @@ export function drawHighway(
       frame.whammyAmount,
       frame.stats.starPowerActive,
       highwayLength,
+      hitLineRatio,
     )
   }
 
@@ -1442,6 +1547,8 @@ export function drawHighway(
     frame,
     activeSustainLanes(chart, frame),
     highwayLength,
+    hitLineRatio,
+    tapMode,
   )
 
   for (const { note, render } of noteRenders) {
@@ -1451,6 +1558,7 @@ export function drawHighway(
       height,
       render.progress,
       highwayLength,
+      hitLineRatio,
     )
     const size = noteRadius(point)
     context.save()
@@ -1474,7 +1582,8 @@ export function drawHighway(
         render,
         frame.stats.starPowerActive,
         highwayLength,
-        visuals.tapMode === true,
+        tapMode,
+        hitLineRatio,
       )
       for (const lane of note.lanes) {
         drawGem(
@@ -1491,9 +1600,23 @@ export function drawHighway(
     }
     context.restore()
   }
-  drawHitEffects(context, width, height, frame, highwayLength)
+  drawHitEffects(
+    context,
+    width,
+    height,
+    frame,
+    highwayLength,
+    hitLineRatio,
+  )
   if (visuals.missFeedback !== false) {
-    drawMissFeedback(context, width, height, frame, highwayLength)
+    drawMissFeedback(
+      context,
+      width,
+      height,
+      frame,
+      highwayLength,
+      hitLineRatio,
+    )
   }
   drawCountdown(context, width, height, frame.songTimeSeconds)
 

@@ -33,7 +33,7 @@
   bottom: var(--fret-touch-bottom);
   left: 50%;
   display: grid;
-  width: min(88vw, 760px);
+  width: var(--tap-lane-width, min(88vw, 760px));
   height: var(--fret-lane-height);
   grid-template-columns: repeat(5, 1fr);
   transform: translateX(-50%);
@@ -88,7 +88,15 @@
 .open {
   position: absolute;
   z-index: 1;
-  top: max(12svh, 72px);
+  top: min(
+    76%,
+    calc(
+      100% -
+      var(--fret-touch-bottom) -
+      var(--fret-lane-height) -
+      44px
+    )
+  );
   bottom: calc(
     var(--fret-touch-bottom) +
     var(--fret-lane-height)
@@ -156,11 +164,5 @@
         rgba(217, 237, 245, 0.14) 0
       );
     box-shadow: 0 0 calc(14px * var(--whammy)) #73dcff;
-  }
-}
-
-@media (min-width: 701px) and (pointer: fine) {
-  .controls {
-    display: none;
   }
 }

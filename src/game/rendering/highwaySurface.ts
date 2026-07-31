@@ -24,6 +24,7 @@ interface StaticHighwayCacheEntry {
   backgroundDim: number
   highwayImage: HTMLImageElement | null
   highwayOpacity: number
+  hitLineRatio: number
 }
 
 const staticHighwayCache = new WeakMap<
@@ -36,9 +37,10 @@ function warpedHighwayTexture(
   width: number,
   height: number,
   highwayLength: number,
+  hitLineRatio: number,
 ): HTMLCanvasElement {
   const density = Math.min(window.devicePixelRatio || 1, 2)
-  const key = `${Math.ceil(width)}:${Math.ceil(height)}:${highwayLength}:${density}`
+  const key = `${Math.ceil(width)}:${Math.ceil(height)}:${highwayLength}:${hitLineRatio}:${density}`
   const cached = warpedHighwayCache.get(image)
   if (cached?.key === key) return cached.canvas
 
@@ -52,8 +54,20 @@ function warpedHighwayTexture(
     for (let slice = 0; slice < slices; slice += 1) {
       const progressStart = (slice / slices) * SURFACE_END_PROGRESS
       const progressEnd = ((slice + 1) / slices) * SURFACE_END_PROGRESS
-      const start = highwayPoint(width, height, progressStart, highwayLength)
-      const end = highwayPoint(width, height, progressEnd, highwayLength)
+      const start = highwayPoint(
+        width,
+        height,
+        progressStart,
+        highwayLength,
+        hitLineRatio,
+      )
+      const end = highwayPoint(
+        width,
+        height,
+        progressEnd,
+        highwayLength,
+        hitLineRatio,
+      )
       context.drawImage(
         image,
         0,
@@ -100,13 +114,21 @@ function drawHighwaySurfaceUnderlay(
   backgroundDim: number,
   highwayImage: HTMLImageElement | null,
   highwayOpacity: number,
+  hitLineRatio: number,
 ): void {
-  const top = highwayPoint(width, height, 0, highwayLength)
+  const top = highwayPoint(
+    width,
+    height,
+    0,
+    highwayLength,
+    hitLineRatio,
+  )
   const bottom = highwayPoint(
     width,
     height,
     SURFACE_END_PROGRESS,
     highwayLength,
+    hitLineRatio,
   )
 
   if (
@@ -192,7 +214,13 @@ function drawHighwaySurfaceUnderlay(
     context.save()
     context.globalAlpha = Math.max(0.2, Math.min(1, highwayOpacity / 100))
     context.drawImage(
-      warpedHighwayTexture(highwayImage, width, height, highwayLength),
+      warpedHighwayTexture(
+        highwayImage,
+        width,
+        height,
+        highwayLength,
+        hitLineRatio,
+      ),
       0,
       0,
       width,
@@ -204,8 +232,20 @@ function drawHighwaySurfaceUnderlay(
   for (let band = 0; band < 14; band += 1) {
     const startProgress = (band / 14) * SURFACE_END_PROGRESS
     const endProgress = ((band + 1) / 14) * SURFACE_END_PROGRESS
-    const start = highwayPoint(width, height, startProgress, highwayLength)
-    const end = highwayPoint(width, height, endProgress, highwayLength)
+    const start = highwayPoint(
+      width,
+      height,
+      startProgress,
+      highwayLength,
+      hitLineRatio,
+    )
+    const end = highwayPoint(
+      width,
+      height,
+      endProgress,
+      highwayLength,
+      hitLineRatio,
+    )
     context.beginPath()
     context.moveTo(trackEdge(start, -1), start.y)
     context.lineTo(start.center, end.y - (end.y - start.y) * 0.28)
@@ -248,15 +288,22 @@ export function drawHighwaySurfaceOverlay(
   starPowerActive: boolean,
   songTimeSeconds: number,
   highwayLength: number,
+  hitLineRatio: number,
 ): void {
-  const top = highwayPoint(width, height, 0, highwayLength)
+  const top = highwayPoint(
+    width,
+    height,
+    0,
+    highwayLength,
+    hitLineRatio,
+  )
   const bottom = highwayPoint(
     width,
     height,
     SURFACE_END_PROGRESS,
     highwayLength,
+    hitLineRatio,
   )
-
   if (starPowerActive) {
     context.save()
     trackPath(context, top, bottom)
@@ -345,6 +392,7 @@ export function cachedHighwaySurface(
   backgroundDim: number,
   highwayImage: HTMLImageElement | null,
   highwayOpacity: number,
+  hitLineRatio: number,
 ): HTMLCanvasElement {
   const cached = staticHighwayCache.get(target)
   if (
@@ -358,7 +406,8 @@ export function cachedHighwaySurface(
     cached.backgroundImage === backgroundImage &&
     cached.backgroundDim === backgroundDim &&
     cached.highwayImage === highwayImage &&
-    cached.highwayOpacity === highwayOpacity
+    cached.highwayOpacity === highwayOpacity &&
+    cached.hitLineRatio === hitLineRatio
   ) {
     return cached.canvas
   }
@@ -380,6 +429,7 @@ export function cachedHighwaySurface(
       backgroundDim,
       highwayImage,
       highwayOpacity,
+      hitLineRatio,
     )
   }
 
@@ -395,6 +445,7 @@ export function cachedHighwaySurface(
     backgroundDim,
     highwayImage,
     highwayOpacity,
+    hitLineRatio,
   })
   return canvas
 }

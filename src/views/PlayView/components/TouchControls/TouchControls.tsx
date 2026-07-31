@@ -1,16 +1,22 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { Lane } from '../../../../types/game'
+import {
+  TAP_HIT_LINE_RATIO,
+  highwayGuideWidthAtY,
+} from '../../../../game/rendering/highwayGeometry'
 import { TouchContactTracker } from './touchContacts'
 import styles from './TouchControls.module.scss'
 
 const LANE_NAMES = ['Green', 'Red', 'Yellow', 'Blue', 'Orange']
 
 interface TouchControlsProps {
+  highwayLength: number
   onTap: (lanes: Lane[], timestamp: number) => void
   onFretChange: (lanes: Lane[], timestamp: number) => void
   onLanesChange: (lanes: Lane[]) => void
@@ -19,6 +25,7 @@ interface TouchControlsProps {
 }
 
 export function TouchControls({
+  highwayLength,
   onTap,
   onFretChange,
   onLanesChange,
@@ -26,12 +33,41 @@ export function TouchControls({
   onWhammy,
 }: TouchControlsProps) {
   const trackerRef = useRef(new TouchContactTracker())
+  const controlsRef = useRef<HTMLDivElement>(null)
   const lanesRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef(0)
   const whammyPointerRef = useRef<number | null>(null)
   const [activeLanes, setActiveLanes] = useState<Lane[]>([])
   const [openActive, setOpenActive] = useState(false)
   const [whammyAmount, setWhammyAmount] = useState(0)
+
+  useLayoutEffect(() => {
+    const controls = controlsRef.current
+    const lanes = lanesRef.current
+    const target = lanes?.querySelector('span')
+    if (!controls || !target) return
+
+    const alignLaneTargets = () => {
+      const controlsBounds = controls.getBoundingClientRect()
+      const targetBounds = target.getBoundingClientRect()
+      const targetCenterY =
+        targetBounds.top + targetBounds.height / 2 - controlsBounds.top
+      const laneWidth = highwayGuideWidthAtY(
+        controlsBounds.width,
+        controlsBounds.height,
+        targetCenterY,
+        highwayLength,
+        TAP_HIT_LINE_RATIO,
+      )
+      controls.style.setProperty('--tap-lane-width', `${laneWidth}px`)
+    }
+
+    alignLaneTargets()
+    const observer = new ResizeObserver(alignLaneTargets)
+    observer.observe(controls)
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [highwayLength])
 
   const publishContacts = () => {
     const snapshot = trackerRef.current.snapshot()
@@ -118,7 +154,11 @@ export function TouchControls({
   )
 
   return (
-    <div className={styles.controls} aria-label="Tap controls">
+    <div
+      ref={controlsRef}
+      className={styles.controls}
+      aria-label="Tap controls"
+    >
       <button
         type="button"
         className={styles.power}

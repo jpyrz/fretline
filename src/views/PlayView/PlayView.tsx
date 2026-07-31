@@ -550,6 +550,7 @@ export function PlayView() {
 
           {phase === 'playing' && inputMode === 'tap' && (
             <TouchControls
+              highwayLength={highwaySettings.length}
               onTap={handleTap}
               onFretChange={handleTapFretChange}
               onLanesChange={handleTapLanesChange}
