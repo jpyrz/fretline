@@ -1497,13 +1497,17 @@ function drawHighwayHorizonFade(
     highwayLength,
     hitLineRatio,
   )
-  const topPadding = 18
+  const maskTopY = Math.max(
+    0,
+    horizon.y - Math.max(64, height * 0.1),
+  )
+  const topPadding = 36
   const endPadding = 10
 
   context.save()
   context.beginPath()
-  context.moveTo(trackEdge(horizon, -1) - topPadding, horizon.y - 2)
-  context.lineTo(trackEdge(horizon, 1) + topPadding, horizon.y - 2)
+  context.moveTo(trackEdge(horizon, -1) - topPadding, maskTopY)
+  context.lineTo(trackEdge(horizon, 1) + topPadding, maskTopY)
   context.lineTo(trackEdge(fadeEnd, 1) + endPadding, fadeEnd.y)
   context.lineTo(trackEdge(fadeEnd, -1) - endPadding, fadeEnd.y)
   context.closePath()
