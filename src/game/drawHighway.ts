@@ -1164,7 +1164,7 @@ function drawHitEffects(
   const fireImage = gameplayVfxImage(HIT_FIRE_ATLAS)
   if (fireImage && !frame.hitFlash.open) {
     const fireWidth =
-      radius * (4.75 + Math.sin(impactProgress * Math.PI) * 0.65)
+      radius * (6.35 + Math.sin(impactProgress * Math.PI) * 0.95)
     const fireHeight = fireWidth * (256 / 192)
     const impactXs = frame.hitFlash.lanes.map((lane) =>
       highwayLaneX(width, lane, 1),
