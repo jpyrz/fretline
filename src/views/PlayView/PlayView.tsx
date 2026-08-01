@@ -103,12 +103,14 @@ export function PlayView() {
   const engineRef = useRef<GameEngine | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const autoStartedRef = useRef(false)
+  const tapControlsEntranceTimerRef = useRef<number | null>(null)
   const [phase, setPhase] = useState<Phase>(
     autoStartRequested ? 'loading' : 'ready',
   )
   const immersiveLoading = autoStartRequested && phase === 'loading'
   const [stats, setStats] = useState<SessionStats>(emptyStats)
   const [error, setError] = useState('')
+  const [tapControlsEntering, setTapControlsEntering] = useState(false)
   const [runInputOffsetMs, setRunInputOffsetMs] = useState(
     calibration.inputOffsetMs,
   )
@@ -213,10 +215,26 @@ export function PlayView() {
   )
 
   const stopSession = () => {
+    if (tapControlsEntranceTimerRef.current !== null) {
+      window.clearTimeout(tapControlsEntranceTimerRef.current)
+      tapControlsEntranceTimerRef.current = null
+    }
     engineRef.current?.stop()
     engineRef.current = null
     void audioContextRef.current?.close()
     audioContextRef.current = null
+  }
+
+  const triggerTapControlsEntrance = () => {
+    if (inputMode !== 'tap') return
+    if (tapControlsEntranceTimerRef.current !== null) {
+      window.clearTimeout(tapControlsEntranceTimerRef.current)
+    }
+    setTapControlsEntering(true)
+    tapControlsEntranceTimerRef.current = window.setTimeout(() => {
+      setTapControlsEntering(false)
+      tapControlsEntranceTimerRef.current = null
+    }, 1050)
   }
 
   useEffect(() => stopSession, [])
@@ -251,6 +269,7 @@ export function PlayView() {
 
   const startSession = async () => {
     stopSession()
+    setTapControlsEntering(false)
     setPhase('loading')
     setStats(emptyStats)
     setError('')
@@ -322,6 +341,7 @@ export function PlayView() {
       })
 
       engineRef.current = engine
+      triggerTapControlsEntrance()
       setPhase('playing')
       engine.start()
     } catch (reason) {
@@ -367,6 +387,7 @@ export function PlayView() {
   const restartSession = () => {
     setStats(emptyStats)
     setAppliedOffsetMs(null)
+    triggerTapControlsEntrance()
     engineRef.current?.restart()
   }
 
@@ -629,6 +650,7 @@ export function PlayView() {
             song.kind !== 'calibration' && (
             <TouchControls
               highwayLength={highwaySettings.length}
+              entering={tapControlsEntering}
               starPowerActive={stats.starPowerActive}
               starPowerMeter={stats.starPowerMeter}
               onTap={handleTap}

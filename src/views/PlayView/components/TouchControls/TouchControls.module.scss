@@ -127,6 +127,47 @@
   button[data-lane='4'] { --lane-color: #f28a22; }
 }
 
+.controls[data-entering='true'] .lanes button span {
+  animation: tap-fret-pop 520ms cubic-bezier(0.18, 0.9, 0.28, 1.32) both;
+}
+
+.controls[data-entering='true'] .lanes button[data-lane='0'] span {
+  animation-delay: 0ms;
+}
+
+.controls[data-entering='true'] .lanes button[data-lane='1'] span {
+  animation-delay: 70ms;
+}
+
+.controls[data-entering='true'] .lanes button[data-lane='2'] span {
+  animation-delay: 140ms;
+}
+
+.controls[data-entering='true'] .lanes button[data-lane='3'] span {
+  animation-delay: 210ms;
+}
+
+.controls[data-entering='true'] .lanes button[data-lane='4'] span {
+  animation-delay: 280ms;
+}
+
+@keyframes tap-fret-pop {
+  0% {
+    opacity: 0;
+    transform: perspective(180px) translateY(72px) rotateX(18deg) scale(0.58);
+  }
+
+  68% {
+    opacity: 1;
+    transform: perspective(180px) translateY(-7px) rotateX(7deg) scale(1.08);
+  }
+
+  100% {
+    opacity: 0.82;
+    transform: perspective(180px) rotateX(10deg);
+  }
+}
+
 .open {
   position: absolute;
   z-index: 1;

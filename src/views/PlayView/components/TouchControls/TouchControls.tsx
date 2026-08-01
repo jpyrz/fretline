@@ -22,6 +22,7 @@ const MAX_WHAMMY_DRAG_PX = 120
 
 interface TouchControlsProps {
   highwayLength: number
+  entering: boolean
   starPowerActive: boolean
   starPowerMeter: number
   onTap: (lanes: Lane[], timestamp: number) => void
@@ -33,6 +34,7 @@ interface TouchControlsProps {
 
 export function TouchControls({
   highwayLength,
+  entering,
   starPowerActive,
   starPowerMeter,
   onTap,
@@ -214,6 +216,7 @@ export function TouchControls({
     <div
       ref={controlsRef}
       className={styles.controls}
+      data-entering={entering || undefined}
       aria-label="Tap controls"
     >
       <StarPowerRail

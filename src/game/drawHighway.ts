@@ -26,6 +26,7 @@ import {
   type NoteRenderState,
 } from './rendering/noteVisibility'
 import { drawTapSweepPaths } from './rendering/tapSweepPath'
+import { fretEntranceTransform } from './rendering/fretEntrance'
 import {
   HIT_FIRE_ATLAS,
   STAR_POWER_LIGHTNING_ATLAS,
@@ -948,14 +949,20 @@ function drawStrikeLineAndReceptors(
     const impacting =
       frame.hitFlash?.open === false && frame.hitFlash.lanes.includes(lane)
     const x = highwayLaneX(width, lane, 1)
-    const radius = receptorRadius(bottom)
-    const press = held || impacting ? radius * 0.1 : 0
-    const y = bottom.hitY + press
+    const baseRadius = receptorRadius(bottom)
+    const entrance = tapMode
+      ? null
+      : fretEntranceTransform(frame.songTimeSeconds, lane)
+    const radius = baseRadius * (entrance?.sizeScale ?? 1)
+    const press = held || impacting ? baseRadius * 0.1 : 0
+    const y =
+      bottom.hitY + press + baseRadius * (entrance?.offsetScale ?? 0)
     const color = LANE_COLORS[lane]
 
     context.save()
+    context.globalAlpha = entrance?.opacity ?? 1
     if (tapMode && !held && !sustaining && !impacting) {
-      context.globalAlpha = 0.52
+      context.globalAlpha *= 0.52
     }
     context.beginPath()
     context.ellipse(
