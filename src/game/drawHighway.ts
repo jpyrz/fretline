@@ -27,6 +27,12 @@ import {
 } from './rendering/noteVisibility'
 import { drawTapSweepPaths } from './rendering/tapSweepPath'
 import {
+  HIT_FIRE_ATLAS,
+  STAR_POWER_LIGHTNING_ATLAS,
+  drawSpriteFrame,
+  gameplayVfxImage,
+} from './rendering/vfxSprites'
+import {
   cachedHighwaySurface,
   drawHighwaySurfaceOverlay,
   resizeHighwayCanvas,
@@ -1148,6 +1154,42 @@ function drawHitEffects(
   )
   const opacity = Math.pow(1 - impactProgress, 1.15)
   const radius = receptorRadius(bottom)
+  const phraseFlash = frame.starPowerPhraseFlash
+  const phraseCompletionHit =
+    phraseFlash !== null &&
+    phraseFlash !== undefined &&
+    Math.abs(phraseFlash.startedAt - frame.hitFlash.startedAt) < 0.001
+  if (phraseCompletionHit) return
+
+  const fireImage = gameplayVfxImage(HIT_FIRE_ATLAS)
+  if (fireImage && !frame.hitFlash.open) {
+    const fireWidth = radius * 2.65
+    const fireHeight = fireWidth * (256 / 192)
+    const impactXs = frame.hitFlash.lanes.map((lane) =>
+      highwayLaneX(width, lane, 1),
+    )
+
+    context.save()
+    context.globalAlpha =
+      1 - Math.max(0, (impactProgress - 0.82) / 0.18)
+    context.globalCompositeOperation = 'screen'
+    for (const centerX of impactXs) {
+      drawSpriteFrame(
+        context,
+        fireImage,
+        HIT_FIRE_ATLAS,
+        impactProgress,
+        {
+          centerX,
+          anchorY: bottom.hitY,
+          width: fireWidth,
+          height: fireHeight,
+        },
+      )
+    }
+    context.restore()
+    return
+  }
 
   context.save()
   context.globalAlpha = opacity
@@ -1394,6 +1436,81 @@ function drawHitEffects(
       }
     }
   }
+  context.restore()
+}
+
+function drawStarPowerPhraseCompletion(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  frame: GameFrame,
+  highwayLength: number,
+  hitLineRatio: number,
+): void {
+  const flash = frame.starPowerPhraseFlash
+  if (!flash) return
+  const duration = Math.max(0.001, flash.expiresAt - flash.startedAt)
+  const progress = Math.max(
+    0,
+    Math.min(1, (frame.songTimeSeconds - flash.startedAt) / duration),
+  )
+  const bottom = highwayPoint(
+    width,
+    height,
+    1,
+    highwayLength,
+    hitLineRatio,
+  )
+  const radius = receptorRadius(bottom)
+  const impactX = flash.open
+    ? bottom.center
+    : flash.lanes.reduce<number>(
+        (sum, lane) => sum + highwayLaneX(width, lane, 1),
+        0,
+      ) / Math.max(1, flash.lanes.length)
+  const lightningImage = gameplayVfxImage(
+    STAR_POWER_LIGHTNING_ATLAS,
+  )
+
+  context.save()
+  context.globalAlpha = 1 - Math.max(0, (progress - 0.84) / 0.16)
+  context.globalCompositeOperation = 'screen'
+
+  if (lightningImage) {
+    const lightningWidth = Math.min(
+      bottom.trackWidth * 0.34,
+      radius * 7.2,
+    )
+    const lightningHeight = Math.min(
+      height * 0.82,
+      (bottom.hitY - height * 0.025) /
+        STAR_POWER_LIGHTNING_ATLAS.anchorY,
+    )
+    drawSpriteFrame(
+      context,
+      lightningImage,
+      STAR_POWER_LIGHTNING_ATLAS,
+      progress,
+      {
+        centerX: impactX,
+        anchorY: bottom.hitY,
+        width: lightningWidth,
+        height: lightningHeight,
+      },
+    )
+  } else {
+    context.beginPath()
+    context.moveTo(impactX, height * 0.03)
+    context.lineTo(impactX - radius * 0.4, height * 0.36)
+    context.lineTo(impactX + radius * 0.24, height * 0.58)
+    context.lineTo(impactX, bottom.hitY)
+    context.strokeStyle = '#dffaff'
+    context.lineWidth = Math.max(3, radius * 0.18)
+    context.shadowColor = '#32c9ff'
+    context.shadowBlur = radius * 1.5
+    context.stroke()
+  }
+
   context.restore()
 }
 
@@ -1846,6 +1963,14 @@ export function drawHighway(
     context.restore()
   }
   drawHitEffects(
+    context,
+    width,
+    height,
+    frame,
+    highwayLength,
+    hitLineRatio,
+  )
+  drawStarPowerPhraseCompletion(
     context,
     width,
     height,

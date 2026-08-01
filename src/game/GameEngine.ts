@@ -136,6 +136,7 @@ export class GameEngine {
   private hitFlash: GameFrame['hitFlash'] = null
   private missFlash: GameFrame['missFlash'] = null
   private starPowerFlash: GameFrame['starPowerFlash'] = null
+  private starPowerPhraseFlash: GameFrame['starPowerPhraseFlash'] = null
   private lastStatsPush = 0
   private statsDirty = true
   private recordsSnapshot: SessionStats['records'] = []
@@ -218,6 +219,7 @@ export class GameEngine {
     this.hitFlash = null
     this.missFlash = null
     this.starPowerFlash = null
+    this.starPowerPhraseFlash = null
     this.lastStarPowerTick = null
     this.lastWhammyAudioAmount = -1
     this.previousGamepadStrum = false
@@ -696,9 +698,13 @@ export class GameEngine {
     this.lastStarPowerTick = currentTick
   }
 
-  private completeStarPowerPhrases(noteIndex: number): void {
+  private completeStarPowerPhrases(
+    noteIndex: number,
+    songTimeSeconds: number,
+  ): void {
     const phraseIndices =
       this.chart.notes[noteIndex].starPowerPhraseIndices ?? []
+    let phraseEarned = false
     for (const phraseIndex of phraseIndices) {
       if (this.starPowerPhraseStates[phraseIndex] !== 'pending') continue
       const phraseNotes =
@@ -716,6 +722,17 @@ export class GameEngine {
         this.stats.starPowerMeter,
       )
       this.stats.starPowerPhrasesHit += 1
+      phraseEarned = true
+    }
+
+    if (phraseEarned) {
+      const note = this.chart.notes[noteIndex]
+      this.starPowerPhraseFlash = {
+        lanes: [...note.lanes],
+        open: note.open,
+        startedAt: songTimeSeconds,
+        expiresAt: songTimeSeconds + 0.42,
+      }
     }
   }
 
@@ -847,7 +864,7 @@ export class GameEngine {
       result: 'hit',
     })
     this.recordsDirty = true
-    this.completeStarPowerPhrases(candidateIndex)
+    this.completeStarPowerPhrases(candidateIndex, rawSongTime)
     this.hitFlash = {
       lanes: note.lanes,
       open: note.open,
@@ -1007,6 +1024,12 @@ export class GameEngine {
     ) {
       this.starPowerFlash = null
     }
+    if (
+      this.starPowerPhraseFlash &&
+      this.starPowerPhraseFlash.expiresAt < songTimeSeconds
+    ) {
+      this.starPowerPhraseFlash = null
+    }
 
     if (this.statsDirty && now - this.lastStatsPush > 100) {
       this.pushStats(now)
@@ -1026,6 +1049,7 @@ export class GameEngine {
       hitFlash: this.hitFlash,
       missFlash: this.missFlash,
       starPowerFlash: this.starPowerFlash,
+      starPowerPhraseFlash: this.starPowerPhraseFlash,
     })
 
     if (songTimeSeconds > this.endTimeSeconds + 0.35) {

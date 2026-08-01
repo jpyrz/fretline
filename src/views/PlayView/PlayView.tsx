@@ -10,6 +10,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { HighwayCanvas } from '../../components/HighwayCanvas'
 import { GameEngine } from '../../game/GameEngine'
 import { drawHighway } from '../../game/drawHighway'
+import { preloadGameplayVfx } from '../../game/rendering/vfxSprites'
 import { createCalibrationAudio } from '../../lib/calibrationSong'
 import { audioFileMetadata } from '../../lib/songLibrary'
 import {
@@ -112,6 +113,11 @@ export function PlayView() {
     calibration.inputOffsetMs,
   )
   const [appliedOffsetMs, setAppliedOffsetMs] = useState<number | null>(null)
+
+  useEffect(() => {
+    preloadGameplayVfx()
+  }, [])
+
   const backgroundAsset = useMemo(
     () =>
       selectVisualAsset(
@@ -194,6 +200,7 @@ export function PlayView() {
       whammyAmount: 0,
       hitFlash: null,
       missFlash: null,
+      starPowerPhraseFlash: null,
     }),
     [song.chart.notes, song.chart.starPowerPhrases],
   )

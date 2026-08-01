@@ -257,4 +257,10 @@ export interface GameFrame {
     startedAt: number
     expiresAt: number
   } | null
+  starPowerPhraseFlash?: {
+    lanes: Lane[]
+    open: boolean
+    startedAt: number
+    expiresAt: number
+  } | null
 }
