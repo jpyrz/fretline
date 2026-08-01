@@ -497,7 +497,10 @@ export function PlayView() {
       </header>
 
       <section className={styles.gameLayout}>
-        <div className={styles.highwayWrap}>
+        <div
+          className={styles.highwayWrap}
+          data-gameplay-touch-surface={phase === 'playing' || undefined}
+        >
           <HighwayCanvas ref={canvasRef} />
 
           {immersiveLoading && (

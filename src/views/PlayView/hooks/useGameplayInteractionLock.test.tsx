@@ -28,6 +28,17 @@ describe('useGameplayInteractionLock', () => {
     document.dispatchEvent(selection)
     expect(selection.defaultPrevented).toBe(true)
 
+    const surface = document.createElement('div')
+    surface.dataset.gameplayTouchSurface = 'true'
+    document.body.append(surface)
+    const touchStart = new Event('touchstart', {
+      bubbles: true,
+      cancelable: true,
+    })
+    surface.dispatchEvent(touchStart)
+    expect(touchStart.defaultPrevented).toBe(true)
+    surface.remove()
+
     window.dispatchEvent(new PopStateEvent('popstate'))
     expect(onBackAttempt).toHaveBeenCalledOnce()
 

@@ -16,6 +16,16 @@ function clearSelection(): void {
   window.getSelection()?.removeAllRanges()
 }
 
+function preventGameplayTouchDefaults(event: TouchEvent): void {
+  const target = event.target
+  if (
+    target instanceof Element &&
+    target.closest('[data-gameplay-touch-surface]')
+  ) {
+    event.preventDefault()
+  }
+}
+
 /**
  * Makes an active run behave like a game surface instead of a document.
  * The duplicate history entry absorbs a browser back gesture without changing
@@ -68,6 +78,14 @@ export function useGameplayInteractionLock(
     }
     document.addEventListener('selectstart', preventBrowserInteraction, true)
     document.addEventListener('selectionchange', clearSelection)
+    document.addEventListener('touchstart', preventGameplayTouchDefaults, {
+      capture: true,
+      passive: false,
+    })
+    document.addEventListener('touchmove', preventGameplayTouchDefaults, {
+      capture: true,
+      passive: false,
+    })
     window.addEventListener('popstate', handleBackNavigation)
     window.addEventListener('beforeunload', handleBeforeUnload)
 
@@ -83,6 +101,16 @@ export function useGameplayInteractionLock(
         true,
       )
       document.removeEventListener('selectionchange', clearSelection)
+      document.removeEventListener(
+        'touchstart',
+        preventGameplayTouchDefaults,
+        true,
+      )
+      document.removeEventListener(
+        'touchmove',
+        preventGameplayTouchDefaults,
+        true,
+      )
       window.removeEventListener('popstate', handleBackNavigation)
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }

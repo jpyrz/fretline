@@ -43,7 +43,6 @@ export function SongSelectView() {
     setSong,
     addImportedSong,
     selectSong,
-    removeSong,
     libraryReady,
     librarySaving,
     libraryError,
@@ -486,23 +485,6 @@ export function SongSelectView() {
                   </dd>
                 </div>
               </dl>
-              <div
-                className={styles.previewStatus}
-                data-status={previewStatus}
-              >
-                <i aria-hidden="true" />
-                <span>
-                  {previewStatus === 'playing'
-                    ? 'Preview playing'
-                    : previewStatus === 'loading'
-                      ? 'Preparing preview'
-                      : previewStatus === 'waiting'
-                        ? 'Press a key to hear preview'
-                        : previewStatus === 'error'
-                          ? 'Preview unavailable'
-                          : trackLabel(selectedSong.chart.trackName)}
-                </span>
-              </div>
               <div className={styles.previewActions}>
                 <button
                   type="button"
@@ -513,15 +495,6 @@ export function SongSelectView() {
                   Choose part
                   <span aria-hidden="true">→</span>
                 </button>
-                {selectedSong.id !== 'bundled-techno-chiptale' && (
-                  <button
-                    type="button"
-                    className={styles.removeButton}
-                    onClick={() => removeSong(selectedSong.id)}
-                  >
-                    Remove from device
-                  </button>
-                )}
               </div>
             </>
           ) : (
