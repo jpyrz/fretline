@@ -43,6 +43,26 @@ body {
     var(--background);
 }
 
+html[data-gameplay-active='true'],
+html[data-gameplay-active='true'] body,
+html[data-gameplay-active='true'] #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html[data-gameplay-active='true'] * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+
 button,
 input {
   font: inherit;

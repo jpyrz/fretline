@@ -24,6 +24,7 @@ import { ResultsOverlay } from './components/ResultsOverlay'
 import { ScoreHud } from './components/ScoreHud'
 import { TouchControls } from './components/TouchControls'
 import { useVisualImage } from './hooks/useVisualImage'
+import { useGameplayInteractionLock } from './hooks/useGameplayInteractionLock'
 import { calculateSessionResults } from './sessionResults'
 import styles from './PlayView.module.scss'
 
@@ -406,6 +407,10 @@ export function PlayView() {
   const handleCalibrationTap = useCallback((timestamp: number) => {
     engineRef.current?.submitCalibrationHit(timestamp)
   }, [])
+
+  useGameplayInteractionLock(phase === 'playing', () => {
+    engineRef.current?.pause()
+  })
 
   const handleControllerAction = useEffectEvent((event: Event) => {
     if (
