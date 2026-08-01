@@ -27,33 +27,6 @@ export function ScoreHud({
       <div className={styles.scoreProgress} aria-hidden="true">
         <i style={{ width: `${chartProgress}%` }} />
       </div>
-      <div
-        className={styles.starPower}
-        data-active={stats.starPowerActive || undefined}
-        data-ready={
-          !stats.starPowerActive && stats.starPowerMeter >= 0.5
-            ? 'true'
-            : undefined
-        }
-      >
-        <span aria-hidden="true">★</span>
-        <div
-          aria-label={`Star power ${Math.round(stats.starPowerMeter * 100)} percent`}
-        >
-          <i
-            style={{
-              height: `${Math.round(stats.starPowerMeter * 100)}%`,
-            }}
-          />
-        </div>
-        <small>
-          {stats.starPowerActive
-            ? 'Star power'
-            : stats.starPowerMeter >= 0.5
-              ? 'Ready'
-              : 'Build power'}
-        </small>
-      </div>
       <div className={styles.scoreDetails}>
         <span>
           Streak <strong>{stats.streak}</strong>
