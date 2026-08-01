@@ -1163,7 +1163,7 @@ function drawHitEffects(
 
   const fireImage = gameplayVfxImage(HIT_FIRE_ATLAS)
   if (fireImage && !frame.hitFlash.open) {
-    const fireWidth = radius * 2.65
+    const fireWidth = radius * 3.05
     const fireHeight = fireWidth * (256 / 192)
     const impactXs = frame.hitFlash.lanes.map((lane) =>
       highwayLaneX(width, lane, 1),
@@ -1478,8 +1478,8 @@ function drawStarPowerPhraseCompletion(
 
   if (lightningImage) {
     const lightningWidth = Math.min(
-      bottom.trackWidth * 0.34,
-      radius * 7.2,
+      bottom.trackWidth * 0.39,
+      radius * 8.25,
     )
     const lightningHeight = Math.min(
       height * 0.82,
