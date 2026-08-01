@@ -186,13 +186,16 @@ export function PlayView() {
       heldLanes: [],
       noteStates: song.chart.notes.map(() => 'pending'),
       sustainStates: song.chart.notes.map(() => 'none'),
+      starPowerPhraseStates: (song.chart.starPowerPhrases ?? []).map(
+        () => 'pending',
+      ),
       activeSustainIndices: [],
       stats: emptyStats,
       whammyAmount: 0,
       hitFlash: null,
       missFlash: null,
     }),
-    [song.chart.notes],
+    [song.chart.notes, song.chart.starPowerPhrases],
   )
   const displayChart = useMemo(
     () =>

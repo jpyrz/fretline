@@ -229,6 +229,7 @@ export interface SessionStats {
 }
 
 export type SustainState = 'none' | 'holding' | 'released' | 'complete'
+export type StarPowerPhraseState = 'pending' | 'earned' | 'failed'
 
 export interface GameFrame {
   songTimeSeconds: number
@@ -236,6 +237,7 @@ export interface GameFrame {
   heldLanes: Lane[]
   noteStates: Array<'pending' | 'hit' | 'miss'>
   sustainStates: SustainState[]
+  starPowerPhraseStates?: readonly StarPowerPhraseState[]
   activeSustainIndices?: number[]
   stats: SessionStats
   whammyAmount: number

@@ -4,6 +4,7 @@ import {
   highwayTopY,
   highwayTrackWidth,
   projectHighwayProgress,
+  shouldRenderStarPowerNote,
   travelSecondsForNoteSpeed,
   visibleNoteIndices,
 } from './drawHighway'
@@ -106,5 +107,32 @@ describe('highway render culling', () => {
     expect(indices.length).toBeLessThan(10)
     expect(indices).not.toContain(399)
     expect(indices).not.toContain(405)
+  })
+})
+
+describe('star-power phrase visuals', () => {
+  const phraseNote = {
+    starPower: true,
+    starPowerPhraseIndices: [0],
+  } as ParsedChart['notes'][number]
+
+  it('keeps star styling while its phrase can still be earned', () => {
+    expect(
+      shouldRenderStarPowerNote(phraseNote, {
+        starPowerPhraseStates: ['pending'],
+      }),
+    ).toBe(true)
+  })
+
+  it('reverts remaining phrase notes after the phrase is failed', () => {
+    expect(
+      shouldRenderStarPowerNote(phraseNote, {
+        starPowerPhraseStates: ['failed'],
+      }),
+    ).toBe(false)
+  })
+
+  it('preserves legacy star styling when runtime phrase state is absent', () => {
+    expect(shouldRenderStarPowerNote(phraseNote, {})).toBe(true)
   })
 })

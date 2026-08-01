@@ -39,6 +39,7 @@ import type {
   Lane,
   ParsedChart,
   SessionStats,
+  StarPowerPhraseState,
   SustainState,
 } from '../types/game'
 
@@ -112,9 +113,7 @@ export class GameEngine {
   private readonly sustainBasePointsAwarded: number[]
   private readonly sustainMismatchStartedAt: Array<number | null>
   private readonly activeSustains = new Set<number>()
-  private readonly starPowerPhraseStates: Array<
-    'pending' | 'earned' | 'failed'
-  >
+  private readonly starPowerPhraseStates: StarPowerPhraseState[]
   private readonly starPowerPhraseNoteIndices: number[][]
   private readonly stats = freshStats()
 
@@ -1020,6 +1019,7 @@ export class GameEngine {
       heldLanes: this.heldLanes(),
       noteStates: this.noteStates,
       sustainStates: this.sustainStates,
+      starPowerPhraseStates: this.starPowerPhraseStates,
       activeSustainIndices: [...this.activeSustains],
       stats: this.stats,
       whammyAmount: this.whammyAmount(),

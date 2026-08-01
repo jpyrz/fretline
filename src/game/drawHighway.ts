@@ -54,6 +54,19 @@ export interface HighwayVisualOptions {
   tapMode?: boolean
 }
 
+export function shouldRenderStarPowerNote(
+  note: ChartNote,
+  frame: Pick<GameFrame, 'starPowerPhraseStates'>,
+): boolean {
+  if (!note.starPower) return false
+  const phraseIndices = note.starPowerPhraseIndices
+  const phraseStates = frame.starPowerPhraseStates
+  if (!phraseIndices?.length || !phraseStates) return true
+  return phraseIndices.some(
+    (phraseIndex) => phraseStates[phraseIndex] !== 'failed',
+  )
+}
+
 function ellipseGradient(
   context: CanvasRenderingContext2D,
   x: number,
@@ -182,6 +195,7 @@ function drawSustainTail(
   travelSeconds: number,
   whammyAmount: number,
   starPowerActive: boolean,
+  starPowerNote: boolean,
   highwayLength: number,
   hitLineRatio: number,
 ): void {
@@ -213,7 +227,7 @@ function drawSustainTail(
   for (const lane of lanes) {
     const color = starPowerActive
       ? STAR_POWER_COLOR
-      : note.starPower
+      : starPowerNote
       ? '#c8f2ff'
       : lane === null
         ? '#e7e9ff'
@@ -247,8 +261,8 @@ function drawSustainTail(
         ? 'rgba(112, 116, 125, 0.75)'
         : beam
     context.lineWidth = thickness
-    context.shadowColor = held || note.starPower ? color : 'transparent'
-    context.shadowBlur = held ? (note.starPower ? 22 : 14) : note.starPower ? 9 : 0
+    context.shadowColor = held || starPowerNote ? color : 'transparent'
+    context.shadowBlur = held ? (starPowerNote ? 22 : 14) : starPowerNote ? 9 : 0
     context.stroke()
 
     context.beginPath()
@@ -266,7 +280,7 @@ function drawSustainTail(
       context.save()
       context.globalCompositeOperation = 'lighter'
       context.fillStyle = '#f4fdff'
-      context.shadowColor = note.starPower ? '#65dcff' : color
+      context.shadowColor = starPowerNote ? '#65dcff' : color
       context.shadowBlur = 12 + whammyAmount * 12
       for (let spark = 0; spark < 6; spark += 1) {
         const position =
@@ -577,6 +591,7 @@ function drawGem(
   note: ChartNote,
   missed: boolean,
   starPowerActive: boolean,
+  starPowerNote: boolean,
 ): void {
   const color = missed
     ? '#62666c'
@@ -590,7 +605,7 @@ function drawGem(
       : `${LANE_COLORS[lane]}a8`
   const baseAlpha = context.globalAlpha
 
-  if (note.starPower) {
+  if (starPowerNote) {
     drawStarPowerGem(
       context,
       x,
@@ -782,6 +797,7 @@ function drawOpenGem(
   note: ChartNote,
   missed: boolean,
   starPowerActive: boolean,
+  starPowerNote: boolean,
 ): void {
   const barWidth = point.trackWidth * 0.68
   const barHeight = Math.max(
@@ -848,7 +864,7 @@ function drawOpenGem(
   context.shadowBlur = note.tap ? size * 1.25 : note.hopo ? size * 0.72 : 0
   context.stroke()
 
-  if (note.starPower && !missed) {
+  if (starPowerNote && !missed) {
     traceStar(
       context,
       point.center,
@@ -1716,6 +1732,10 @@ export function drawHighway(
     .map((noteIndex) => ({
       noteIndex,
       note: chart.notes[noteIndex],
+      starPowerNote: shouldRenderStarPowerNote(
+        chart.notes[noteIndex],
+        frame,
+      ),
       render: noteRenderState(
         chart.notes[noteIndex],
         noteIndex,
@@ -1746,7 +1766,7 @@ export function drawHighway(
     )
   }
 
-  for (const { note, render } of noteRenders) {
+  for (const { note, render, starPowerNote } of noteRenders) {
     drawSustainTail(
       context,
       width,
@@ -1757,6 +1777,7 @@ export function drawHighway(
       travelSeconds,
       frame.whammyAmount,
       frame.stats.starPowerActive,
+      starPowerNote,
       highwayLength,
       hitLineRatio,
     )
@@ -1773,7 +1794,7 @@ export function drawHighway(
     tapMode,
   )
 
-  for (const { note, render } of noteRenders) {
+  for (const { note, render, starPowerNote } of noteRenders) {
     if (render.activeSustain) continue
     const point = highwayPoint(
       width,
@@ -1794,6 +1815,7 @@ export function drawHighway(
         note,
         render.state === 'miss',
         frame.stats.starPowerActive,
+        starPowerNote,
       )
     } else {
       drawChordBridge(
@@ -1817,6 +1839,7 @@ export function drawHighway(
           note,
           render.state === 'miss',
           frame.stats.starPowerActive,
+          starPowerNote,
         )
       }
     }
