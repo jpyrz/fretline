@@ -53,14 +53,14 @@ export function TouchControls({
   useLayoutEffect(() => {
     const controls = controlsRef.current
     const lanes = lanesRef.current
-    const target = lanes?.querySelector('span')
-    if (!controls || !target) return
+    if (!controls || !lanes) return
+    const target = lanes.querySelector<HTMLSpanElement>('span')
+    if (!target) return
 
     const alignLaneTargets = () => {
       const controlsBounds = controls.getBoundingClientRect()
-      const targetBounds = target.getBoundingClientRect()
       const targetCenterY =
-        targetBounds.top + targetBounds.height / 2 - controlsBounds.top
+        lanes.offsetTop + target.offsetTop + target.offsetHeight / 2
       const laneWidth = highwayGuideWidthAtY(
         controlsBounds.width,
         controlsBounds.height,
