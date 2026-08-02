@@ -499,10 +499,13 @@ export function SongSelectView() {
                   type="button"
                   className={styles.playButton}
                   data-controller-target="play-song"
+                  aria-label="Choose part and play"
+                  title="Choose part"
                   onClick={() => openSetup()}
                 >
-                  Choose part
-                  <span aria-hidden="true">→</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8.25 5.35v13.3L18.8 12 8.25 5.35Z" />
+                  </svg>
                 </button>
               </div>
             </>
