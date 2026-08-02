@@ -32,6 +32,10 @@ import {
   readControllerState,
 } from './input/controllerState'
 import {
+  closestHitCandidate,
+  type NoteJudgementState,
+} from './input/hitCandidate'
+import {
   findHandiTapBurstReentry,
   handiTapSustainReleaseExpired,
   isPartialHandiTapChord,
@@ -122,7 +126,7 @@ export class GameEngine {
   private readonly keyboardLanes = new Set<Lane>()
   private readonly tapSweepBuffer = new TapSweepBuffer()
   private touchLanes: Lane[] = []
-  private readonly noteStates: Array<'pending' | 'hit' | 'miss'>
+  private readonly noteStates: NoteJudgementState[]
   private readonly sustainStates: SustainState[]
   private readonly sustainBasePointsAwarded: number[]
   private readonly sustainMismatchStartedAt: Array<number | null>
@@ -935,54 +939,44 @@ export class GameEngine {
       rawSongTime - this.calibration.inputOffsetMs / 1000
     const windowSeconds = HIT_WINDOW_MS / 1000
 
-    let candidateIndex = -1
-    let candidateDistance = Number.POSITIVE_INFINITY
-
-    for (
-      let index = this.missCursor;
-      index < this.chart.notes.length;
-      index += 1
-    ) {
-      if (this.noteStates[index] !== 'pending') continue
-      const note = this.chart.notes[index]
-      if (note.timeSeconds > scoringTime + windowSeconds) break
-      if (
-        inputType === 'fret' &&
-        !canFretHit(
-          note,
-          index > 0 &&
-            this.lastHitNoteIndex === index - 1 &&
-            this.noteStates[index - 1] === 'hit',
+    const heldLanes = heldLanesOverride ?? this.heldLanes()
+    const activeSustainLanes = this.activeSustainLanes()
+    const candidateIndex = closestHitCandidate({
+      notes: this.chart.notes,
+      noteStates: this.noteStates,
+      startIndex: this.missCursor,
+      scoringTime,
+      windowSeconds,
+      isEligible: (note, index) => {
+        if (
+          inputType === 'fret' &&
+          !canFretHit(
+            note,
+            index > 0 &&
+              this.lastHitNoteIndex === index - 1 &&
+              this.noteStates[index - 1] === 'hit',
+          )
+        ) {
+          return false
+        }
+        if (
+          inputType === 'tap-slide' &&
+          !note.tap &&
+          !note.hopo
+        ) {
+          return false
+        }
+        if (inputType === 'tap-open-release' && !note.open) return false
+        return (
+          this.calibrationMode ||
+          lanesMatchWithActiveSustains(
+            note,
+            heldLanes,
+            activeSustainLanes,
+          )
         )
-      ) {
-        continue
-      }
-      if (
-        inputType === 'tap-slide' &&
-        !note.tap &&
-        !note.hopo
-      ) {
-        continue
-      }
-      if (inputType === 'tap-open-release' && !note.open) continue
-      if (
-        heldLanesOverride &&
-        !lanesMatchWithActiveSustains(
-          note,
-          heldLanesOverride,
-          this.activeSustainLanes(),
-        )
-      ) {
-        continue
-      }
-      const distance = Math.abs(
-        scoringTime - note.timeSeconds,
-      )
-      if (distance <= windowSeconds && distance < candidateDistance) {
-        candidateIndex = index
-        candidateDistance = distance
-      }
-    }
+      },
+    })
 
     if (candidateIndex === -1) {
       return false
