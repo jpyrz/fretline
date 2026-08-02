@@ -33,6 +33,7 @@ import {
 } from './input/controllerState'
 import {
   closestHitCandidate,
+  frontendHopoCandidate,
   type NoteJudgementState,
 } from './input/hitCandidate'
 import {
@@ -160,6 +161,7 @@ export class GameEngine {
   private recordsSnapshot: SessionStats['records'] = []
   private recordsDirty = true
   private mixGain: GainNode | null = null
+  private bufferedHopoNoteIndex: number | null = null
 
   constructor(options: GameEngineOptions) {
     this.audioContext = options.audioContext
@@ -263,6 +265,7 @@ export class GameEngine {
     this.touchLanes = []
     this.touchWhammy = 0
     this.tapSweepBuffer.reset()
+    this.bufferedHopoNoteIndex = null
     this.lastStatsPush = 0
     this.statsDirty = true
     this.recordsSnapshot = []
@@ -282,6 +285,7 @@ export class GameEngine {
     this.mixGain?.disconnect()
     this.mixGain = null
     this.tapSweepBuffer.reset()
+    this.bufferedHopoNoteIndex = null
     this.onPauseChange(true)
   }
 
@@ -881,12 +885,62 @@ export class GameEngine {
     this.stats.overstrums += 1
     this.stats.streak = 0
     this.lastHitNoteIndex = null
+    this.bufferedHopoNoteIndex = null
     this.pushStats()
   }
 
   private fretChange(performanceTime: number): void {
     if (this.calibrationMode) return
-    this.attemptHit(performanceTime, 'fret')
+    this.bufferedHopoNoteIndex = null
+    if (this.attemptHit(performanceTime, 'fret')) return
+
+    const candidateIndex = frontendHopoCandidate({
+      notes: this.chart.notes,
+      noteStates: this.noteStates,
+      startIndex: this.missCursor,
+      lastHitNoteIndex: this.lastHitNoteIndex,
+      heldLanes: this.heldLanes(),
+      activeSustainLanes: this.activeSustainLanes(),
+    })
+    this.bufferedHopoNoteIndex =
+      candidateIndex >= 0 ? candidateIndex : null
+  }
+
+  private attemptBufferedHopo(
+    rawSongTime: number,
+    scoringTime: number,
+  ): void {
+    const noteIndex = this.bufferedHopoNoteIndex
+    if (noteIndex === null) return
+
+    const note = this.chart.notes[noteIndex]
+    const previousNoteHit =
+      noteIndex > 0 &&
+      this.lastHitNoteIndex === noteIndex - 1 &&
+      this.noteStates[noteIndex - 1] === 'hit'
+    const stillEligible =
+      this.noteStates[noteIndex] === 'pending' &&
+      canFretHit(note, previousNoteHit) &&
+      lanesMatchWithActiveSustains(
+        note,
+        this.heldLanes(),
+        this.activeSustainLanes(),
+      )
+
+    if (!stillEligible) {
+      this.bufferedHopoNoteIndex = null
+      return
+    }
+
+    const windowSeconds = HIT_WINDOW_MS / 1000
+    if (scoringTime < note.timeSeconds - windowSeconds) return
+    if (scoringTime > note.timeSeconds + windowSeconds) {
+      this.bufferedHopoNoteIndex = null
+      return
+    }
+
+    this.bufferedHopoNoteIndex = null
+    this.completeHit(noteIndex, rawSongTime, scoringTime)
   }
 
   private isPartialTapChordAt(performanceTime: number): boolean {
@@ -1011,6 +1065,7 @@ export class GameEngine {
       return false
     }
 
+    this.bufferedHopoNoteIndex = null
     const errorMs = (scoringTime - note.timeSeconds) * 1000
     this.noteStates[candidateIndex] = 'hit'
     if (note.sustainTicks > 0 && note.sustainSeconds > 0.03) {
@@ -1218,6 +1273,7 @@ export class GameEngine {
       this.readGamepad(now)
     }
     this.updateStarPower(scoringTime)
+    this.attemptBufferedHopo(songTimeSeconds, scoringTime)
     this.attemptBufferedTapSweep(songTimeSeconds, scoringTime)
     this.updateSustains(scoringTime)
     this.updateWhammyAudio(scoringTime)
