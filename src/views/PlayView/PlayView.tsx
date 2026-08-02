@@ -13,6 +13,7 @@ import { GameEngine } from '../../game/GameEngine'
 import { drawHighway } from '../../game/drawHighway'
 import { adaptChartForHandiTap } from '../../game/handiTap/handiTap'
 import { preloadGameplayVfx } from '../../game/rendering/vfxSprites'
+import { DEFAULT_HIT_LINE_RATIO } from '../../game/rendering/highwayGeometry'
 import { createCalibrationAudio } from '../../lib/calibrationSong'
 import { audioFileMetadata } from '../../lib/songLibrary'
 import {
@@ -30,6 +31,7 @@ import { PauseScreen } from './components/PauseScreen'
 import { ResultsOverlay } from './components/ResultsOverlay'
 import { ScoreHud } from './components/ScoreHud'
 import { TouchControls } from './components/TouchControls'
+import { StarPowerRail } from './components/TouchControls/StarPowerRail'
 import { useVisualImage } from './hooks/useVisualImage'
 import { useGameplayInteractionLock } from './hooks/useGameplayInteractionLock'
 import { calculateSessionResults } from './sessionResults'
@@ -605,6 +607,18 @@ export function PlayView() {
           data-gameplay-touch-surface={phase === 'playing' || undefined}
         >
           <HighwayCanvas ref={canvasRef} />
+
+          {phase === 'playing' &&
+            inputMode === 'standard' &&
+            song.kind !== 'calibration' && (
+              <StarPowerRail
+                highwayLength={highwaySettings.length}
+                hitLineRatio={DEFAULT_HIT_LINE_RATIO}
+                active={stats.starPowerActive}
+                charge={stats.starPowerMeter}
+                interactive={false}
+              />
+            )}
 
           {immersiveLoading && (
             <div

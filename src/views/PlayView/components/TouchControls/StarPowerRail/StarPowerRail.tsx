@@ -43,7 +43,9 @@ interface StarPowerRailProps {
   highwayLength: number
   active: boolean
   charge: number
-  onActivate: (timestamp: number) => void
+  hitLineRatio?: number
+  interactive?: boolean
+  onActivate?: (timestamp: number) => void
 }
 
 type RailStyle = CSSProperties & {
@@ -54,20 +56,21 @@ function calculatePlacement(
   width: number,
   height: number,
   highwayLength: number,
+  hitLineRatio: number,
 ): RailPlacement {
   const top = highwayPoint(
     width,
     height,
     RAIL_TOP_PROGRESS,
     highwayLength,
-    TAP_HIT_LINE_RATIO,
+    hitLineRatio,
   )
   const bottom = highwayPoint(
     width,
     height,
     RAIL_BOTTOM_PROGRESS,
     highwayLength,
-    TAP_HIT_LINE_RATIO,
+    hitLineRatio,
   )
   const topX = trackEdge(top, -1)
   const bottomX = trackEdge(bottom, -1)
@@ -104,9 +107,11 @@ export function StarPowerRail({
   highwayLength,
   active,
   charge,
+  hitLineRatio = TAP_HIT_LINE_RATIO,
+  interactive = true,
   onActivate,
 }: StarPowerRailProps) {
-  const railRef = useRef<HTMLButtonElement>(null)
+  const railRef = useRef<HTMLElement | null>(null)
   const gestureRef = useRef<ActiveGesture | null>(null)
   const [placement, setPlacement] = useState<RailPlacement | null>(
     null,
@@ -126,6 +131,7 @@ export function StarPowerRail({
           bounds.width,
           bounds.height,
           highwayLength,
+          hitLineRatio,
         ),
       )
     }
@@ -134,11 +140,11 @@ export function StarPowerRail({
     const observer = new ResizeObserver(positionRail)
     observer.observe(container)
     return () => observer.disconnect()
-  }, [highwayLength])
+  }, [highwayLength, hitLineRatio])
 
   const activate = (timestamp: number) => {
-    if (!ready) return
-    onActivate(timestamp)
+    if (!interactive || !ready) return
+    onActivate?.(timestamp)
   }
 
   const clearGesture = (event: PointerEvent<HTMLButtonElement>) => {
@@ -164,26 +170,64 @@ export function StarPowerRail({
     activate(event.timeStamp)
   }
 
+  const label = `Star Power ${Math.round(boundedCharge * 100)} percent charged. ${ready ? interactive ? 'Swipe up or tap to activate.' : 'Ready to activate.' : active ? 'Star Power is active.' : 'Charge the meter to activate.'}`
+  const railStyle = placement
+    ? ({
+        '--power-charge': boundedCharge,
+        left: placement.left,
+        top: placement.top,
+        height: placement.height,
+        transform: `translate(-50%, -50%) rotate(${placement.angle}deg)`,
+      } as RailStyle)
+    : ({ '--power-charge': boundedCharge } as RailStyle)
+  const contents = (
+    <>
+      {interactive && (
+        <span className={styles.swipeCue} aria-hidden="true">
+          ↑
+        </span>
+      )}
+      <span className={styles.track} aria-hidden="true">
+        <i className={styles.fill} />
+        <i className={styles.readyLine} />
+      </span>
+      <span className={styles.ignition} aria-hidden="true">
+        <i>★</i>
+      </span>
+    </>
+  )
+
+  if (!interactive) {
+    return (
+      <div
+        ref={(node) => {
+          railRef.current = node
+        }}
+        className={styles.rail}
+        data-active={active || undefined}
+        data-ready={ready || undefined}
+        data-interactive="false"
+        role="img"
+        aria-label={label}
+        style={railStyle}
+      >
+        {contents}
+      </div>
+    )
+  }
+
   return (
     <button
-      ref={railRef}
+      ref={(node) => {
+        railRef.current = node
+      }}
       type="button"
       className={styles.rail}
       data-active={active || undefined}
       data-ready={ready || undefined}
-      aria-label={`Star Power ${Math.round(boundedCharge * 100)} percent charged. ${ready ? 'Swipe up or tap to activate.' : active ? 'Star Power is active.' : 'Charge the meter to activate.'}`}
+      aria-label={label}
       aria-pressed={active}
-      style={
-        placement
-          ? ({
-              '--power-charge': boundedCharge,
-              left: placement.left,
-              top: placement.top,
-              height: placement.height,
-              transform: `translate(-50%, -50%) rotate(${placement.angle}deg)`,
-            } as RailStyle)
-          : ({ '--power-charge': boundedCharge } as RailStyle)
-      }
+      style={railStyle}
       onPointerDown={(event) => {
         event.preventDefault()
         event.currentTarget.setPointerCapture(event.pointerId)
@@ -226,16 +270,7 @@ export function StarPowerRail({
       }}
       onKeyDown={handleKeyDown}
     >
-      <span className={styles.swipeCue} aria-hidden="true">
-        ↑
-      </span>
-      <span className={styles.track} aria-hidden="true">
-        <i className={styles.fill} />
-        <i className={styles.readyLine} />
-      </span>
-      <span className={styles.ignition} aria-hidden="true">
-        <i>★</i>
-      </span>
+      {contents}
     </button>
   )
 }
