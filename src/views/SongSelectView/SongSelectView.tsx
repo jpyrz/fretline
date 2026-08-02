@@ -22,7 +22,7 @@ import {
   type TrackChoice,
 } from '../../lib/trackSelection'
 import { useAppState } from '../../state/AppState'
-import type { LocalSong } from '../../types/game'
+import type { LocalSong, PracticeSection } from '../../types/game'
 import {
   PlayerSetup,
   type SetupStep,
@@ -67,6 +67,9 @@ export function SongSelectView() {
     useState<PlayInputMode>(playPreferences.inputMode)
   const [selectedPracticeSpeed, setSelectedPracticeSpeed] =
     useState<PracticeSpeed>(playPreferences.practiceSpeed)
+  const [selectedPracticeSectionId, setSelectedPracticeSectionId] =
+    useState<string | null>(null)
+  const [practiceLoop, setPracticeLoop] = useState(false)
   const tapAvailable = touchInputAvailable()
   const gameplayHandoffRef = useRef(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -117,6 +120,10 @@ export function SongSelectView() {
         (track) => track.difficulty === selectedDifficulty,
       ) ?? preferredTrack(selectedInstrument, playPreferences.difficulty)
     : null
+  const selectedPracticeSection =
+    selectedTrack?.chart.practiceSections?.find(
+      (section) => section.id === selectedPracticeSectionId,
+    ) ?? null
   const previewStatus = useSongPreview(
     selectedSong,
     Boolean(selectedSong),
@@ -217,6 +224,8 @@ export function SongSelectView() {
     setSelectedDifficulty(track.difficulty)
     setSelectedInputMode(playPreferences.inputMode)
     setSelectedPracticeSpeed(playPreferences.practiceSpeed)
+    setSelectedPracticeSectionId(null)
+    setPracticeLoop(false)
     setSetupStep('configure')
   }
 
@@ -243,7 +252,8 @@ export function SongSelectView() {
       setupStep === 'input' ||
       setupStep === 'instrument' ||
       setupStep === 'difficulty' ||
-      setupStep === 'speed'
+      setupStep === 'speed' ||
+      setupStep === 'section'
     ) {
       setSetupStep('configure')
     } else {
@@ -276,6 +286,8 @@ export function SongSelectView() {
         loadingPhrase: pickLoadingPhrase(),
         inputMode: selectedInputMode,
         practiceSpeed: selectedPracticeSpeed,
+        practiceSection: selectedPracticeSection,
+        practiceLoop: Boolean(selectedPracticeSection && practiceLoop),
       },
     })
   }
@@ -291,6 +303,8 @@ export function SongSelectView() {
         selectedTrack={selectedTrack}
         selectedInputMode={selectedInputMode}
         selectedPracticeSpeed={selectedPracticeSpeed}
+        selectedPracticeSection={selectedPracticeSection}
+        practiceLoop={practiceLoop}
         touchAvailable={tapAvailable}
         controllerConfigured={controllerMapping !== null}
         onBack={closeSetup}
@@ -299,6 +313,7 @@ export function SongSelectView() {
         onShowInstruments={() => setSetupStep('instrument')}
         onShowDifficulties={() => setSetupStep('difficulty')}
         onShowPracticeSpeeds={() => setSetupStep('speed')}
+        onShowPracticeSections={() => setSetupStep('section')}
         onChooseInputMode={chooseInputMode}
         onChooseInstrument={chooseInstrument}
         onChooseDifficulty={chooseDifficulty}
@@ -306,6 +321,12 @@ export function SongSelectView() {
           setSelectedPracticeSpeed(speed)
           setSetupStep('configure')
         }}
+        onChoosePracticeSection={(section: PracticeSection | null) => {
+          setSelectedPracticeSectionId(section?.id ?? null)
+          if (!section) setPracticeLoop(false)
+          setSetupStep('configure')
+        }}
+        onPracticeLoopChange={setPracticeLoop}
       />
     )
   }

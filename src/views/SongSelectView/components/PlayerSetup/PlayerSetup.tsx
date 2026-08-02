@@ -6,7 +6,7 @@ import {
   type InstrumentChoice,
   type TrackChoice,
 } from '../../../../lib/trackSelection'
-import type { LocalSong } from '../../../../types/game'
+import type { LocalSong, PracticeSection } from '../../../../types/game'
 import type { PlayInputMode } from '../../../../lib/inputMode'
 import {
   formatPracticeSpeed,
@@ -22,6 +22,7 @@ export type SetupStep =
   | 'instrument'
   | 'difficulty'
   | 'speed'
+  | 'section'
 
 interface PlayerSetupProps {
   song: LocalSong
@@ -32,6 +33,8 @@ interface PlayerSetupProps {
   selectedTrack: TrackChoice | null | undefined
   selectedInputMode: PlayInputMode
   selectedPracticeSpeed: PracticeSpeed
+  selectedPracticeSection: PracticeSection | null
+  practiceLoop: boolean
   touchAvailable: boolean
   controllerConfigured: boolean
   onBack: () => void
@@ -40,10 +43,13 @@ interface PlayerSetupProps {
   onShowInstruments: () => void
   onShowDifficulties: () => void
   onShowPracticeSpeeds: () => void
+  onShowPracticeSections: () => void
   onChooseInputMode: (mode: PlayInputMode) => void
   onChooseInstrument: (instrument: InstrumentChoice) => void
   onChooseDifficulty: (track: TrackChoice) => void
   onChoosePracticeSpeed: (speed: PracticeSpeed) => void
+  onChoosePracticeSection: (section: PracticeSection | null) => void
+  onPracticeLoopChange: (enabled: boolean) => void
 }
 
 export function PlayerSetup({
@@ -55,6 +61,8 @@ export function PlayerSetup({
   selectedTrack,
   selectedInputMode,
   selectedPracticeSpeed,
+  selectedPracticeSection,
+  practiceLoop,
   touchAvailable,
   controllerConfigured,
   onBack,
@@ -63,11 +71,15 @@ export function PlayerSetup({
   onShowInstruments,
   onShowDifficulties,
   onShowPracticeSpeeds,
+  onShowPracticeSections,
   onChooseInputMode,
   onChooseInstrument,
   onChooseDifficulty,
   onChoosePracticeSpeed,
+  onChoosePracticeSection,
+  onPracticeLoopChange,
 }: PlayerSetupProps) {
+  const practiceSections = selectedTrack?.chart.practiceSections ?? []
   return (
     <main className={styles.setupPage} data-step={step}>
       <div className={styles.setupBackdrop} aria-hidden="true">
@@ -106,6 +118,9 @@ export function PlayerSetup({
                 {selectedInstrument?.label}
                 {selectedPracticeSpeed < 1
                   ? ` · Practice ${formatPracticeSpeed(selectedPracticeSpeed)}`
+                  : ''}
+                {selectedPracticeSection
+                  ? ` · ${selectedPracticeSection.name}`
                   : ''}
               </small>
             </span>
@@ -163,6 +178,35 @@ export function PlayerSetup({
                   {selectedPracticeSpeed === 1
                     ? 'Off · 100%'
                     : formatPracticeSpeed(selectedPracticeSpeed)}
+                </strong>
+              </button>
+              <button
+                type="button"
+                data-controller-nav-item
+                disabled={practiceSections.length === 0}
+                onClick={onShowPracticeSections}
+              >
+                <span>Practice section</span>
+                <strong>
+                  {practiceSections.length === 0
+                    ? 'No chart markers'
+                    : selectedPracticeSection?.name ?? 'Full song'}
+                </strong>
+              </button>
+              <button
+                type="button"
+                data-controller-nav-item
+                disabled={!selectedPracticeSection}
+                aria-pressed={practiceLoop}
+                onClick={() => onPracticeLoopChange(!practiceLoop)}
+              >
+                <span>Loop section</span>
+                <strong>
+                  {selectedPracticeSection
+                    ? practiceLoop
+                      ? 'On · 3-count each pass'
+                      : 'Off'
+                    : 'Choose a section'}
                 </strong>
               </button>
               <div className={styles.disabledMenuRow} aria-disabled="true">
@@ -322,6 +366,52 @@ export function PlayerSetup({
                         {speed === 1
                           ? 'Quick Play timing'
                           : 'Practice run · results are marked separately'}
+                      </small>
+                    </span>
+                    <b aria-hidden="true">{active ? '●' : '○'}</b>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {step === 'section' && (
+            <div className={styles.inlinePicker}>
+              <p>Practice section</p>
+              <button
+                type="button"
+                data-controller-nav-item
+                data-controller-default={!selectedPracticeSection || undefined}
+                data-active={!selectedPracticeSection}
+                onClick={() => onChoosePracticeSection(null)}
+              >
+                <span>
+                  <strong>Full song</strong>
+                  <small>Play from beginning to end</small>
+                </span>
+                <b aria-hidden="true">{selectedPracticeSection ? '○' : '●'}</b>
+              </button>
+              {practiceSections.map((section) => {
+                const active = section.id === selectedPracticeSection?.id
+                return (
+                  <button
+                    type="button"
+                    key={section.id}
+                    data-controller-nav-item
+                    data-controller-default={active || undefined}
+                    data-active={active}
+                    onClick={() => onChoosePracticeSection(section)}
+                  >
+                    <span>
+                      <strong>{section.name}</strong>
+                      <small>
+                        {Math.max(
+                          1,
+                          Math.round(
+                            section.endTimeSeconds - section.startTimeSeconds,
+                          ),
+                        )}{' '}
+                        second section
                       </small>
                     </span>
                     <b aria-hidden="true">{active ? '●' : '○'}</b>

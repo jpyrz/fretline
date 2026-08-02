@@ -3,6 +3,7 @@ import type {
   ChartNote,
   Lane,
   ParsedChart,
+  PracticeSection,
   StarPowerPhrase,
   TempoEvent,
 } from '../types/game'
@@ -197,6 +198,79 @@ function readStarPowerPhrases(
     }))
 
   return createStarPowerPhrases(rawPhrases, metadata, tempos)
+}
+
+function cleanSectionName(value: string): string {
+  return value
+    .replace(/^section\s+/i, '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function createPracticeSections(
+  rawSections: Array<{ tick: number; name: string }>,
+  metadata: ChartMetadata,
+  tempos: TempoEvent[],
+  durationSeconds: number,
+): PracticeSection[] {
+  const sections = rawSections
+    .map((section) => ({
+      tick: section.tick,
+      name: cleanSectionName(section.name),
+    }))
+    .filter(
+      (section) =>
+        Number.isFinite(section.tick) &&
+        section.tick >= 0 &&
+        section.name.length > 0,
+    )
+    .sort((left, right) => left.tick - right.tick)
+    .filter(
+      (section, index, entries) =>
+        index === 0 || section.tick !== entries[index - 1].tick,
+    )
+
+  return sections.flatMap((section, index) => {
+    const startTimeSeconds = tickToSeconds(
+      section.tick,
+      tempos,
+      metadata.resolution,
+      metadata.offsetSeconds,
+    )
+    const next = sections[index + 1]
+    const endTimeSeconds = next
+      ? tickToSeconds(
+          next.tick,
+          tempos,
+          metadata.resolution,
+          metadata.offsetSeconds,
+        )
+      : durationSeconds
+    if (endTimeSeconds <= startTimeSeconds) return []
+    return [
+      {
+        id: `${section.tick}:${section.name.toLowerCase()}`,
+        name: section.name,
+        startTimeSeconds,
+        endTimeSeconds,
+      },
+    ]
+  })
+}
+
+function readPracticeSectionMarkers(section: string | undefined): Array<{
+  tick: number
+  name: string
+}> {
+  if (!section) return []
+  return section.split('\n').flatMap((line) => {
+    const match = line.match(
+      /^\s*(\d+)\s*=\s*E\s+["“]?section\s+(.+?)["”]?\s*$/i,
+    )
+    if (!match) return []
+    return [{ tick: Number(match[1]), name: cleanValue(match[2]) }]
+  })
 }
 
 export function createStarPowerPhrases(
@@ -403,13 +477,21 @@ export function parseChart(
   }
 
   const last = notes[notes.length - 1]
+  const durationSeconds =
+    last.timeSeconds + last.sustainSeconds + 1.5
   return {
     metadata,
     notes,
     tempos,
     trackName,
     availableTracks,
-    durationSeconds: last.timeSeconds + last.sustainSeconds + 1.5,
+    durationSeconds,
     starPowerPhrases,
+    practiceSections: createPracticeSections(
+      readPracticeSectionMarkers(sections.get('Events')),
+      metadata,
+      tempos,
+      durationSeconds,
+    ),
   }
 }

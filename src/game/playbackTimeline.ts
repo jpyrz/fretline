@@ -27,19 +27,32 @@ export function createPlaybackSchedule(
   leadSeconds = 0,
   audioOffsetSeconds = 0,
   playbackRate = 1,
+  chartOriginSeconds = 0,
 ): PlaybackSchedule {
   const safePlaybackRate = Math.max(0.01, playbackRate)
   const requestedStartContextTime = currentContextTime + leadSeconds
   const chartStartContextTime =
     songTimeSeconds < 0
       ? requestedStartContextTime - songTimeSeconds
-      : requestedStartContextTime - songTimeSeconds / safePlaybackRate
-  const audioPositionAtRequestedStart =
-    songTimeSeconds + audioOffsetSeconds
+      : requestedStartContextTime -
+        (songTimeSeconds - chartOriginSeconds) / safePlaybackRate
+  const sectionCountdown =
+    songTimeSeconds < 0 && chartOriginSeconds > 0
+  const audioPositionAtRequestedStart = sectionCountdown
+    ? chartOriginSeconds + audioOffsetSeconds
+    : songTimeSeconds + audioOffsetSeconds
   const sourceStartContextTime =
-    audioPositionAtRequestedStart < 0
-      ? chartStartContextTime - audioOffsetSeconds / safePlaybackRate
-      : requestedStartContextTime
+    sectionCountdown
+      ? audioPositionAtRequestedStart < 0
+        ? chartStartContextTime -
+          audioPositionAtRequestedStart / safePlaybackRate
+        : chartStartContextTime
+      : songTimeSeconds < 0
+        ? chartStartContextTime - audioOffsetSeconds / safePlaybackRate
+      : audioPositionAtRequestedStart < 0
+        ? chartStartContextTime -
+          audioPositionAtRequestedStart / safePlaybackRate
+        : requestedStartContextTime
 
   return {
     chartStartContextTime,

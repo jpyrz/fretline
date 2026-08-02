@@ -32,6 +32,7 @@ import {
   readControllerState,
 } from './input/controllerState'
 import {
+  findHandiTapBurstReentry,
   handiTapSustainReleaseExpired,
   isPartialHandiTapChord,
 } from './input/tapInput'
@@ -43,6 +44,7 @@ import type {
   KeyboardMapping,
   Lane,
   ParsedChart,
+  PracticeSection,
   SessionStats,
   StarPowerPhraseState,
   SustainState,
@@ -57,6 +59,8 @@ interface GameEngineOptions {
   keyboardMapping: KeyboardMapping
   inputMode?: PlayInputMode
   playbackRate?: number
+  practiceSection?: PracticeSection | null
+  practiceLoop?: boolean
   calibrationMode?: boolean
   whammyBufferIndices?: number[]
   onFrame: (frame: GameFrame) => void
@@ -102,6 +106,9 @@ export class GameEngine {
   private readonly keyboardMapping: KeyboardMapping
   private readonly inputMode: PlayInputMode
   private playbackRate: number
+  private readonly practiceStartSeconds: number
+  private readonly practiceEndSeconds: number
+  private readonly practiceLoop: boolean
   private readonly calibrationMode: boolean
   private readonly whammyBufferIndices: ReadonlySet<number>
   private readonly keyboardLanesByCode: Map<string, Lane>
@@ -160,6 +167,15 @@ export class GameEngine {
     this.keyboardMapping = options.keyboardMapping
     this.inputMode = options.inputMode ?? 'standard'
     this.playbackRate = Math.max(0.25, Math.min(1, options.playbackRate ?? 1))
+    this.practiceStartSeconds = Math.max(
+      0,
+      options.practiceSection?.startTimeSeconds ?? 0,
+    )
+    this.practiceEndSeconds = Math.max(
+      this.practiceStartSeconds,
+      options.practiceSection?.endTimeSeconds ?? Number.POSITIVE_INFINITY,
+    )
+    this.practiceLoop = Boolean(options.practiceSection && options.practiceLoop)
     this.calibrationMode = options.calibrationMode ?? false
     this.whammyBufferIndices = new Set(options.whammyBufferIndices ?? [])
     this.keyboardLanesByCode = new Map(
@@ -219,7 +235,13 @@ export class GameEngine {
     this.activeSustains.clear()
     this.starPowerPhraseStates.fill('pending')
     Object.assign(this.stats, freshStats())
-    this.missCursor = 0
+    this.missCursor = this.chart.notes.findIndex(
+      (note) => note.timeSeconds >= this.practiceStartSeconds,
+    )
+    if (this.missCursor < 0) this.missCursor = this.chart.notes.length
+    for (let index = 0; index < this.missCursor; index += 1) {
+      this.noteStates[index] = 'hit'
+    }
     this.lastHitNoteIndex = null
     this.finished = false
     this.paused = false
@@ -283,6 +305,7 @@ export class GameEngine {
     this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
     const performanceTime = normalizePerformanceTimestamp(eventTimestamp)
     if (this.attemptHit(performanceTime, 'tap')) return
+    if (this.attemptHandiTapBurstReentry(performanceTime)) return
     if (this.isPartialTapChordAt(performanceTime)) return
     this.recordOverstrum(performanceTime)
   }
@@ -402,6 +425,7 @@ export class GameEngine {
       leadSeconds,
       this.audioOffsetMs / 1000,
       this.playbackRate,
+      this.practiceStartSeconds,
     )
     this.startContextTime = schedule.chartStartContextTime
 
@@ -522,7 +546,65 @@ export class GameEngine {
   private songTimeAt(performanceTime: number): number {
     const elapsedContextTime =
       this.audioTimeAt(performanceTime) - this.startContextTime
-    return chartTimeForPlayback(elapsedContextTime, this.playbackRate)
+    const relativeTime = chartTimeForPlayback(
+      elapsedContextTime,
+      this.playbackRate,
+    )
+    return relativeTime < 0
+      ? relativeTime
+      : this.practiceStartSeconds + relativeTime
+  }
+
+  private attemptHandiTapBurstReentry(performanceTime: number): boolean {
+    if (this.inputMode !== 'tap') return false
+    const rawSongTime = this.songTimeAt(performanceTime)
+    if (rawSongTime < 0) return false
+    const scoringTime =
+      rawSongTime - this.calibration.inputOffsetMs / 1000
+    const marker = findHandiTapBurstReentry(
+      this.chart.handiTapBurstMarkers ?? [],
+      this.noteStates,
+      this.sustainStates,
+      this.heldLanes(),
+      scoringTime,
+      HIT_WINDOW_MS / 1000,
+    )
+    if (!marker) return false
+
+    const noteIndex = marker.parentNoteIndex
+    const note = this.chart.notes[noteIndex]
+    if (!note) return false
+    this.noteStates[noteIndex] = 'hit'
+    this.sustainStates[noteIndex] = 'holding'
+    this.sustainMismatchStartedAt[noteIndex] = null
+    this.activeSustains.add(noteIndex)
+    const currentTick = secondsToTick(
+      scoringTime,
+      this.chart.tempos,
+      this.chart.metadata.resolution,
+      this.chart.metadata.offsetSeconds,
+    )
+    this.sustainBasePointsAwarded[noteIndex] = sustainBasePointsAtTick(
+      note,
+      currentTick,
+      this.chart.metadata.resolution,
+    )
+    this.stats.score += scoreForHit(1, this.stats.streak, this.stats.starPowerActive)
+    this.stats.streak += 1
+    this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak)
+    this.stats.hits += 1
+    const errorMs = (scoringTime - marker.timeSeconds) * 1000
+    this.stats.lastErrorMs = errorMs
+    this.stats.records.push({ noteIndex, errorMs, result: 'hit' })
+    this.recordsDirty = true
+    this.hitFlash = {
+      lanes: [marker.lane],
+      open: false,
+      startedAt: rawSongTime,
+      expiresAt: rawSongTime + 0.26,
+    }
+    this.pushStats()
+    return true
   }
 
   private heldLanes(): Lane[] {
@@ -1172,7 +1254,10 @@ export class GameEngine {
     this.onFrame({
       songTimeSeconds,
       visualTimeSeconds:
-        songTimeSeconds + this.calibration.videoOffsetMs / 1000,
+        (songTimeSeconds < 0
+          ? this.practiceStartSeconds + songTimeSeconds
+          : songTimeSeconds) +
+        this.calibration.videoOffsetMs / 1000,
       heldLanes: this.heldLanes(),
       noteStates: this.noteStates,
       sustainStates: this.sustainStates,
@@ -1186,7 +1271,15 @@ export class GameEngine {
       starPowerPhraseFlash: this.starPowerPhraseFlash,
     })
 
-    if (songTimeSeconds > this.endTimeSeconds + 0.35) {
+    const sectionRun = Number.isFinite(this.practiceEndSeconds)
+    const runEndSeconds = sectionRun
+      ? this.practiceEndSeconds
+      : this.endTimeSeconds + 0.35
+    if (songTimeSeconds >= runEndSeconds) {
+      if (this.practiceLoop) {
+        this.restart()
+        return
+      }
       this.finished = true
       const finalStats = this.snapshotStats()
       this.stop()

@@ -1,6 +1,7 @@
 import { parseMidi, type MidiEvent } from 'midi-file'
 import {
   applyStarPowerPhrases,
+  createPracticeSections,
   createStarPowerPhrases,
   createTempoEvents,
   groupNotes,
@@ -186,6 +187,24 @@ function readMarkerPhrases(
   return phrases
 }
 
+function readPracticeSectionMarkers(
+  tracks: MidiTrack[],
+): Array<{ tick: number; name: string }> {
+  return tracks.flatMap((track) =>
+    track.events.flatMap(({ tick, event }) => {
+      if (
+        event.type !== 'text' &&
+        event.type !== 'marker' &&
+        event.type !== 'cuePoint'
+      ) {
+        return []
+      }
+      const match = event.text.trim().match(/^\[?section\s+(.+?)\]?$/i)
+      return match ? [{ tick, name: match[1] }] : []
+    }),
+  )
+}
+
 export function parseMidiCharts(
   source: ArrayBuffer | Uint8Array,
   iniMetadata?: SongIniMetadata,
@@ -203,6 +222,7 @@ export function parseMidiCharts(
     return { name: getTrackName(timedEvents), events: timedEvents }
   })
   const tempos = readMidiTempos(tracks, resolution)
+  const rawPracticeSections = readPracticeSectionMarkers(tracks)
   const metadata: ChartMetadata = {
     name: iniMetadata?.name || 'Untitled chart',
     artist: iniMetadata?.artist || 'Unknown artist',
@@ -268,14 +288,22 @@ export function parseMidiCharts(
       starPowerPhrases,
     )
     const last = notes[notes.length - 1]
+    const durationSeconds =
+      last.timeSeconds + last.sustainSeconds + 1.5
     return {
       metadata,
       notes,
       tempos,
       trackName,
       availableTracks,
-      durationSeconds: last.timeSeconds + last.sustainSeconds + 1.5,
+      durationSeconds,
       starPowerPhrases,
+      practiceSections: createPracticeSections(
+        rawPracticeSections,
+        metadata,
+        tempos,
+        durationSeconds,
+      ),
     }
   })
 }

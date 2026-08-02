@@ -66,4 +66,28 @@ describe('playback timeline', () => {
     expect(chartTimeForPlayback(-2, 0.5)).toBe(-2)
     expect(chartTimeForPlayback(2, 0.5)).toBe(1)
   })
+
+  it('counts into a practice section without playing earlier audio', () => {
+    expect(createPlaybackSchedule(10, -3, 0, 0, 0.5, 42)).toEqual({
+      chartStartContextTime: 13,
+      sourceStartContextTime: 13,
+      sourceOffsetSeconds: 42,
+    })
+  })
+
+  it('applies song sync as an offset within a practice section', () => {
+    expect(createPlaybackSchedule(10, -3, 0, -0.04, 0.5, 42)).toEqual({
+      chartStartContextTime: 13,
+      sourceStartContextTime: 13,
+      sourceOffsetSeconds: 41.96,
+    })
+  })
+
+  it('resumes within a practice section using its absolute chart time', () => {
+    expect(createPlaybackSchedule(10, 44, 0.08, 0, 0.5, 42)).toEqual({
+      chartStartContextTime: 6.08,
+      sourceStartContextTime: 10.08,
+      sourceOffsetSeconds: 44,
+    })
+  })
 })

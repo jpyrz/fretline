@@ -26,6 +26,13 @@ export interface HandiTapBurstMarker {
   parentNoteIndex: number
 }
 
+export interface PracticeSection {
+  id: string
+  name: string
+  startTimeSeconds: number
+  endTimeSeconds: number
+}
+
 export interface StarPowerPhrase {
   tick: number
   tickLength: number
@@ -50,6 +57,7 @@ export interface ParsedChart {
   durationSeconds: number
   starPowerPhrases?: StarPowerPhrase[]
   handiTapBurstMarkers?: HandiTapBurstMarker[]
+  practiceSections?: PracticeSection[]
 }
 
 export interface LocalSong {

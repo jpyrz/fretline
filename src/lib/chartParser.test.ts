@@ -119,4 +119,43 @@ describe('parseChart', () => {
     ])
     expect(chart.notes[1].starPowerPhraseIndices).toEqual([0])
   })
+
+  it('turns authored section events into bounded practice ranges', () => {
+    const chart = parseChart(`[Song]
+{
+  Name = "Sections"
+  Artist = "Fretline"
+  Resolution = 192
+}
+[SyncTrack]
+{
+  0 = B 120000
+}
+[Events]
+{
+  0 = E "section Intro"
+  384 = E "section Guitar_Solo"
+}
+[ExpertSingle]
+{
+  0 = N 0 0
+  384 = N 1 0
+  768 = N 2 0
+}`)
+
+    expect(chart.practiceSections).toEqual([
+      {
+        id: '0:intro',
+        name: 'Intro',
+        startTimeSeconds: 0,
+        endTimeSeconds: 1,
+      },
+      {
+        id: '384:guitar solo',
+        name: 'Guitar Solo',
+        startTimeSeconds: 1,
+        endTimeSeconds: 3.5,
+      },
+    ])
+  })
 })

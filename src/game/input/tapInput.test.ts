@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChartNote } from '../../types/game'
 import {
+  findHandiTapBurstReentry,
   handiTapSustainReleaseExpired,
   isPartialHandiTapChord,
 } from './tapInput'
@@ -41,5 +42,43 @@ describe('HandiTap input assistance', () => {
   it('allows a longer release grace period for touch sustains', () => {
     expect(handiTapSustainReleaseExpired(1, 1.17)).toBe(false)
     expect(handiTapSustainReleaseExpired(1, 1.181)).toBe(true)
+  })
+
+  it('lets a missed generated burst re-enter on a later mini-gem', () => {
+    const marker = { timeSeconds: 2, lane: 1 as const, parentNoteIndex: 0 }
+    expect(
+      findHandiTapBurstReentry(
+        [marker],
+        ['miss'],
+        ['none'],
+        [1],
+        2.04,
+        0.08,
+      ),
+    ).toEqual(marker)
+  })
+
+  it('does not recover authored holds or inactive lanes', () => {
+    const marker = { timeSeconds: 2, lane: 1 as const, parentNoteIndex: 0 }
+    expect(
+      findHandiTapBurstReentry(
+        [marker],
+        ['hit'],
+        ['holding'],
+        [1],
+        2,
+        0.08,
+      ),
+    ).toBeNull()
+    expect(
+      findHandiTapBurstReentry(
+        [marker],
+        ['miss'],
+        ['none'],
+        [2],
+        2,
+        0.08,
+      ),
+    ).toBeNull()
   })
 })

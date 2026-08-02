@@ -186,6 +186,29 @@ export function PlayView() {
         : song.chart,
     [inputMode, song.chart, song.kind],
   )
+  const practiceSection = useMemo(() => {
+    const requestedId = location.state?.practiceSection?.id
+    if (typeof requestedId !== 'string') return null
+    return (
+      gameplayChart.practiceSections?.find(
+        (section) => section.id === requestedId,
+      ) ?? null
+    )
+  }, [gameplayChart.practiceSections, location.state])
+  const practiceLoop = Boolean(
+    practiceSection && location.state?.practiceLoop === true,
+  )
+  const activeNoteCount = useMemo(
+    () =>
+      practiceSection
+        ? gameplayChart.notes.filter(
+            (note) =>
+              note.timeSeconds >= practiceSection.startTimeSeconds &&
+              note.timeSeconds < practiceSection.endTimeSeconds,
+          ).length
+        : gameplayChart.notes.length,
+    [gameplayChart.notes, practiceSection],
+  )
 
   const {
     suggestedCorrection,
@@ -202,10 +225,10 @@ export function PlayView() {
     () =>
       calculateSessionResults(
         stats,
-        gameplayChart.notes.length,
+        activeNoteCount,
         song.kind === 'calibration' ? 4 : 0,
       ),
-    [gameplayChart.notes.length, song.kind, stats],
+    [activeNoteCount, song.kind, stats],
   )
   const loadingFrame = useMemo<GameFrame>(
     () => ({
@@ -334,6 +357,8 @@ export function PlayView() {
         keyboardMapping,
         inputMode,
         playbackRate: practiceSpeed,
+        practiceSection,
+        practiceLoop,
         calibrationMode: song.kind === 'calibration',
         whammyBufferIndices: whammyBufferIndices(song),
         onFrame: (frame) => {
@@ -645,7 +670,7 @@ export function PlayView() {
           {phase === 'finished' && (
             <ResultsOverlay
               stats={stats}
-              noteCount={gameplayChart.notes.length}
+              noteCount={activeNoteCount}
               calibrationRun={song.kind === 'calibration'}
               inputMode={inputMode}
               results={{
@@ -720,6 +745,7 @@ export function PlayView() {
             paused={phase === 'paused'}
             sessionActive={phase === 'playing' || phase === 'paused'}
             practiceSpeed={practiceSpeed}
+            practiceSectionName={practiceSection?.name ?? null}
             onTogglePause={togglePause}
           />
         )}
@@ -731,6 +757,9 @@ export function PlayView() {
           stats={stats}
           songSyncOffsetMs={song.audioOffsetMs ?? 0}
           practiceSpeed={practiceSpeed}
+          practiceSection={practiceSection}
+          practiceLoop={practiceLoop}
+          activeNoteCount={activeNoteCount}
           onSongSyncOffsetChange={setSongSyncOffset}
           onPracticeSpeedChange={setRunPracticeSpeed}
           onResume={togglePause}

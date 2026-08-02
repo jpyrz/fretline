@@ -1,5 +1,9 @@
 import { Link } from 'react-router-dom'
-import type { LocalSong, SessionStats } from '../../../../types/game'
+import type {
+  LocalSong,
+  PracticeSection,
+  SessionStats,
+} from '../../../../types/game'
 import {
   adjacentPracticeSpeed,
   formatPracticeSpeed,
@@ -24,6 +28,9 @@ interface PauseScreenProps {
   stats: SessionStats
   songSyncOffsetMs: number
   practiceSpeed: PracticeSpeed
+  practiceSection: PracticeSection | null
+  practiceLoop: boolean
+  activeNoteCount: number
   onSongSyncOffsetChange: (offsetMs: number) => void
   onPracticeSpeedChange: (speed: PracticeSpeed) => void
   onResume: () => void
@@ -36,6 +43,9 @@ export function PauseScreen({
   stats,
   songSyncOffsetMs,
   practiceSpeed,
+  practiceSection,
+  practiceLoop,
+  activeNoteCount,
   onSongSyncOffsetChange,
   onPracticeSpeedChange,
   onResume,
@@ -60,7 +70,7 @@ export function PauseScreen({
           <div>
             <dt>Notes hit</dt>
             <dd>
-              {stats.hits}/{song.chart.notes.length}
+              {stats.hits}/{activeNoteCount}
             </dd>
           </div>
           <div>
@@ -109,6 +119,17 @@ export function PauseScreen({
             Main menu
           </Link>
         </nav>
+        {practiceSection && (
+          <div className={styles.practiceSectionSummary}>
+            <span>
+              <strong>{practiceSection.name}</strong>
+              <small>
+                Section practice
+                {practiceLoop ? ' · Looping with a 3-count' : ''}
+              </small>
+            </span>
+          </div>
+        )}
         <div className={styles.practiceSpeedControl}>
           <span>
             <strong>Practice speed</strong>

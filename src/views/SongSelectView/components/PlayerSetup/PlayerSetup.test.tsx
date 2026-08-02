@@ -36,6 +36,8 @@ function renderSetup(
     selectedTrack: track,
     selectedInputMode: 'tap',
     selectedPracticeSpeed: 1,
+    selectedPracticeSection: null,
+    practiceLoop: false,
     touchAvailable: true,
     controllerConfigured: false,
     onBack: vi.fn(),
@@ -44,10 +46,13 @@ function renderSetup(
     onShowInstruments: vi.fn(),
     onShowDifficulties: vi.fn(),
     onShowPracticeSpeeds: vi.fn(),
+    onShowPracticeSections: vi.fn(),
     onChooseInputMode: vi.fn(),
     onChooseInstrument: vi.fn(),
     onChooseDifficulty: vi.fn(),
     onChoosePracticeSpeed: vi.fn(),
+    onChoosePracticeSection: vi.fn(),
+    onPracticeLoopChange: vi.fn(),
     ...overrides,
   }
   render(<PlayerSetup {...props} />)
@@ -78,5 +83,38 @@ describe('PlayerSetup input mode selection', () => {
     const props = renderSetup({ step: 'speed', selectedPracticeSpeed: 0.5 })
     fireEvent.click(screen.getByRole('button', { name: /70% speed/i }))
     expect(props.onChoosePracticeSpeed).toHaveBeenCalledWith(0.7)
+  })
+
+  it('offers authored chart sections and a three-count loop toggle', () => {
+    const practiceSection = {
+      id: '192:verse 2',
+      name: 'Verse 2',
+      startTimeSeconds: 12,
+      endTimeSeconds: 24,
+    }
+    const sectionTrack = {
+      ...track,
+      chart: {
+        ...track.chart,
+        practiceSections: [practiceSection],
+      },
+    }
+    const sectionInstrument = {
+      ...instrument,
+      tracks: [sectionTrack],
+    }
+    const props = renderSetup({
+      step: 'section',
+      instruments: [sectionInstrument],
+      selectedInstrument: sectionInstrument,
+      selectedTrack: sectionTrack,
+      selectedPracticeSection: practiceSection,
+      practiceLoop: true,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Verse 2/i }))
+    expect(props.onChoosePracticeSection).toHaveBeenCalledWith(
+      practiceSection,
+    )
   })
 })

@@ -12,6 +12,7 @@ interface ScoreHudProps {
   paused: boolean
   sessionActive: boolean
   practiceSpeed: PracticeSpeed
+  practiceSectionName?: string | null
   onTogglePause: () => void
 }
 
@@ -22,6 +23,7 @@ export function ScoreHud({
   paused,
   sessionActive,
   practiceSpeed,
+  practiceSectionName,
   onTogglePause,
 }: ScoreHudProps) {
   return (
@@ -37,11 +39,12 @@ export function ScoreHud({
         <span>
           Streak <strong>{stats.streak}</strong>
         </span>
-        {practiceSpeed < 1 && (
-          <span className={styles.practiceBadge}>
-            Practice {formatPracticeSpeed(practiceSpeed)}
-          </span>
-        )}
+      {(practiceSpeed < 1 || practiceSectionName) && (
+        <span className={styles.practiceBadge}>
+          Practice {formatPracticeSpeed(practiceSpeed)}
+          {practiceSectionName ? ` · ${practiceSectionName}` : ''}
+        </span>
+      )}
         <b>×{multiplier}</b>
       </div>
       {sessionActive && (
