@@ -1,0 +1,40 @@
+.button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  justify-self: start;
+  padding: 0;
+  border: 1px solid rgba(226, 244, 255, 0.15);
+  border-radius: 3px;
+  color: rgba(245, 250, 253, 0.84);
+  cursor: pointer;
+  background: rgba(15, 15, 18, 0.78);
+
+  svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+  }
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(255, 96, 111, 0.48);
+    color: #fff;
+    outline: none;
+    background: rgba(126, 17, 28, 0.72);
+    box-shadow: 0 0 18px rgba(226, 38, 54, 0.18);
+  }
+}
+
+@media (max-width: 480px) {
+  .button {
+    width: 40px;
+    height: 40px;
+  }
+}

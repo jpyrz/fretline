@@ -6,7 +6,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { BackIconButton } from '../../components/BackIconButton/BackIconButton'
 import { HighwayCanvas } from '../../components/HighwayCanvas'
 import { GameEngine } from '../../game/GameEngine'
 import { drawHighway } from '../../game/drawHighway'
@@ -76,6 +77,7 @@ function whammyBufferIndices(song: LocalSong): number[] {
 
 export function PlayView() {
   const location = useLocation()
+  const navigate = useNavigate()
   const {
     song,
     setSong,
@@ -499,14 +501,13 @@ export function PlayView() {
           phase === 'playing' || phase === 'paused' || immersiveLoading
         }
       >
-        <Link
-          to={song.kind === 'folder' ? '/songs' : '/'}
-          data-controller-back
-          onClick={stopSession}
-        >
-          <span aria-hidden="true">←</span>
-          {song.kind === 'folder' ? 'Song selection' : 'Main menu'}
-        </Link>
+        <BackIconButton
+          label={song.kind === 'folder' ? 'Song selection' : 'Main menu'}
+          onClick={() => {
+            stopSession()
+            navigate(song.kind === 'folder' ? '/songs' : '/')
+          }}
+        />
         <div className={styles.songTitle}>
           <span>{song.chart.metadata.artist}</span>
           <strong>{song.chart.metadata.name}</strong>

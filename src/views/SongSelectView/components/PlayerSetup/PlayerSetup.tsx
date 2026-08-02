@@ -1,4 +1,5 @@
 import { AlbumArtwork } from '../../../../components/AlbumArtwork'
+import { BackIconButton } from '../../../../components/BackIconButton/BackIconButton'
 import type { SongPreviewStatus } from '../../hooks/useSongPreview'
 import {
   DIFFICULTIES,
@@ -62,10 +63,10 @@ export function PlayerSetup({
       </div>
 
       <header className={styles.setupHeader}>
-        <button type="button" data-controller-back onClick={onBack}>
-          <span aria-hidden="true">←</span>
-          {step === 'configure' ? 'Song library' : 'Back'}
-        </button>
+        <BackIconButton
+          label={step === 'configure' ? 'Song library' : 'Back'}
+          onClick={onBack}
+        />
         <div className={styles.setupTitle}>
           <h1>{song.chart.metadata.name}</h1>
           <p>{song.chart.metadata.artist}</p>

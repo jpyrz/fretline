@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlbumArtwork } from '../../components/AlbumArtwork'
+import { BackIconButton } from '../../components/BackIconButton/BackIconButton'
 import {
   discardPreparedGameplayAudioContext,
   prepareGameplayAudioContext,
@@ -25,7 +26,6 @@ import {
   PlayerSetup,
   type SetupStep,
 } from './components/PlayerSetup'
-import { useSongLibraryActions } from './hooks/useSongLibraryActions'
 import { useSongPreview } from './hooks/useSongPreview'
 import styles from './SongSelectView.module.scss'
 
@@ -40,12 +40,8 @@ export function SongSelectView() {
   const {
     song,
     songs,
-    setSong,
-    addImportedSong,
     selectSong,
     libraryReady,
-    librarySaving,
-    libraryError,
     playPreferences,
     setPlayPreferences,
     controllerMapping,
@@ -53,7 +49,9 @@ export function SongSelectView() {
   } = useAppState()
   const [query, setQuery] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('title')
-  const [manageOpen, setManageOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [, setError] = useState('')
   const [highlightedSongId, setHighlightedSongId] = useState<string | null>(
     song.kind === 'folder' ? song.id : null,
   )
@@ -68,26 +66,8 @@ export function SongSelectView() {
     useState<PlayInputMode>(playPreferences.inputMode)
   const tapAvailable = touchInputAvailable()
   const gameplayHandoffRef = useRef(false)
-  const {
-    inputRef,
-    importing,
-    error,
-    setError,
-    driveStatus,
-    driveSource,
-    driveConfigured,
-    driveReady,
-    openFolderPicker,
-    handleFiles,
-    loadBundledSample,
-    syncDrive,
-  } = useSongLibraryActions({
-    songs,
-    libraryReady,
-    setSong,
-    selectSong,
-    addImportedSong,
-  })
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const filterControlRef = useRef<HTMLDivElement>(null)
 
   const playableSongs = useMemo(
     () => songs.filter((candidate) => candidate.kind === 'folder'),
@@ -148,6 +128,47 @@ export function SongSelectView() {
       setHighlightedSongId(visibleSongs[0].id)
     }
   }, [highlightedSongId, libraryReady, visibleSongs])
+
+  useEffect(() => {
+    if (!searchOpen) return
+    const frame = requestAnimationFrame(() => searchInputRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [searchOpen])
+
+  useEffect(() => {
+    if (!filtersOpen) return
+    const focusFrame = requestAnimationFrame(() => {
+      filterControlRef.current
+        ?.querySelector<HTMLElement>('[role="menuitemradio"]')
+        ?.focus({ preventScroll: true })
+    })
+    const closeFilters = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !filterControlRef.current?.contains(event.target)
+      ) {
+        setFiltersOpen(false)
+      }
+    }
+    window.addEventListener('pointerdown', closeFilters)
+    return () => {
+      cancelAnimationFrame(focusFrame)
+      window.removeEventListener('pointerdown', closeFilters)
+    }
+  }, [filtersOpen])
+
+  useEffect(() => {
+    const closeOverlays = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (filtersOpen) {
+        setFiltersOpen(false)
+      } else if (searchOpen) {
+        setSearchOpen(false)
+      }
+    }
+    window.addEventListener('keydown', closeOverlays)
+    return () => window.removeEventListener('keydown', closeOverlays)
+  }, [filtersOpen, searchOpen])
 
   useEffect(() => {
     if (setupStep === 'browse') return
@@ -276,20 +297,13 @@ export function SongSelectView() {
   }
 
   return (
-    <main
-      className={styles.page}
-      data-manager-open={manageOpen || undefined}
-    >
+    <main className={styles.page}>
       <header className={styles.header}>
-        <button
-          type="button"
-          data-controller-back
+        <BackIconButton
+          label="Main menu"
           onClick={() => navigate('/')}
-        >
-          <span aria-hidden="true">←</span>
-          Main menu
-        </button>
-        <div>
+        />
+        <div className={styles.headerTitle}>
           <p>Quick Play</p>
           <strong>
             {libraryReady
@@ -299,104 +313,96 @@ export function SongSelectView() {
               : 'Loading songs…'}
           </strong>
         </div>
-      </header>
-
-      <section className={styles.commandBar} aria-label="Song browser controls">
-        <div><i data-color="green" /> Select & play</div>
-        <div><i data-color="red" /> Back</div>
-        <div><i data-color="yellow" /> Sort</div>
-        <div><i data-color="blue" /> Search</div>
-        <div><i data-color="orange" /> Library</div>
-      </section>
-
-      <section className={styles.toolbar}>
-        <label>
-          <span className="sr-only">Search songs</span>
-          <b aria-hidden="true">⌕</b>
-          <input
+        <div className={styles.headerActions}>
+          <button
+            type="button"
             data-controller-action="blue"
-            value={query}
-            placeholder="Search songs, artists, or charters"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          data-controller-action="yellow"
-          onClick={() =>
-            setSortMode((current) =>
-              current === 'title' ? 'artist' : 'title',
-            )
-          }
-        >
-          Sort: {sortMode === 'title' ? 'Title' : 'Artist'}
-        </button>
-        <button
-          type="button"
-          data-controller-action="orange"
-          data-active={manageOpen}
-          onClick={() => setManageOpen((current) => !current)}
-        >
-          Manage library
-        </button>
-      </section>
-
-      {manageOpen && (
-        <section className={styles.libraryManager}>
-          <div>
-            <p>Song sources</p>
-            <span>
-              Songs are copied into this browser before play, so network speed
-              never affects timing.
-            </span>
+            data-active={searchOpen || Boolean(query)}
+            aria-label={searchOpen ? 'Close search' : 'Search songs'}
+            aria-expanded={searchOpen}
+            onClick={() => {
+              setFiltersOpen(false)
+              setSearchOpen((current) => !current)
+            }}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="5.5" />
+              <path d="m15 15 4.5 4.5" />
+            </svg>
+          </button>
+          <div className={styles.filterControl} ref={filterControlRef}>
+            <button
+              type="button"
+              data-controller-action="yellow"
+              data-active={filtersOpen || sortMode !== 'title'}
+              aria-label="Sort and filter songs"
+              aria-expanded={filtersOpen}
+              onClick={() => {
+                setSearchOpen(false)
+                setFiltersOpen((current) => !current)
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h16M7 12h10M10 18h4" />
+              </svg>
+            </button>
+            {filtersOpen && (
+              <div
+                className={styles.filterMenu}
+                role="menu"
+                aria-label="Song filters"
+              >
+                <p>Sort songs</p>
+                {(['title', 'artist'] as SortMode[]).map((mode) => (
+                  <button
+                    type="button"
+                    key={mode}
+                    role="menuitemradio"
+                    aria-checked={sortMode === mode}
+                    data-controller-nav-item
+                    onClick={() => {
+                      setSortMode(mode)
+                      setFiltersOpen(false)
+                    }}
+                  >
+                    <span>{mode === 'title' ? 'Title' : 'Artist'}</span>
+                    <i aria-hidden="true">{sortMode === mode ? '✓' : ''}</i>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <div className={styles.managerActions}>
-            <button
-              type="button"
-              disabled={importing || !libraryReady}
-              onClick={openFolderPicker}
-            >
-              Add local folder
-            </button>
-            <button
-              type="button"
-              disabled={importing || !libraryReady}
-              onClick={() => void loadBundledSample()}
-            >
-              Free sample
-            </button>
-            <button
-              type="button"
-              disabled={
-                importing ||
-                !libraryReady ||
-                !driveConfigured ||
-                !driveReady
-              }
-              onClick={() => void syncDrive(false)}
-            >
-              {driveSource ? 'Sync Google Drive' : 'Connect Google Drive'}
-            </button>
-            {driveSource && driveConfigured && (
+        </div>
+        {searchOpen && (
+          <div className={styles.searchOverlay} role="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="5.5" />
+              <path d="m15 15 4.5 4.5" />
+            </svg>
+            <label>
+              <span className="sr-only">Search songs</span>
+              <input
+                ref={searchInputRef}
+                value={query}
+                placeholder="Search songs, artists, or charters"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            {query && (
               <button
                 type="button"
-                disabled={importing || !libraryReady}
-                onClick={() => void syncDrive(true)}
+                aria-label="Clear search"
+                onClick={() => {
+                  setQuery('')
+                  searchInputRef.current?.focus()
+                }}
               >
-                Change Drive folder
+                ×
               </button>
             )}
           </div>
-          {(driveStatus || librarySaving) && (
-            <p className={styles.status} aria-live="polite">
-              {librarySaving ? 'Saving songs to this device…' : driveStatus}
-            </p>
-          )}
-          {(error || libraryError) && (
-            <p className={styles.error}>{error || libraryError}</p>
-          )}
-        </section>
-      )}
+        )}
+      </header>
 
       <section className={styles.browser}>
         <div className={styles.songListPanel}>
@@ -446,12 +452,15 @@ export function SongSelectView() {
                 </strong>
                 <span>
                   {playableSongs.length === 0
-                    ? 'Open Manage library to add a Clone Hero folder or connect Google Drive.'
+                    ? 'Open Settings → Library to add a Clone Hero folder or connect Google Drive.'
                     : 'Try a song title, artist, or charter.'}
                 </span>
                 {playableSongs.length === 0 && (
-                  <button type="button" onClick={() => setManageOpen(true)}>
-                    Manage library
+                  <button
+                    type="button"
+                    onClick={() => navigate('/settings?section=library')}
+                  >
+                    Open library settings
                   </button>
                 )}
               </div>
@@ -505,14 +514,6 @@ export function SongSelectView() {
           )}
         </aside>
       </section>
-
-      <input
-        ref={inputRef}
-        className="sr-only"
-        type="file"
-        multiple
-        onChange={(event) => void handleFiles(event.target.files)}
-      />
     </main>
   )
 }

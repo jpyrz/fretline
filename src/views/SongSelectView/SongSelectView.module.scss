@@ -5,7 +5,7 @@
   min-height: 0;
   overflow: hidden;
   padding: 0 clamp(1rem, 2.5vw, 2.5rem) 2rem;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   color: var(--text);
   background:
     linear-gradient(180deg, rgba(9, 9, 12, 0.72), rgba(5, 5, 7, 0.95)),
@@ -35,198 +35,192 @@
 }
 
 .header {
-  display: flex;
-  min-height: 66px;
+  position: relative;
+  z-index: 10;
+  display: grid;
+  min-height: 72px;
   align-items: center;
-  justify-content: space-between;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 1rem;
+  border-bottom: 1px solid rgba(226, 244, 255, 0.11);
+}
 
-  > button {
-    display: inline-flex;
-    min-height: 42px;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0 0.85rem;
-    border: 1px solid rgba(226, 244, 255, 0.17);
-    border-radius: 3px;
-    color: white;
-    cursor: pointer;
-    background: rgba(15, 15, 18, 0.7);
+.headerActions > button,
+.filterControl > button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(226, 244, 255, 0.15);
+  border-radius: 3px;
+  color: rgba(245, 250, 253, 0.84);
+  cursor: pointer;
+  background: rgba(15, 15, 18, 0.78);
 
-    span {
-      font-size: 1.2rem;
-    }
+  svg {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
   }
 
-  > div {
-    text-align: right;
-
-    p,
-    strong {
-      margin: 0;
-      text-transform: uppercase;
-    }
-
-    p {
-      color: rgba(235, 248, 255, 0.55);
-      font-size: 0.62rem;
-      letter-spacing: 0.16em;
-    }
-
-    strong {
-      font-size: 0.82rem;
-    }
+  &[data-active='true'] {
+    border-color: rgba(255, 96, 111, 0.48);
+    color: #fff;
+    background: rgba(126, 17, 28, 0.72);
+    box-shadow: 0 0 18px rgba(226, 38, 54, 0.18);
   }
 }
 
-.commandBar {
-  display: flex;
-  min-height: 56px;
-  align-items: center;
-  justify-content: space-around;
-  gap: 1rem;
-  padding: 0.6rem clamp(0.7rem, 2vw, 1.4rem);
-  border: 1px solid rgba(218, 241, 255, 0.1);
-  border-radius: 3px;
-  font-size: 0.72rem;
-  background: rgba(8, 8, 10, 0.86);
+.headerTitle {
+  min-width: 0;
 
-  div {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    color: rgba(245, 251, 255, 0.82);
+  p,
+  strong {
+    display: block;
+    overflow: hidden;
+    margin: 0;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
     white-space: nowrap;
   }
 
-  i {
-    width: 0.95rem;
-    height: 0.95rem;
-    border: 2px solid rgba(255, 255, 255, 0.48);
-    border-radius: 4px;
-    box-shadow: 0 0 12px currentColor;
+  p {
+    color: rgba(235, 248, 255, 0.5);
+    font-size: 0.58rem;
+    font-weight: 850;
+    letter-spacing: 0.18em;
   }
 
-  [data-color='green'] { color: var(--green); background: var(--green); }
-  [data-color='red'] { color: var(--red); background: var(--red); }
-  [data-color='yellow'] { color: var(--yellow); background: var(--yellow); }
-  [data-color='blue'] { color: var(--blue); background: var(--blue); }
-  [data-color='orange'] { color: var(--orange); background: var(--orange); }
+  strong {
+    margin-top: 0.12rem;
+    font-size: 0.86rem;
+  }
 }
 
-.toolbar {
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.filterControl {
+  position: relative;
+}
+
+.filterMenu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.55rem);
+  right: 0;
   display: grid;
-  padding: 0.75rem 0;
-  grid-template-columns: minmax(220px, 1fr) auto auto;
-  gap: 0.55rem;
+  overflow: hidden;
+  width: min(240px, calc(100vw - 1.4rem));
+  padding: 0.35rem;
+  border: 1px solid rgba(218, 239, 251, 0.16);
+  border-radius: 3px;
+  background: rgba(11, 11, 14, 0.98);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.48);
 
-  label {
-    position: relative;
-    display: flex;
-    align-items: center;
-
-    b {
-      position: absolute;
-      left: 0.9rem;
-      color: rgba(238, 248, 255, 0.52);
-      font-size: 1.2rem;
-      font-weight: 400;
-    }
+  > p {
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    color: rgba(235, 248, 255, 0.45);
+    font-size: 0.6rem;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
 
-  input,
-  button {
+  > button {
+    display: flex;
     min-height: 44px;
-    border: 1px solid rgba(218, 239, 251, 0.14);
-    border-radius: 3px;
-    color: white;
-    background: rgba(24, 24, 29, 0.82);
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.75rem;
+    border: 0;
+    border-top: 1px solid rgba(218, 239, 251, 0.07);
+    color: rgba(245, 250, 253, 0.78);
+    cursor: pointer;
+    background: rgba(30, 30, 35, 0.66);
+
+    &[aria-checked='true'],
+    &:focus-visible {
+      color: #151518;
+      outline: none;
+      background: linear-gradient(90deg, #f4f2ef, #c9c6c4);
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+
+    i {
+      min-width: 1rem;
+      color: var(--accent);
+      font-style: normal;
+      text-align: center;
+    }
+  }
+}
+
+.searchOverlay {
+  position: absolute;
+  z-index: 18;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  left: 0;
+  display: grid;
+  min-height: 56px;
+  align-items: center;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(218, 239, 251, 0.16);
+  border-radius: 3px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  background: rgba(11, 11, 14, 0.98);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+
+  > svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: rgba(235, 248, 255, 0.52);
+    stroke-linecap: round;
+    stroke-width: 1.8;
+  }
+
+  label,
+  input {
+    width: 100%;
   }
 
   input {
-    width: 100%;
-    padding: 0.6rem 1rem 0.6rem 2.6rem;
+    min-height: 42px;
+    padding: 0 0.7rem;
+    border: 0;
+    color: white;
+    outline: none;
+    background: transparent;
 
     &::placeholder {
-      color: rgba(225, 240, 249, 0.4);
+      color: rgba(225, 240, 249, 0.38);
     }
   }
 
-  button {
-    padding: 0 1rem;
+  > button {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    color: rgba(245, 250, 253, 0.7);
+    font-size: 1.35rem;
     cursor: pointer;
-
-    &[data-active='true'] {
-      color: #10212a;
-      background: rgba(241, 249, 253, 0.93);
-    }
+    background: rgba(255, 255, 255, 0.07);
   }
-}
-
-.libraryManager {
-  display: grid;
-  margin-bottom: 0.75rem;
-  padding: 1rem;
-  border: 1px solid rgba(208, 236, 252, 0.15);
-  border-radius: 3px;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(380px, 1.2fr);
-  gap: 0.9rem 1.5rem;
-  background: rgba(13, 13, 16, 0.92);
-
-  p {
-    margin: 0;
-    font-weight: 800;
-  }
-
-  > div:first-child {
-    span {
-      display: block;
-      margin-top: 0.25rem;
-      color: rgba(230, 243, 250, 0.56);
-      font-size: 0.72rem;
-      line-height: 1.45;
-    }
-  }
-}
-
-.managerActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 0.5rem;
-
-  button {
-    min-height: 42px;
-    padding: 0 0.85rem;
-    border: 1px solid rgba(222, 241, 252, 0.17);
-    border-radius: 3px;
-    color: white;
-    cursor: pointer;
-    background: rgba(126, 17, 28, 0.32);
-
-    &:disabled {
-      cursor: wait;
-      opacity: 0.5;
-    }
-  }
-}
-
-.status,
-.error {
-  grid-column: 1 / -1;
-  padding: 0.7rem 0.8rem;
-  border-radius: 3px;
-  font-size: 0.75rem;
-}
-
-.status {
-  color: #ffd3d7;
-  background: rgba(226, 38, 54, 0.12);
-}
-
-.error {
-  color: #ffbec5;
-  background: rgba(255, 79, 100, 0.12);
 }
 
 .browser {
@@ -560,19 +554,6 @@
   grid-template-columns: minmax(120px, 1fr) minmax(0, 3fr) minmax(120px, 1fr);
   gap: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-
-  > button {
-    display: inline-flex;
-    min-height: 42px;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0 0.9rem;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 3px;
-    color: white;
-    cursor: pointer;
-    background: rgba(9, 9, 12, 0.64);
-  }
 }
 
 .setupTitle {
@@ -864,41 +845,7 @@
     min-height: 0;
     overflow: hidden;
     padding: 0 0.7rem max(0.7rem, env(safe-area-inset-bottom));
-    grid-template-rows: auto auto minmax(0, 1fr);
-
-    &[data-manager-open='true'] {
-      grid-template-rows: auto auto auto minmax(0, 1fr);
-    }
-  }
-
-  .commandBar {
-    display: none;
-  }
-
-  .toolbar {
-    position: sticky;
-    z-index: 5;
-    top: 0;
-    grid-template-columns: 1fr auto;
-    background: rgba(15, 15, 18, 0.96);
-
-    label {
-      grid-column: 1 / -1;
-    }
-  }
-
-  .libraryManager {
-    max-height: 32dvh;
-    overflow-y: auto;
-    grid-template-columns: 1fr;
-  }
-
-  .managerActions {
-    justify-content: start;
-
-    button {
-      flex: 1 1 145px;
-    }
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .browser {
@@ -970,11 +917,6 @@
     background: rgba(8, 8, 11, 0.92);
     backdrop-filter: blur(14px);
 
-    > button {
-      min-height: 38px;
-      padding: 0 0.65rem;
-      font-size: 0.72rem;
-    }
   }
 
   .setupTitle {
@@ -1036,14 +978,18 @@
 
 @media (max-width: 480px) {
   .header {
-    min-height: 58px;
+    min-height: 62px;
+    gap: 0.6rem;
   }
 
-  .toolbar {
-    button {
-      padding: 0 0.7rem;
-      font-size: 0.72rem;
-    }
+  .headerActions > button,
+  .filterControl > button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .headerTitle strong {
+    font-size: 0.72rem;
   }
 
   .songPreview {

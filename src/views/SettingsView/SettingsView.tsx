@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ControllerSetup } from '../../components/ControllerSetup'
 import { KeyboardSetup } from '../../components/KeyboardSetup'
+import { BackIconButton } from '../../components/BackIconButton/BackIconButton'
 import { useAppState } from '../../state/AppState'
 import { VisualSettingsPanel } from './components/VisualSettingsPanel'
+import { LibrarySettingsPanel } from './components/LibrarySettingsPanel/LibrarySettingsPanel'
 import styles from './SettingsView.module.scss'
 
 type SettingsSection =
   | 'gameplay'
   | 'audio'
+  | 'library'
   | 'visuals'
   | 'controller'
   | 'keyboard'
@@ -28,6 +31,12 @@ const SECTION_COPY: Record<
     title: 'Menu audio',
     description:
       'Choose how Fretline behaves when the jukebox starts on the Home screen.',
+  },
+  library: {
+    label: 'Library',
+    title: 'Song sources',
+    description:
+      'Import local charts or sync the Google Drive folder that powers Quick Play.',
   },
   visuals: {
     label: 'Visuals',
@@ -51,7 +60,13 @@ const SECTION_COPY: Record<
 
 export function SettingsView() {
   const navigate = useNavigate()
-  const [section, setSection] = useState<SettingsSection>('gameplay')
+  const [searchParams] = useSearchParams()
+  const requestedSection = searchParams.get('section')
+  const [section, setSection] = useState<SettingsSection>(() =>
+    requestedSection && requestedSection in SECTION_COPY
+      ? (requestedSection as SettingsSection)
+      : 'gameplay',
+  )
   const {
     calibration,
     setCalibration,
@@ -63,20 +78,21 @@ export function SettingsView() {
     setControllerMapping,
     keyboardMapping,
     setKeyboardMapping,
+    useTimingLab: activateTimingLab,
   } = useAppState()
   const activeCopy = SECTION_COPY[section]
+  const openTimingLab = () => {
+    activateTimingLab()
+    navigate('/play')
+  }
 
   return (
     <main className={styles.page}>
       <header className={styles.mobileHeader}>
-        <button
-          type="button"
-          data-controller-back
+        <BackIconButton
+          label="Main menu"
           onClick={() => navigate('/')}
-        >
-          <span aria-hidden="true">←</span>
-          Main menu
-        </button>
+        />
         <strong>Settings</strong>
       </header>
 
@@ -135,6 +151,20 @@ export function SettingsView() {
 
           {section === 'gameplay' && (
             <div className={styles.settingList}>
+              <div className={styles.actionRow}>
+                <span>
+                  <strong>Timing Lab</strong>
+                  <small>
+                    Run the guided calibration and apply its recommended input
+                    correction.
+                  </small>
+                </span>
+                <button type="button" onClick={openTimingLab}>
+                  Open Timing Lab
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
+
               <label className={styles.settingRow}>
                 <span>
                   <strong>Audio correction</strong>
@@ -307,6 +337,8 @@ export function SettingsView() {
               </div>
             </div>
           )}
+
+          {section === 'library' && <LibrarySettingsPanel />}
 
           {section === 'visuals' && <VisualSettingsPanel />}
 

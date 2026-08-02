@@ -150,7 +150,6 @@
       text-transform: uppercase;
     }
 
-    &:hover,
     &:focus-visible {
       color: #121214;
       background: linear-gradient(90deg, #f4f2ef, #c9c7c5);
@@ -164,12 +163,53 @@
         color: rgba(18, 18, 20, 0.58);
       }
     }
+
+    &:disabled {
+      color: rgba(244, 242, 239, 0.4);
+      cursor: not-allowed;
+      background:
+        linear-gradient(90deg, rgba(27, 27, 32, 0.76), rgba(15, 15, 19, 0.72));
+
+      &::before {
+        background: rgba(226, 38, 54, 0.34);
+        transform: scaleY(1);
+      }
+    }
   }
 
   &:not(:focus-within) button[data-controller-default] {
     color: #121214;
     background: linear-gradient(90deg, #f4f2ef, #c9c7c5);
     box-shadow: inset 4px 0 0 var(--accent);
+
+    small {
+      color: rgba(18, 18, 20, 0.58);
+    }
+  }
+}
+
+.comingSoon small {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  i {
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-style: normal;
+    text-shadow: 0 0 12px rgba(226, 38, 54, 0.62);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mainMenu button:not(:disabled):hover {
+    color: #121214;
+    background: linear-gradient(90deg, #f4f2ef, #c9c7c5);
+    transform: translateX(0.42rem);
+
+    &::before {
+      transform: scaleY(1);
+    }
 
     small {
       color: rgba(18, 18, 20, 0.58);
@@ -546,7 +586,6 @@
     button {
       min-height: 64px;
 
-      &:hover,
       &:focus-visible {
         transform: translateX(0.28rem);
       }

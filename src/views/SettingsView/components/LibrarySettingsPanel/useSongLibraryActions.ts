@@ -8,16 +8,16 @@ import {
   saveDriveLibrarySource,
   syncGoogleDriveLibrary,
   type DriveLibrarySource,
-} from '../../../lib/googleDrive'
+} from '../../../../lib/googleDrive'
 import {
   prepareSongPreview,
   prepareSongPreviews,
-} from '../../../lib/songPreviewCache'
+} from '../../../../lib/songPreviewCache'
 import {
   importCloneHeroFolder,
   loadBundledSong,
-} from '../../../lib/songImport'
-import type { LocalSong } from '../../../types/game'
+} from '../../../../lib/songImport'
+import type { LocalSong } from '../../../../types/game'
 
 interface SongLibraryActionsOptions {
   songs: LocalSong[]
@@ -208,7 +208,6 @@ export function useSongLibraryActions({
     inputRef,
     importing,
     error,
-    setError,
     driveStatus,
     driveSource,
     driveConfigured,

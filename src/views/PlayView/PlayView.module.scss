@@ -27,24 +27,6 @@
     display: none;
   }
 
-  > a {
-    display: inline-flex;
-    min-height: 40px;
-    align-items: center;
-    justify-self: start;
-    gap: 0.6rem;
-    padding: 0 0.8rem;
-    border: 1px solid rgba(220, 240, 251, 0.14);
-    border-radius: 3px;
-    color: rgba(235, 247, 253, 0.78);
-    font-size: 0.76rem;
-    font-weight: 700;
-    background: rgba(4, 13, 19, 0.48);
-
-    span {
-      font-size: 1rem;
-    }
-  }
 }
 
 .songTitle {
@@ -806,10 +788,6 @@
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.6rem;
 
-    > a {
-      padding-inline: 0.65rem;
-      font-size: 0.7rem;
-    }
   }
 
   .songTitle {

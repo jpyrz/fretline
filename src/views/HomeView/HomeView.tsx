@@ -35,7 +35,6 @@ export function HomeView() {
     controllerMapping,
     libraryReady,
     audioSettings,
-    useTimingLab: activateTimingLab,
   } = useAppState()
   const playableSongs = useMemo(
     () => songs.filter((candidate) => candidate.kind === 'folder'),
@@ -48,11 +47,6 @@ export function HomeView() {
   const songCountLabel = `${playableSongs.length} ${
     playableSongs.length === 1 ? 'song' : 'songs'
   } ready`
-
-  const openTimingLab = () => {
-    activateTimingLab()
-    navigate('/play')
-  }
 
   return (
     <main className={styles.page}>
@@ -88,10 +82,14 @@ export function HomeView() {
           <button
             type="button"
             data-controller-nav-item
-            onClick={openTimingLab}
+            className={styles.comingSoon}
+            disabled
           >
-            <span>Timing Lab</span>
-            <small>Calibrate your setup</small>
+            <span>Tour Mode</span>
+            <small>
+              <i aria-hidden="true">★</i>
+              Coming soon
+            </small>
           </button>
           <button
             type="button"
@@ -99,7 +97,7 @@ export function HomeView() {
             onClick={() => navigate('/settings')}
           >
             <span>Settings</span>
-            <small>Controls · timing · highway</small>
+            <small>Library · timing · controls · visuals</small>
           </button>
         </nav>
 
