@@ -14,6 +14,7 @@ import {
   highwayLaneX,
   highwayPoint,
   noteRadius,
+  projectHighwayProgress,
   receptorRadius,
   trackEdge,
   trackPath,
@@ -1415,6 +1416,127 @@ function drawHitEffects(
   context.restore()
 }
 
+function lowerBoundBurstMarkerTime(
+  chart: ParsedChart,
+  timeSeconds: number,
+): number {
+  const markers = chart.handiTapBurstMarkers ?? []
+  let low = 0
+  let high = markers.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (markers[middle].timeSeconds < timeSeconds) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
+function drawHandiTapBurstMarkers(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  chart: ParsedChart,
+  frame: GameFrame,
+  travelSeconds: number,
+  highwayLength: number,
+  hitLineRatio: number,
+): void {
+  const markers = chart.handiTapBurstMarkers
+  if (!markers?.length) return
+  const start = lowerBoundBurstMarkerTime(
+    chart,
+    frame.visualTimeSeconds - 0.2,
+  )
+
+  for (let index = start; index < markers.length; index += 1) {
+    const marker = markers[index]
+    const secondsUntil = marker.timeSeconds - frame.visualTimeSeconds
+    if (secondsUntil > travelSeconds) break
+    const progress = 1 - secondsUntil / travelSeconds
+    if (progress < 0 || progress > 1.12) continue
+
+    const parentNote = chart.notes[marker.parentNoteIndex]
+    if (!parentNote) continue
+    const parentState = frame.noteStates[marker.parentNoteIndex]
+    const sustainState = frame.sustainStates[marker.parentNoteIndex]
+    const missed = parentState === 'miss' || sustainState === 'released'
+    const point = highwayPoint(
+      width,
+      height,
+      progress,
+      highwayLength,
+      hitLineRatio,
+    )
+    const visibleProgress = Math.max(0, Math.min(1, progress))
+    const passedFade =
+      progress <= 1 ? 1 : 1 - Math.min(1, (progress - 1) / 0.08)
+
+    context.save()
+    context.globalAlpha =
+      (0.34 + projectHighwayProgress(visibleProgress) * 0.5) * passedFade
+    drawGem(
+      context,
+      highwayLaneX(width, marker.lane, progress),
+      point.y,
+      noteRadius(point) * 0.58,
+      marker.lane,
+      parentNote,
+      missed,
+      frame.stats.starPowerActive,
+      shouldRenderStarPowerNote(parentNote, frame),
+    )
+    context.restore()
+  }
+}
+
+function drawHandiTapBurstHitEffects(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  chart: ParsedChart,
+  frame: GameFrame,
+  highwayLength: number,
+  hitLineRatio: number,
+): void {
+  const markers = chart.handiTapBurstMarkers
+  if (!markers?.length) return
+  const start = lowerBoundBurstMarkerTime(
+    chart,
+    frame.songTimeSeconds - 0.26,
+  )
+
+  for (let index = start; index < markers.length; index += 1) {
+    const marker = markers[index]
+    const elapsed = frame.songTimeSeconds - marker.timeSeconds
+    if (elapsed < 0) break
+    if (elapsed > 0.26) continue
+    if (
+      frame.noteStates[marker.parentNoteIndex] !== 'hit' ||
+      frame.sustainStates[marker.parentNoteIndex] === 'released' ||
+      !frame.heldLanes.includes(marker.lane)
+    ) {
+      continue
+    }
+
+    drawHitEffects(
+      context,
+      width,
+      height,
+      {
+        ...frame,
+        hitFlash: {
+          lanes: [marker.lane],
+          open: false,
+          startedAt: marker.timeSeconds,
+          expiresAt: marker.timeSeconds + 0.26,
+        },
+      },
+      highwayLength,
+      hitLineRatio,
+    )
+  }
+}
+
 function drawStarPowerPhraseCompletion(
   context: CanvasRenderingContext2D,
   width: number,
@@ -1887,6 +2009,19 @@ export function drawHighway(
     tapMode,
   )
 
+  if (tapMode) {
+    drawHandiTapBurstMarkers(
+      context,
+      width,
+      height,
+      chart,
+      frame,
+      travelSeconds,
+      highwayLength,
+      hitLineRatio,
+    )
+  }
+
   for (const { note, render, starPowerNote } of noteRenders) {
     if (render.activeSustain) continue
     const point = highwayPoint(
@@ -1945,6 +2080,17 @@ export function drawHighway(
     highwayLength,
     hitLineRatio,
   )
+  if (tapMode) {
+    drawHandiTapBurstHitEffects(
+      context,
+      width,
+      height,
+      chart,
+      frame,
+      highwayLength,
+      hitLineRatio,
+    )
+  }
   drawStarPowerPhraseCompletion(
     context,
     width,

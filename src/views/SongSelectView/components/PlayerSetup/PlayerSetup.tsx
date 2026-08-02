@@ -8,6 +8,11 @@ import {
 } from '../../../../lib/trackSelection'
 import type { LocalSong } from '../../../../types/game'
 import type { PlayInputMode } from '../../../../lib/inputMode'
+import {
+  formatPracticeSpeed,
+  PRACTICE_SPEEDS,
+  type PracticeSpeed,
+} from '../../../../lib/practiceMode'
 import styles from '../../SongSelectView.module.scss'
 
 export type SetupStep =
@@ -16,6 +21,7 @@ export type SetupStep =
   | 'input'
   | 'instrument'
   | 'difficulty'
+  | 'speed'
 
 interface PlayerSetupProps {
   song: LocalSong
@@ -25,6 +31,7 @@ interface PlayerSetupProps {
   selectedInstrument: InstrumentChoice | null | undefined
   selectedTrack: TrackChoice | null | undefined
   selectedInputMode: PlayInputMode
+  selectedPracticeSpeed: PracticeSpeed
   touchAvailable: boolean
   controllerConfigured: boolean
   onBack: () => void
@@ -32,9 +39,11 @@ interface PlayerSetupProps {
   onShowInputModes: () => void
   onShowInstruments: () => void
   onShowDifficulties: () => void
+  onShowPracticeSpeeds: () => void
   onChooseInputMode: (mode: PlayInputMode) => void
   onChooseInstrument: (instrument: InstrumentChoice) => void
   onChooseDifficulty: (track: TrackChoice) => void
+  onChoosePracticeSpeed: (speed: PracticeSpeed) => void
 }
 
 export function PlayerSetup({
@@ -45,6 +54,7 @@ export function PlayerSetup({
   selectedInstrument,
   selectedTrack,
   selectedInputMode,
+  selectedPracticeSpeed,
   touchAvailable,
   controllerConfigured,
   onBack,
@@ -52,9 +62,11 @@ export function PlayerSetup({
   onShowInputModes,
   onShowInstruments,
   onShowDifficulties,
+  onShowPracticeSpeeds,
   onChooseInputMode,
   onChooseInstrument,
   onChooseDifficulty,
+  onChoosePracticeSpeed,
 }: PlayerSetupProps) {
   return (
     <main className={styles.setupPage} data-step={step}>
@@ -90,7 +102,12 @@ export function PlayerSetup({
             <i aria-hidden="true">♬</i>
             <span>
               <strong>{selectedTrack?.difficulty}</strong>
-              <small>{selectedInstrument?.label}</small>
+              <small>
+                {selectedInstrument?.label}
+                {selectedPracticeSpeed < 1
+                  ? ` · Practice ${formatPracticeSpeed(selectedPracticeSpeed)}`
+                  : ''}
+              </small>
             </span>
           </div>
 
@@ -135,6 +152,18 @@ export function PlayerSetup({
               >
                 <span>Difficulty</span>
                 <strong>{selectedTrack?.difficulty}</strong>
+              </button>
+              <button
+                type="button"
+                data-controller-nav-item
+                onClick={onShowPracticeSpeeds}
+              >
+                <span>Practice speed</span>
+                <strong>
+                  {selectedPracticeSpeed === 1
+                    ? 'Off · 100%'
+                    : formatPracticeSpeed(selectedPracticeSpeed)}
+                </strong>
               </button>
               <div className={styles.disabledMenuRow} aria-disabled="true">
                 <span>Modifiers</span>
@@ -263,6 +292,39 @@ export function PlayerSetup({
                         />
                       ))}
                     </b>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {step === 'speed' && (
+            <div className={styles.inlinePicker}>
+              <p>Practice speed</p>
+              {PRACTICE_SPEEDS.map((speed) => {
+                const active = speed === selectedPracticeSpeed
+                return (
+                  <button
+                    type="button"
+                    key={speed}
+                    data-controller-nav-item
+                    data-controller-default={active || undefined}
+                    data-active={active}
+                    onClick={() => onChoosePracticeSpeed(speed)}
+                  >
+                    <span>
+                      <strong>
+                        {speed === 1
+                          ? 'Full speed'
+                          : `${formatPracticeSpeed(speed)} speed`}
+                      </strong>
+                      <small>
+                        {speed === 1
+                          ? 'Quick Play timing'
+                          : 'Practice run · results are marked separately'}
+                      </small>
+                    </span>
+                    <b aria-hidden="true">{active ? '●' : '○'}</b>
                   </button>
                 )
               })}

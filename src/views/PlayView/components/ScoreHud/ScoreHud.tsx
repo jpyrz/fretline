@@ -1,4 +1,8 @@
 import type { SessionStats } from '../../../../types/game'
+import {
+  formatPracticeSpeed,
+  type PracticeSpeed,
+} from '../../../../lib/practiceMode'
 import styles from '../../PlayView.module.scss'
 
 interface ScoreHudProps {
@@ -7,6 +11,7 @@ interface ScoreHudProps {
   multiplier: number
   paused: boolean
   sessionActive: boolean
+  practiceSpeed: PracticeSpeed
   onTogglePause: () => void
 }
 
@@ -16,6 +21,7 @@ export function ScoreHud({
   multiplier,
   paused,
   sessionActive,
+  practiceSpeed,
   onTogglePause,
 }: ScoreHudProps) {
   return (
@@ -31,6 +37,11 @@ export function ScoreHud({
         <span>
           Streak <strong>{stats.streak}</strong>
         </span>
+        {practiceSpeed < 1 && (
+          <span className={styles.practiceBadge}>
+            Practice {formatPracticeSpeed(practiceSpeed)}
+          </span>
+        )}
         <b>×{multiplier}</b>
       </div>
       {sessionActive && (

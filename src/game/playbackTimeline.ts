@@ -12,20 +12,33 @@ export interface CountdownCue {
   progress: number
 }
 
+export function chartTimeForPlayback(
+  elapsedContextTime: number,
+  playbackRate: number,
+): number {
+  return elapsedContextTime < 0
+    ? elapsedContextTime
+    : elapsedContextTime * Math.max(0.01, playbackRate)
+}
+
 export function createPlaybackSchedule(
   currentContextTime: number,
   songTimeSeconds: number,
   leadSeconds = 0,
   audioOffsetSeconds = 0,
+  playbackRate = 1,
 ): PlaybackSchedule {
+  const safePlaybackRate = Math.max(0.01, playbackRate)
   const requestedStartContextTime = currentContextTime + leadSeconds
   const chartStartContextTime =
-    requestedStartContextTime - songTimeSeconds
+    songTimeSeconds < 0
+      ? requestedStartContextTime - songTimeSeconds
+      : requestedStartContextTime - songTimeSeconds / safePlaybackRate
   const audioPositionAtRequestedStart =
     songTimeSeconds + audioOffsetSeconds
   const sourceStartContextTime =
     audioPositionAtRequestedStart < 0
-      ? requestedStartContextTime - audioPositionAtRequestedStart
+      ? chartStartContextTime - audioOffsetSeconds / safePlaybackRate
       : requestedStartContextTime
 
   return {

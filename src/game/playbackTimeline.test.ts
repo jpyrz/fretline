@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  chartTimeForPlayback,
   countdownCue,
   createPlaybackSchedule,
 } from './playbackTimeline'
@@ -43,5 +44,26 @@ describe('playback timeline', () => {
     expect(countdownCue(-0.2)?.label).toBe('1')
     expect(countdownCue(0.1)?.label).toBe('GO!')
     expect(countdownCue(0.5)).toBeNull()
+  })
+
+  it('schedules resumed chart time against a slower playback clock', () => {
+    expect(createPlaybackSchedule(10, 42.5, 0.08, 0, 0.5)).toEqual({
+      chartStartContextTime: -74.92,
+      sourceStartContextTime: 10.08,
+      sourceOffsetSeconds: 42.5,
+    })
+  })
+
+  it('scales pre-roll audio correction for practice speed', () => {
+    expect(createPlaybackSchedule(10, -3, 0, 0.04, 0.5)).toEqual({
+      chartStartContextTime: 13,
+      sourceStartContextTime: 12.92,
+      sourceOffsetSeconds: 0,
+    })
+  })
+
+  it('keeps countdown real-time and slows positive chart time', () => {
+    expect(chartTimeForPlayback(-2, 0.5)).toBe(-2)
+    expect(chartTimeForPlayback(2, 0.5)).toBe(1)
   })
 })

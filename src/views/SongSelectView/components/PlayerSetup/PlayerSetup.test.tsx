@@ -35,6 +35,7 @@ function renderSetup(
     selectedInstrument: instrument,
     selectedTrack: track,
     selectedInputMode: 'tap',
+    selectedPracticeSpeed: 1,
     touchAvailable: true,
     controllerConfigured: false,
     onBack: vi.fn(),
@@ -42,9 +43,11 @@ function renderSetup(
     onShowInputModes: vi.fn(),
     onShowInstruments: vi.fn(),
     onShowDifficulties: vi.fn(),
+    onShowPracticeSpeeds: vi.fn(),
     onChooseInputMode: vi.fn(),
     onChooseInstrument: vi.fn(),
     onChooseDifficulty: vi.fn(),
+    onChoosePracticeSpeed: vi.fn(),
     ...overrides,
   }
   render(<PlayerSetup {...props} />)
@@ -69,5 +72,11 @@ describe('PlayerSetup input mode selection', () => {
     expect(
       screen.getByRole('button', { name: /Tap controls/i }),
     ).toBeDisabled()
+  })
+
+  it('offers persistent practice-speed choices from player setup', () => {
+    const props = renderSetup({ step: 'speed', selectedPracticeSpeed: 0.5 })
+    fireEvent.click(screen.getByRole('button', { name: /70% speed/i }))
+    expect(props.onChoosePracticeSpeed).toHaveBeenCalledWith(0.7)
   })
 })

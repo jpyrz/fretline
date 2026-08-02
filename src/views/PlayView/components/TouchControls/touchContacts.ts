@@ -9,6 +9,20 @@ export interface PendingTap extends TouchContactSnapshot {
   timestamp: number
 }
 
+export function lanesCrossedBetween(from: Lane, to: Lane): Lane[] {
+  if (from === to) return []
+  const direction = from < to ? 1 : -1
+  const crossed: Lane[] = []
+  for (
+    let lane = from + direction;
+    direction > 0 ? lane <= to : lane >= to;
+    lane += direction
+  ) {
+    crossed.push(lane as Lane)
+  }
+  return crossed
+}
+
 export class TouchContactTracker {
   private readonly contacts = new Map<number, Lane | null>()
   private readonly pendingContacts = new Map<number, Lane | null>()

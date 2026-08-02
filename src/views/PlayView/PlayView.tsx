@@ -20,6 +20,10 @@ import {
   takePreparedGameplayAudioContext,
 } from '../../lib/songAudio'
 import { selectVisualAsset } from '../../lib/visualAssets'
+import {
+  normalizePracticeSpeed,
+  type PracticeSpeed,
+} from '../../lib/practiceMode'
 import { useAppState } from '../../state/AppState'
 import type { GameFrame, LocalSong, SessionStats } from '../../types/game'
 import { PauseScreen } from './components/PauseScreen'
@@ -90,6 +94,7 @@ export function PlayView() {
     controllerMapping,
     keyboardMapping,
     playPreferences,
+    setPlayPreferences,
   } = useAppState()
   const requestedInputMode = location.state?.inputMode
   const inputMode =
@@ -102,6 +107,9 @@ export function PlayView() {
     typeof location.state?.loadingPhrase === 'string'
       ? location.state.loadingPhrase
       : 'Warming up the amp'
+  const initialPracticeSpeed = normalizePracticeSpeed(
+    location.state?.practiceSpeed ?? playPreferences.practiceSpeed,
+  )
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const engineRef = useRef<GameEngine | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -114,6 +122,8 @@ export function PlayView() {
   const [stats, setStats] = useState<SessionStats>(emptyStats)
   const [error, setError] = useState('')
   const [tapControlsEntering, setTapControlsEntering] = useState(false)
+  const [practiceSpeed, setPracticeSpeed] =
+    useState<PracticeSpeed>(initialPracticeSpeed)
   const [runInputOffsetMs, setRunInputOffsetMs] = useState(
     calibration.inputOffsetMs,
   )
@@ -323,6 +333,7 @@ export function PlayView() {
         controllerMapping,
         keyboardMapping,
         inputMode,
+        playbackRate: practiceSpeed,
         calibrationMode: song.kind === 'calibration',
         whammyBufferIndices: whammyBufferIndices(song),
         onFrame: (frame) => {
@@ -410,6 +421,12 @@ export function PlayView() {
     )
   }
 
+  const setRunPracticeSpeed = (speed: PracticeSpeed) => {
+    setPracticeSpeed(speed)
+    setPlayPreferences({ ...playPreferences, practiceSpeed: speed })
+    engineRef.current?.setPlaybackRate(speed)
+  }
+
   const handleTap = useCallback(
     (
       lanes: Parameters<GameEngine['submitTap']>[0],
@@ -436,6 +453,27 @@ export function PlayView() {
     },
     [],
   )
+
+  const handleTapSweep = useCallback(
+    (
+      pointerId: number,
+      lane: Parameters<GameEngine['submitTapSweep']>[1],
+      lanes: Parameters<GameEngine['submitTapSweep']>[2],
+      timestamp: number,
+    ) => {
+      engineRef.current?.submitTapSweep(
+        pointerId,
+        lane,
+        lanes,
+        timestamp,
+      )
+    },
+    [],
+  )
+
+  const handleTapSweepEnd = useCallback((pointerId: number) => {
+    engineRef.current?.releaseTapSweep(pointerId)
+  }, [])
 
   const handleTapStarPower = useCallback((timestamp: number) => {
     engineRef.current?.activateTapStarPower(timestamp)
@@ -664,6 +702,8 @@ export function PlayView() {
               starPowerMeter={stats.starPowerMeter}
               onTap={handleTap}
               onFretChange={handleTapFretChange}
+              onSweep={handleTapSweep}
+              onSweepEnd={handleTapSweepEnd}
               onLanesChange={handleTapLanesChange}
               onStarPower={handleTapStarPower}
               onWhammy={handleTapWhammy}
@@ -679,6 +719,7 @@ export function PlayView() {
             multiplier={multiplier}
             paused={phase === 'paused'}
             sessionActive={phase === 'playing' || phase === 'paused'}
+            practiceSpeed={practiceSpeed}
             onTogglePause={togglePause}
           />
         )}
@@ -689,7 +730,9 @@ export function PlayView() {
           song={song}
           stats={stats}
           songSyncOffsetMs={song.audioOffsetMs ?? 0}
+          practiceSpeed={practiceSpeed}
           onSongSyncOffsetChange={setSongSyncOffset}
+          onPracticeSpeedChange={setRunPracticeSpeed}
           onResume={togglePause}
           onRestart={restartSession}
           onLeave={stopSession}

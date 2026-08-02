@@ -20,6 +20,12 @@ export interface ChartNote {
   starPowerPhraseIndices?: number[]
 }
 
+export interface HandiTapBurstMarker {
+  timeSeconds: number
+  lane: Lane
+  parentNoteIndex: number
+}
+
 export interface StarPowerPhrase {
   tick: number
   tickLength: number
@@ -43,6 +49,7 @@ export interface ParsedChart {
   availableTracks: string[]
   durationSeconds: number
   starPowerPhrases?: StarPowerPhrase[]
+  handiTapBurstMarkers?: HandiTapBurstMarker[]
 }
 
 export interface LocalSong {

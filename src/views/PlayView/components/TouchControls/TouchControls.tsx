@@ -11,7 +11,10 @@ import {
   TAP_HIT_LINE_RATIO,
   highwayGuideWidthAtY,
 } from '../../../../game/rendering/highwayGeometry'
-import { TouchContactTracker } from './touchContacts'
+import {
+  lanesCrossedBetween,
+  TouchContactTracker,
+} from './touchContacts'
 import { TouchWhammyTracker } from './touchWhammy'
 import { StarPowerRail } from './StarPowerRail'
 import styles from './TouchControls.module.scss'
@@ -27,6 +30,13 @@ interface TouchControlsProps {
   starPowerMeter: number
   onTap: (lanes: Lane[], timestamp: number) => void
   onFretChange: (lanes: Lane[], timestamp: number) => void
+  onSweep: (
+    pointerId: number,
+    lane: Lane,
+    lanes: Lane[],
+    timestamp: number,
+  ) => void
+  onSweepEnd: (pointerId: number) => void
   onLanesChange: (lanes: Lane[]) => void
   onStarPower: (timestamp: number) => void
   onWhammy: (amount: number) => void
@@ -39,6 +49,8 @@ export function TouchControls({
   starPowerMeter,
   onTap,
   onFretChange,
+  onSweep,
+  onSweepEnd,
   onLanesChange,
   onStarPower,
   onWhammy,
@@ -87,6 +99,7 @@ export function TouchControls({
 
   const releasePointer = useCallback(
     (pointerId: number, timestamp: number) => {
+      onSweepEnd(pointerId)
       const lane = trackerRef.current.contact(pointerId)
       const releaseType = trackerRef.current.release(pointerId)
       const whammyAmount = whammyTrackerRef.current.release(pointerId)
@@ -98,7 +111,7 @@ export function TouchControls({
         onFretChange(trackerRef.current.snapshot().lanes, timestamp)
       }
     },
-    [onFretChange, onWhammy, publishContacts],
+    [onFretChange, onSweepEnd, onWhammy, publishContacts],
   )
 
   const resetContacts = useCallback(() => {
@@ -166,14 +179,27 @@ export function TouchControls({
       Math.min(0.999, (event.clientX - bounds.left) / bounds.width),
     )
     const lane = Math.floor(progress * LANE_NAMES.length) as Lane
+    const previousLane = trackerRef.current.contact(event.pointerId)
     const moveType = trackerRef.current.move(event.pointerId, lane)
     if (whammyAmount === null && !moveType) return
 
     event.preventDefault()
     if (whammyAmount !== null) onWhammy(whammyAmount)
     publishContacts()
-    if (moveType === 'held') {
-      onFretChange(trackerRef.current.snapshot().lanes, event.timeStamp)
+    if (
+      moveType === 'held' &&
+      previousLane !== null &&
+      previousLane !== undefined
+    ) {
+      const lanes = trackerRef.current.snapshot().lanes
+      for (const crossedLane of lanesCrossedBetween(previousLane, lane)) {
+        onSweep(
+          event.pointerId,
+          crossedLane,
+          lanes,
+          event.timeStamp,
+        )
+      }
     }
   }
 

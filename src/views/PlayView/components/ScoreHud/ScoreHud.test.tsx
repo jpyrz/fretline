@@ -31,6 +31,7 @@ describe('ScoreHud', () => {
         multiplier={3}
         paused={false}
         sessionActive={false}
+        practiceSpeed={1}
         onTogglePause={vi.fn()}
       />,
     )
@@ -51,11 +52,13 @@ describe('ScoreHud', () => {
         multiplier={3}
         paused={false}
         sessionActive
+        practiceSpeed={0.5}
         onTogglePause={onTogglePause}
       />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause song' }))
     expect(onTogglePause).toHaveBeenCalledOnce()
+    expect(screen.getByText('Practice 50%')).toBeInTheDocument()
   })
 })

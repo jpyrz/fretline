@@ -483,6 +483,17 @@
   }
 }
 
+.practiceBadge {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid rgba(255, 207, 85, 0.3);
+  border-radius: 999px;
+  color: #ffd56a !important;
+  font-size: 0.55rem !important;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 .starPower[data-active='true'] ~ .scoreDetails > b {
   border-color: rgba(143, 231, 255, 0.72);
   color: white;
@@ -716,7 +727,8 @@
   [data-color='red'] { color: var(--red); background: var(--red); }
 }
 
-.songSyncControl {
+.songSyncControl,
+.practiceSpeedControl {
   display: grid;
   gap: 0.55rem;
   margin-top: 0.7rem;
@@ -780,6 +792,10 @@
     color: #ff9aa5;
     background: rgba(0, 0, 0, 0.28);
   }
+}
+
+.practiceSpeedControl > div {
+  grid-template-columns: 1fr minmax(76px, auto) 1fr;
 }
 
 @media (max-width: 700px) {

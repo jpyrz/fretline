@@ -1,4 +1,5 @@
 import type { PlayPreferences } from '../lib/trackSelection'
+import { normalizePracticeSpeed } from '../lib/practiceMode'
 import {
   recommendedInputMode,
   touchInputAvailable,
@@ -54,6 +55,7 @@ export const defaultPlayPreferences: PlayPreferences = {
   difficulty: 'Expert',
   instrumentId: 'Single',
   inputMode: 'standard',
+  practiceSpeed: 1,
 }
 
 export function loadStoredValue<T>(key: string, fallback: T): T {
@@ -195,6 +197,7 @@ export function loadInitialSettings(): {
         touchAvailable: touchInputAvailable(),
         controllerConfigured: controller !== null,
       }),
+      practiceSpeed: normalizePracticeSpeed(storedPlay.practiceSpeed),
     },
     controller,
     keyboard: normalizeKeyboardMapping(

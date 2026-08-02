@@ -41,7 +41,7 @@ function chart(notes: ChartNote[]): ParsedChart {
 
 describe('HandiTap chart adaptation', () => {
   it('has an explicit cache version', () => {
-    expect(HANDITAP_VERSION).toBe(2)
+    expect(HANDITAP_VERSION).toBe(4)
   })
 
   it('caps chords at two reachable outer lanes', () => {
@@ -106,11 +106,12 @@ describe('HandiTap chart adaptation', () => {
     expect(adapted.notes[0].sustainSeconds).toBeCloseTo(0.2)
   })
 
-  it('turns a three-note same-lane tremolo run into a hold', () => {
+  it('turns only very rapid four-note tremolo runs into a marked hold', () => {
     const source = chart([
       note(3, [2]),
-      note(3.125, [2]),
-      note(3.25, [2]),
+      note(3.1, [2]),
+      note(3.2, [2]),
+      note(3.3, [2]),
     ])
 
     const adapted = adaptChartForHandiTap(source)
@@ -118,21 +119,27 @@ describe('HandiTap chart adaptation', () => {
     expect(adapted.notes).toHaveLength(1)
     expect(adapted.notes[0]).toMatchObject({
       lanes: [2],
-      sustainTicks: 240,
+      sustainTicks: 288,
     })
-    expect(adapted.notes[0].sustainSeconds).toBeCloseTo(0.25)
+    expect(adapted.notes[0].sustainSeconds).toBeCloseTo(0.3)
+    expect(adapted.handiTapBurstMarkers).toEqual([
+      { timeSeconds: 3.1, lane: 2, parentNoteIndex: 0 },
+      { timeSeconds: 3.2, lane: 2, parentNoteIndex: 0 },
+      { timeSeconds: 3.3, lane: 2, parentNoteIndex: 0 },
+    ])
   })
 
   it('preserves ordinary double taps and lane-changing runs', () => {
     const source = chart([
       note(3, [2]),
       note(3.12, [2]),
+      note(3.24, [2]),
       note(4, [2]),
       note(4.1, [2]),
       note(4.2, [3]),
     ])
 
-    expect(adaptChartForHandiTap(source).notes).toHaveLength(5)
+    expect(adaptChartForHandiTap(source).notes).toHaveLength(6)
   })
 
   it('does not merge star-power chord repetitions', () => {
@@ -152,6 +159,46 @@ describe('HandiTap chart adaptation', () => {
     ])
 
     expect(adaptChartForHandiTap(source).notes).toHaveLength(3)
+  })
+
+  it('folds rapid full-fretboard leads into three thumb-friendly lanes', () => {
+    const source = chart([
+      note(1, [0]),
+      note(1.12, [1], { hopo: true }),
+      note(1.24, [2], { hopo: true }),
+      note(1.36, [3], { hopo: true }),
+      note(1.48, [4], { hopo: true }),
+      note(1.6, [0], { tap: true }),
+    ])
+
+    const adapted = adaptChartForHandiTap(source)
+
+    expect(adapted.notes.map((item) => item.lanes[0])).toEqual([
+      1, 2, 3, 2, 3, 2,
+    ])
+    expect(adapted.notes.map((item) => item.timeSeconds)).toEqual(
+      source.notes.map((item) => item.timeSeconds),
+    )
+  })
+
+  it('preserves slower and narrower lead phrases', () => {
+    const slower = chart([
+      note(1, [0]),
+      note(1.2, [1], { hopo: true }),
+      note(1.4, [2], { hopo: true }),
+      note(1.6, [3], { hopo: true }),
+      note(1.8, [4], { hopo: true }),
+    ])
+    const narrower = chart([
+      note(2, [0]),
+      note(2.1, [1], { hopo: true }),
+      note(2.2, [2], { hopo: true }),
+      note(2.3, [3], { hopo: true }),
+      note(2.4, [2], { hopo: true }),
+    ])
+
+    expect(adaptChartForHandiTap(slower).notes).toEqual(slower.notes)
+    expect(adaptChartForHandiTap(narrower).notes).toEqual(narrower.notes)
   })
 
   it('is deterministic and does not mutate the imported chart', () => {

@@ -12,6 +12,7 @@ import {
   sustainReleaseExpired,
 } from '../lib/scoring'
 import {
+  chartTimeForPlayback,
   COUNTDOWN_SECONDS,
   createPlaybackSchedule,
   RESUME_LEAD_SECONDS,
@@ -34,6 +35,7 @@ import {
   handiTapSustainReleaseExpired,
   isPartialHandiTapChord,
 } from './input/tapInput'
+import { TapSweepBuffer } from './input/tapSweepBuffer'
 import type {
   CalibrationSettings,
   ControllerMapping,
@@ -54,6 +56,7 @@ interface GameEngineOptions {
   controllerMapping: ControllerMapping | null
   keyboardMapping: KeyboardMapping
   inputMode?: PlayInputMode
+  playbackRate?: number
   calibrationMode?: boolean
   whammyBufferIndices?: number[]
   onFrame: (frame: GameFrame) => void
@@ -98,6 +101,7 @@ export class GameEngine {
   private readonly controllerMapping: ControllerMapping | null
   private readonly keyboardMapping: KeyboardMapping
   private readonly inputMode: PlayInputMode
+  private playbackRate: number
   private readonly calibrationMode: boolean
   private readonly whammyBufferIndices: ReadonlySet<number>
   private readonly keyboardLanesByCode: Map<string, Lane>
@@ -109,6 +113,7 @@ export class GameEngine {
   private readonly sources: AudioBufferSourceNode[] = []
   private readonly whammyEffects: WhammyEffectNodes[] = []
   private readonly keyboardLanes = new Set<Lane>()
+  private readonly tapSweepBuffer = new TapSweepBuffer()
   private touchLanes: Lane[] = []
   private readonly noteStates: Array<'pending' | 'hit' | 'miss'>
   private readonly sustainStates: SustainState[]
@@ -154,6 +159,7 @@ export class GameEngine {
     this.controllerMapping = options.controllerMapping
     this.keyboardMapping = options.keyboardMapping
     this.inputMode = options.inputMode ?? 'standard'
+    this.playbackRate = Math.max(0.25, Math.min(1, options.playbackRate ?? 1))
     this.calibrationMode = options.calibrationMode ?? false
     this.whammyBufferIndices = new Set(options.whammyBufferIndices ?? [])
     this.keyboardLanesByCode = new Map(
@@ -230,6 +236,7 @@ export class GameEngine {
     this.keyboardWhammy = false
     this.touchLanes = []
     this.touchWhammy = 0
+    this.tapSweepBuffer.reset()
     this.lastStatsPush = 0
     this.statsDirty = true
     this.recordsSnapshot = []
@@ -248,6 +255,7 @@ export class GameEngine {
     this.stopSources()
     this.mixGain?.disconnect()
     this.mixGain = null
+    this.tapSweepBuffer.reset()
     this.onPauseChange(true)
   }
 
@@ -295,6 +303,28 @@ export class GameEngine {
     )
   }
 
+  submitTapSweep(
+    pointerId: number,
+    lane: Lane,
+    lanes: Lane[],
+    eventTimestamp: number,
+  ): void {
+    if (this.inputMode !== 'tap') return
+    this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
+    const performanceTime = normalizePerformanceTimestamp(eventTimestamp)
+    const rawSongTime = this.songTimeAt(performanceTime)
+    const scoringTime =
+      rawSongTime - this.calibration.inputOffsetMs / 1000
+    if (scoringTime >= 0) {
+      this.tapSweepBuffer.record(pointerId, lane, scoringTime)
+      this.attemptBufferedTapSweep(rawSongTime, scoringTime)
+    }
+  }
+
+  releaseTapSweep(pointerId: number): void {
+    this.tapSweepBuffer.release(pointerId)
+  }
+
   setTapLanes(lanes: Lane[]): void {
     if (this.inputMode !== 'tap') return
     this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
@@ -315,6 +345,11 @@ export class GameEngine {
     this.audioOffsetMs = Math.max(-400, Math.min(400, offsetMs))
   }
 
+  setPlaybackRate(playbackRate: number): void {
+    if (!this.paused || !Number.isFinite(playbackRate)) return
+    this.playbackRate = Math.max(0.25, Math.min(1, playbackRate))
+  }
+
   stop(): void {
     if (this.stopped) return
     this.stopped = true
@@ -322,6 +357,7 @@ export class GameEngine {
     window.removeEventListener('keydown', this.handleKeyDown)
     window.removeEventListener('keyup', this.handleKeyUp)
     this.stopSources()
+    this.tapSweepBuffer.reset()
     this.mixGain?.disconnect()
     this.mixGain = null
   }
@@ -365,6 +401,7 @@ export class GameEngine {
       songTimeSeconds,
       leadSeconds,
       this.audioOffsetMs / 1000,
+      this.playbackRate,
     )
     this.startContextTime = schedule.chartStartContextTime
 
@@ -373,6 +410,7 @@ export class GameEngine {
       if (schedule.sourceOffsetSeconds >= buffer.duration) continue
       const source = this.audioContext.createBufferSource()
       source.buffer = buffer
+      source.playbackRate.value = this.playbackRate
       if (this.whammyBufferIndices.has(bufferIndex)) {
         const delay = this.audioContext.createDelay(0.05)
         const oscillator = this.audioContext.createOscillator()
@@ -482,7 +520,9 @@ export class GameEngine {
   }
 
   private songTimeAt(performanceTime: number): number {
-    return this.audioTimeAt(performanceTime) - this.startContextTime
+    const elapsedContextTime =
+      this.audioTimeAt(performanceTime) - this.startContextTime
+    return chartTimeForPlayback(elapsedContextTime, this.playbackRate)
   }
 
   private heldLanes(): Lane[] {
@@ -804,6 +844,7 @@ export class GameEngine {
       | 'tap-slide'
       | 'tap-open-release'
       | 'calibration',
+    heldLanesOverride?: Lane[],
   ): boolean {
     if (this.stopped || this.finished || this.paused) return false
     const rawSongTime = this.songTimeAt(performanceTime)
@@ -842,6 +883,16 @@ export class GameEngine {
         continue
       }
       if (inputType === 'tap-open-release' && !note.open) continue
+      if (
+        heldLanesOverride &&
+        !lanesMatchWithActiveSustains(
+          note,
+          heldLanesOverride,
+          this.activeSustainLanes(),
+        )
+      ) {
+        continue
+      }
       const distance = Math.abs(
         scoringTime - note.timeSeconds,
       )
@@ -855,8 +906,22 @@ export class GameEngine {
       return false
     }
 
+    return this.completeHit(
+      candidateIndex,
+      rawSongTime,
+      scoringTime,
+      heldLanesOverride,
+    )
+  }
+
+  private completeHit(
+    candidateIndex: number,
+    rawSongTime: number,
+    scoringTime: number,
+    heldLanesOverride?: Lane[],
+  ): boolean {
     const note = this.chart.notes[candidateIndex]
-    const heldLanes = this.heldLanes()
+    const heldLanes = heldLanesOverride ?? this.heldLanes()
     const activeSustainLanes = this.activeSustainLanes()
 
     if (
@@ -902,6 +967,41 @@ export class GameEngine {
     this.advanceMissCursor()
     this.pushStats()
     return true
+  }
+
+  private attemptBufferedTapSweep(
+    rawSongTime: number,
+    scoringTime: number,
+  ): void {
+    if (this.inputMode !== 'tap' || scoringTime < 0) return
+    const windowSeconds = HIT_WINDOW_MS / 1000
+
+    for (
+      let noteIndex = this.missCursor;
+      noteIndex < this.chart.notes.length;
+      noteIndex += 1
+    ) {
+      if (this.noteStates[noteIndex] !== 'pending') continue
+      const note = this.chart.notes[noteIndex]
+      if (note.timeSeconds > scoringTime + windowSeconds) break
+      if (note.timeSeconds < scoringTime - windowSeconds) continue
+      if (
+        note.open ||
+        note.lanes.length !== 1 ||
+        (!note.hopo && !note.tap)
+      ) {
+        return
+      }
+
+      const lane = note.lanes[0]
+      if (!this.tapSweepBuffer.has(lane, scoringTime)) return
+      if (
+        this.completeHit(noteIndex, rawSongTime, scoringTime, [lane])
+      ) {
+        this.tapSweepBuffer.consume(lane, scoringTime)
+      }
+      return
+    }
   }
 
   private updateSustains(scoringTime: number): void {
@@ -1042,6 +1142,7 @@ export class GameEngine {
       this.readGamepad(now)
     }
     this.updateStarPower(scoringTime)
+    this.attemptBufferedTapSweep(songTimeSeconds, scoringTime)
     this.updateSustains(scoringTime)
     this.updateWhammyAudio(scoringTime)
     this.markMisses(scoringTime)

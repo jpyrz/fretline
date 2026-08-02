@@ -1,12 +1,19 @@
-import type { ChartNote, Lane, ParsedChart } from '../../types/game'
+import type {
+  ChartNote,
+  HandiTapBurstMarker,
+  Lane,
+  ParsedChart,
+} from '../../types/game'
 
-export const HANDITAP_VERSION = 2
+export const HANDITAP_VERSION = 4
 
 // Only bursts beyond roughly 14 notes per second are thinned. Ordinary authored
 // rhythms, including 16th notes at common tempos, pass through unchanged.
 const MIN_NOTE_INTERVAL_SECONDS = 0.07
 const RAPID_REPEATED_CHORD_SECONDS = 0.115
-const RAPID_TREMOLO_SECONDS = 0.125
+const RAPID_TREMOLO_SECONDS = 0.1
+const RAPID_LEAD_INTERVAL_SECONDS = 0.18
+const RAPID_LEAD_MIN_NOTES = 5
 
 function chordLanes(lanes: Lane[]): Lane[] {
   if (lanes.length <= 2) return lanes
@@ -54,8 +61,18 @@ function repeatedHoldThreshold(note: ChartNote): number | null {
   return null
 }
 
-function mergeRapidRepeatedHolds(notes: ChartNote[]): ChartNote[] {
+interface PendingBurstMarker {
+  timeSeconds: number
+  lane: Lane
+  parentTimeSeconds: number
+}
+
+function mergeRapidRepeatedHolds(notes: ChartNote[]): {
+  notes: ChartNote[]
+  burstMarkers: PendingBurstMarker[]
+} {
   const playable: ChartNote[] = []
+  const burstMarkers: PendingBurstMarker[] = []
 
   for (let index = 0; index < notes.length; ) {
     const first = notes[index]
@@ -84,7 +101,7 @@ function mergeRapidRepeatedHolds(notes: ChartNote[]): ChartNote[] {
     }
 
     const runLength = runEnd - index + 1
-    const minimumRunLength = first.lanes.length === 1 ? 3 : 2
+    const minimumRunLength = first.lanes.length === 1 ? 4 : 2
     if (runLength < minimumRunLength) {
       playable.push(...notes.slice(index, runEnd + 1))
       index = runEnd + 1
@@ -105,6 +122,93 @@ function mergeRapidRepeatedHolds(notes: ChartNote[]): ChartNote[] {
       sustainTicks,
       sustainSeconds,
     })
+    if (first.lanes.length === 1) {
+      for (const repeatedNote of notes.slice(index + 1, runEnd + 1)) {
+        burstMarkers.push({
+          timeSeconds: repeatedNote.timeSeconds,
+          lane: first.lanes[0],
+          parentTimeSeconds: first.timeSeconds,
+        })
+      }
+    }
+    index = runEnd + 1
+  }
+
+  return { notes: playable, burstMarkers }
+}
+
+function isLeadAnchor(note: ChartNote): boolean {
+  return (
+    !note.open &&
+    note.lanes.length === 1 &&
+    note.sustainSeconds <= 0.03 &&
+    note.sustainTicks === 0
+  )
+}
+
+function foldLeadRun(run: ChartNote[]): ChartNote[] {
+  let previousSourceLane = run[0].lanes[0]
+  let foldedLane = Math.max(
+    1,
+    Math.min(3, Math.round(1 + previousSourceLane / 2)),
+  ) as Lane
+
+  return run.map((note, index) => {
+    const sourceLane = note.lanes[0]
+    if (index > 0) {
+      const direction = Math.sign(sourceLane - previousSourceLane)
+      if (direction !== 0) {
+        const candidate = foldedLane + direction
+        foldedLane = (
+          candidate < 1 || candidate > 3 ? 2 : candidate
+        ) as Lane
+      }
+      previousSourceLane = sourceLane
+    }
+    return sourceLane === foldedLane ? note : { ...note, lanes: [foldedLane] }
+  })
+}
+
+/**
+ * Folds only continuous, full-fretboard lead bursts into the middle three
+ * lanes. The rhythm and note count stay intact; slower riffs and runs that do
+ * not span green through orange retain their authored lane pattern.
+ */
+function foldWideRapidLeads(notes: ChartNote[]): ChartNote[] {
+  const playable: ChartNote[] = []
+
+  for (let index = 0; index < notes.length; ) {
+    const first = notes[index]
+    if (!isLeadAnchor(first)) {
+      playable.push(first)
+      index += 1
+      continue
+    }
+
+    let runEnd = index
+    while (runEnd + 1 < notes.length) {
+      const current = notes[runEnd]
+      const next = notes[runEnd + 1]
+      if (
+        !isLeadAnchor(next) ||
+        (!next.hopo && !next.tap) ||
+        next.lanes[0] === current.lanes[0] ||
+        next.timeSeconds - current.timeSeconds >
+          RAPID_LEAD_INTERVAL_SECONDS + 0.000001
+      ) {
+        break
+      }
+      runEnd += 1
+    }
+
+    const run = notes.slice(index, runEnd + 1)
+    const lanes = run.map((note) => note.lanes[0])
+    const spansFullFretboard = Math.max(...lanes) - Math.min(...lanes) === 4
+    playable.push(
+      ...(run.length >= RAPID_LEAD_MIN_NOTES && spansFullFretboard
+        ? foldLeadRun(run)
+        : run),
+    )
     index = runEnd + 1
   }
 
@@ -146,13 +250,35 @@ function reduceExtremeDensity(
 export function adaptChartForHandiTap(chart: ParsedChart): ParsedChart {
   const adaptedNotes = chart.notes.map(adaptNote)
   const heldRepeatedNotes = mergeRapidRepeatedHolds(adaptedNotes)
+  const foldedRapidLeads = foldWideRapidLeads(heldRepeatedNotes.notes)
   const playableNotes = reduceExtremeDensity(
-    heldRepeatedNotes,
+    foldedRapidLeads,
     chart.metadata.resolution,
+  )
+  const handiTapBurstMarkers = heldRepeatedNotes.burstMarkers.flatMap(
+    (marker): HandiTapBurstMarker[] => {
+      const parentNoteIndex = playableNotes.findIndex(
+        (note) =>
+          Math.abs(note.timeSeconds - marker.parentTimeSeconds) < 0.000001 &&
+          note.lanes.length === 1 &&
+          note.lanes[0] === marker.lane &&
+          note.sustainSeconds > 0.03,
+      )
+      return parentNoteIndex < 0
+        ? []
+        : [
+            {
+              timeSeconds: marker.timeSeconds,
+              lane: marker.lane,
+              parentNoteIndex,
+            },
+          ]
+    },
   )
 
   return {
     ...chart,
     notes: playableNotes,
+    handiTapBurstMarkers,
   }
 }

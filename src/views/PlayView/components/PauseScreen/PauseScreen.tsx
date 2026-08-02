@@ -1,5 +1,10 @@
 import { Link } from 'react-router-dom'
 import type { LocalSong, SessionStats } from '../../../../types/game'
+import {
+  adjacentPracticeSpeed,
+  formatPracticeSpeed,
+  type PracticeSpeed,
+} from '../../../../lib/practiceMode'
 import styles from '../../PlayView.module.scss'
 
 function formatTrackName(trackName: string): string {
@@ -18,7 +23,9 @@ interface PauseScreenProps {
   song: LocalSong
   stats: SessionStats
   songSyncOffsetMs: number
+  practiceSpeed: PracticeSpeed
   onSongSyncOffsetChange: (offsetMs: number) => void
+  onPracticeSpeedChange: (speed: PracticeSpeed) => void
   onResume: () => void
   onRestart: () => void
   onLeave: () => void
@@ -28,7 +35,9 @@ export function PauseScreen({
   song,
   stats,
   songSyncOffsetMs,
+  practiceSpeed,
   onSongSyncOffsetChange,
+  onPracticeSpeedChange,
   onResume,
   onRestart,
   onLeave,
@@ -100,6 +109,39 @@ export function PauseScreen({
             Main menu
           </Link>
         </nav>
+        <div className={styles.practiceSpeedControl}>
+          <span>
+            <strong>Practice speed</strong>
+            <small>Changes apply when you resume</small>
+          </span>
+          <div>
+            <button
+              type="button"
+              data-controller-nav-item
+              disabled={practiceSpeed === 1}
+              onClick={() =>
+                onPracticeSpeedChange(
+                  adjacentPracticeSpeed(practiceSpeed, -1),
+                )
+              }
+            >
+              Faster
+            </button>
+            <output>{formatPracticeSpeed(practiceSpeed)}</output>
+            <button
+              type="button"
+              data-controller-nav-item
+              disabled={practiceSpeed === 0.25}
+              onClick={() =>
+                onPracticeSpeedChange(
+                  adjacentPracticeSpeed(practiceSpeed, 1),
+                )
+              }
+            >
+              Slower
+            </button>
+          </div>
+        </div>
         {song.kind === 'folder' && (
           <div className={styles.songSyncControl}>
             <span>

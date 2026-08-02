@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { TouchContactTracker } from './touchContacts'
+import {
+  lanesCrossedBetween,
+  TouchContactTracker,
+} from './touchContacts'
 
 describe('touch contact tracker', () => {
+  it('fills in lanes skipped by a fast pointer move', () => {
+    expect(lanesCrossedBetween(0, 4)).toEqual([1, 2, 3, 4])
+    expect(lanesCrossedBetween(4, 1)).toEqual([3, 2, 1])
+    expect(lanesCrossedBetween(2, 2)).toEqual([])
+  })
+
   it('groups simultaneous lane presses into one timestamped chord', () => {
     const tracker = new TouchContactTracker()
     tracker.press(1, 1, 105)
