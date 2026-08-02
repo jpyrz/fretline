@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { calibrationSong } from '../../../../lib/calibrationSong'
 import type {
   InstrumentChoice,
@@ -10,6 +10,8 @@ import { PlayerSetup } from './PlayerSetup'
 vi.mock('../../../../components/AlbumArtwork', () => ({
   AlbumArtwork: () => <div data-testid="album-artwork" />,
 }))
+
+afterEach(cleanup)
 
 const track: TrackChoice = {
   chart: calibrationSong.chart,
@@ -85,6 +87,20 @@ describe('PlayerSetup input mode selection', () => {
     expect(props.onChoosePracticeSpeed).toHaveBeenCalledWith(0.7)
   })
 
+  it('explains when an older saved chart needs a section rescan', () => {
+    const { practiceSections: _sections, ...legacyChart } = track.chart
+    const legacyTrack = { ...track, chart: legacyChart }
+    const legacyInstrument = { ...instrument, tracks: [legacyTrack] }
+    renderSetup({
+      instruments: [legacyInstrument],
+      selectedInstrument: legacyInstrument,
+      selectedTrack: legacyTrack,
+    })
+    expect(
+      screen.getByRole('button', { name: /Resync to scan sections/i }),
+    ).toBeDisabled()
+  })
+
   it('offers authored chart sections and a three-count loop toggle', () => {
     const practiceSection = {
       id: '192:verse 2',
@@ -116,5 +132,33 @@ describe('PlayerSetup input mode selection', () => {
     expect(props.onChoosePracticeSection).toHaveBeenCalledWith(
       practiceSection,
     )
+  })
+
+  it('opens section selection when loop is tapped before choosing a section', () => {
+    const practiceSection = {
+      id: '192:verse 2',
+      name: 'Verse 2',
+      startTimeSeconds: 12,
+      endTimeSeconds: 24,
+    }
+    const sectionTrack = {
+      ...track,
+      chart: {
+        ...track.chart,
+        practiceSections: [practiceSection],
+      },
+    }
+    const sectionInstrument = {
+      ...instrument,
+      tracks: [sectionTrack],
+    }
+    const props = renderSetup({
+      instruments: [sectionInstrument],
+      selectedInstrument: sectionInstrument,
+      selectedTrack: sectionTrack,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Loop section/i }))
+    expect(props.onShowPracticeSections).toHaveBeenCalledOnce()
   })
 })

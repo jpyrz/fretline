@@ -79,7 +79,8 @@ export function PlayerSetup({
   onChoosePracticeSection,
   onPracticeLoopChange,
 }: PlayerSetupProps) {
-  const practiceSections = selectedTrack?.chart.practiceSections ?? []
+  const practiceSections = selectedTrack?.chart.practiceSections
+  const sectionScanCurrent = Array.isArray(practiceSections)
   return (
     <main className={styles.setupPage} data-step={step}>
       <div className={styles.setupBackdrop} aria-hidden="true">
@@ -183,22 +184,30 @@ export function PlayerSetup({
               <button
                 type="button"
                 data-controller-nav-item
-                disabled={practiceSections.length === 0}
+                disabled={!practiceSections?.length}
                 onClick={onShowPracticeSections}
               >
                 <span>Practice section</span>
                 <strong>
-                  {practiceSections.length === 0
-                    ? 'No chart markers'
+                  {!sectionScanCurrent
+                    ? 'Resync to scan sections'
+                    : practiceSections.length === 0
+                      ? 'No chart markers'
                     : selectedPracticeSection?.name ?? 'Full song'}
                 </strong>
               </button>
               <button
                 type="button"
                 data-controller-nav-item
-                disabled={!selectedPracticeSection}
+                disabled={!practiceSections?.length}
                 aria-pressed={practiceLoop}
-                onClick={() => onPracticeLoopChange(!practiceLoop)}
+                onClick={() => {
+                  if (!selectedPracticeSection) {
+                    onShowPracticeSections()
+                    return
+                  }
+                  onPracticeLoopChange(!practiceLoop)
+                }}
               >
                 <span>Loop section</span>
                 <strong>
@@ -391,7 +400,7 @@ export function PlayerSetup({
                 </span>
                 <b aria-hidden="true">{selectedPracticeSection ? '○' : '●'}</b>
               </button>
-              {practiceSections.map((section) => {
+              {(practiceSections ?? []).map((section) => {
                 const active = section.id === selectedPracticeSection?.id
                 return (
                   <button
