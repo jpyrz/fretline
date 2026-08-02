@@ -478,17 +478,14 @@
   height: 54px;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(255, 154, 164, 0.72);
+  border: 2px solid rgba(226, 38, 54, 0.78);
   border-radius: 50%;
   color: #fff;
   cursor: pointer;
-  background:
-    radial-gradient(circle at 36% 30%, rgba(255, 112, 125, 0.8), transparent 32%),
-    linear-gradient(145deg, var(--accent), #8f111d);
+  background: #17171b;
   box-shadow:
-    0 0 0 4px rgba(226, 38, 54, 0.1),
-    0 10px 26px rgba(0, 0, 0, 0.42),
-    0 0 22px rgba(226, 38, 54, 0.24);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 7px 16px rgba(0, 0, 0, 0.34);
 
   svg {
     width: 25px;
@@ -499,14 +496,19 @@
 
   &:hover,
   &:focus-visible {
+    border-color: #ff5262;
     outline: none;
-    background:
-      radial-gradient(circle at 36% 30%, rgba(255, 180, 188, 0.9), transparent 34%),
-      linear-gradient(145deg, #ff3549, #ad1422);
+    background: #8f1621;
     box-shadow:
-      0 0 0 4px rgba(226, 38, 54, 0.18),
-      0 12px 30px rgba(0, 0, 0, 0.48),
-      0 0 30px rgba(255, 55, 75, 0.4);
+      0 0 0 3px rgba(226, 38, 54, 0.14),
+      0 8px 18px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@media (hover: none) {
+  .playButton:active {
+    border-color: #ff5262;
+    background: #8f1621;
   }
 }
 
