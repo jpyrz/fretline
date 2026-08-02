@@ -41,7 +41,7 @@ function chart(notes: ChartNote[]): ParsedChart {
 
 describe('HandiTap chart adaptation', () => {
   it('has an explicit cache version', () => {
-    expect(HANDITAP_VERSION).toBe(1)
+    expect(HANDITAP_VERSION).toBe(2)
   })
 
   it('caps chords at two reachable outer lanes', () => {
@@ -106,6 +106,35 @@ describe('HandiTap chart adaptation', () => {
     expect(adapted.notes[0].sustainSeconds).toBeCloseTo(0.2)
   })
 
+  it('turns a three-note same-lane tremolo run into a hold', () => {
+    const source = chart([
+      note(3, [2]),
+      note(3.125, [2]),
+      note(3.25, [2]),
+    ])
+
+    const adapted = adaptChartForHandiTap(source)
+
+    expect(adapted.notes).toHaveLength(1)
+    expect(adapted.notes[0]).toMatchObject({
+      lanes: [2],
+      sustainTicks: 240,
+    })
+    expect(adapted.notes[0].sustainSeconds).toBeCloseTo(0.25)
+  })
+
+  it('preserves ordinary double taps and lane-changing runs', () => {
+    const source = chart([
+      note(3, [2]),
+      note(3.12, [2]),
+      note(4, [2]),
+      note(4.1, [2]),
+      note(4.2, [3]),
+    ])
+
+    expect(adaptChartForHandiTap(source).notes).toHaveLength(5)
+  })
+
   it('does not merge star-power chord repetitions', () => {
     const source = chart([
       note(2, [0, 4], { starPower: true, starPowerPhraseIndices: [0] }),
@@ -113,6 +142,16 @@ describe('HandiTap chart adaptation', () => {
     ])
 
     expect(adaptChartForHandiTap(source).notes).toHaveLength(2)
+  })
+
+  it('does not merge star-power tremolo repetitions', () => {
+    const source = chart([
+      note(2, [1], { starPower: true, starPowerPhraseIndices: [0] }),
+      note(2.1, [1], { starPower: true, starPowerPhraseIndices: [0] }),
+      note(2.2, [1], { starPower: true, starPowerPhraseIndices: [0] }),
+    ])
+
+    expect(adaptChartForHandiTap(source).notes).toHaveLength(3)
   })
 
   it('is deterministic and does not mutate the imported chart', () => {

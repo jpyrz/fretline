@@ -1,11 +1,12 @@
 import type { ChartNote, Lane, ParsedChart } from '../../types/game'
 
-export const HANDITAP_VERSION = 1
+export const HANDITAP_VERSION = 2
 
 // Only bursts beyond roughly 14 notes per second are thinned. Ordinary authored
 // rhythms, including 16th notes at common tempos, pass through unchanged.
 const MIN_NOTE_INTERVAL_SECONDS = 0.07
 const RAPID_REPEATED_CHORD_SECONDS = 0.115
+const RAPID_TREMOLO_SECONDS = 0.125
 
 function chordLanes(lanes: Lane[]): Lane[] {
   if (lanes.length <= 2) return lanes
@@ -46,40 +47,65 @@ function sameLanes(left: ChartNote, right: ChartNote): boolean {
   )
 }
 
-function mergeRapidRepeatedChords(notes: ChartNote[]): ChartNote[] {
+function repeatedHoldThreshold(note: ChartNote): number | null {
+  if (note.open) return null
+  if (note.lanes.length === 2) return RAPID_REPEATED_CHORD_SECONDS
+  if (note.lanes.length === 1) return RAPID_TREMOLO_SECONDS
+  return null
+}
+
+function mergeRapidRepeatedHolds(notes: ChartNote[]): ChartNote[] {
   const playable: ChartNote[] = []
 
-  for (const note of notes) {
-    const previous = playable[playable.length - 1]
-    const isRapidRepeat =
-      previous &&
-      previous.lanes.length === 2 &&
-      note.lanes.length === 2 &&
-      sameLanes(previous, note) &&
-      note.timeSeconds -
-        (previous.timeSeconds + previous.sustainSeconds) <=
-        RAPID_REPEATED_CHORD_SECONDS &&
-      !hasStarPowerMembership(previous) &&
-      !hasStarPowerMembership(note)
-
-    if (!isRapidRepeat) {
-      playable.push(note)
+  for (let index = 0; index < notes.length; ) {
+    const first = notes[index]
+    const threshold = repeatedHoldThreshold(first)
+    if (threshold === null || hasStarPowerMembership(first)) {
+      playable.push(first)
+      index += 1
       continue
     }
 
+    let runEnd = index
+    while (runEnd + 1 < notes.length) {
+      const current = notes[runEnd]
+      const next = notes[runEnd + 1]
+      const gap =
+        next.timeSeconds -
+        (current.timeSeconds + current.sustainSeconds)
+      if (
+        !sameLanes(first, next) ||
+        hasStarPowerMembership(next) ||
+        gap > threshold + 0.000001
+      ) {
+        break
+      }
+      runEnd += 1
+    }
+
+    const runLength = runEnd - index + 1
+    const minimumRunLength = first.lanes.length === 1 ? 3 : 2
+    if (runLength < minimumRunLength) {
+      playable.push(...notes.slice(index, runEnd + 1))
+      index = runEnd + 1
+      continue
+    }
+
+    const last = notes[runEnd]
     const sustainTicks = Math.max(
-      previous.sustainTicks,
-      note.tick + note.sustainTicks - previous.tick,
+      first.sustainTicks,
+      last.tick + last.sustainTicks - first.tick,
     )
     const sustainSeconds = Math.max(
-      previous.sustainSeconds,
-      note.timeSeconds + note.sustainSeconds - previous.timeSeconds,
+      first.sustainSeconds,
+      last.timeSeconds + last.sustainSeconds - first.timeSeconds,
     )
-    playable[playable.length - 1] = {
-      ...previous,
+    playable.push({
+      ...first,
       sustainTicks,
       sustainSeconds,
-    }
+    })
+    index = runEnd + 1
   }
 
   return playable
@@ -119,9 +145,9 @@ function reduceExtremeDensity(
  */
 export function adaptChartForHandiTap(chart: ParsedChart): ParsedChart {
   const adaptedNotes = chart.notes.map(adaptNote)
-  const heldRepeatedChords = mergeRapidRepeatedChords(adaptedNotes)
+  const heldRepeatedNotes = mergeRapidRepeatedHolds(adaptedNotes)
   const playableNotes = reduceExtremeDensity(
-    heldRepeatedChords,
+    heldRepeatedNotes,
     chart.metadata.resolution,
   )
 
