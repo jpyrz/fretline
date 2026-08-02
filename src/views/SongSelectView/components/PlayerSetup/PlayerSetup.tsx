@@ -180,10 +180,10 @@ export function PlayerSetup({
                 onClick={() => onChooseInputMode('tap')}
               >
                 <span>
-                  <strong>Tap controls</strong>
+                  <strong>Tap controls · HandiTap</strong>
                   <small>
                     {touchAvailable
-                      ? 'Tap the five lanes directly on this screen'
+                      ? 'Adapts guitar charts for two-thumb play'
                       : 'Available on touchscreen devices'}
                   </small>
                 </span>

@@ -30,7 +30,7 @@ export function ResultsOverlay({
     <div className={`${styles.overlay} ${styles.resultsOverlay}`}>
       <p className="eyebrow">Run complete</p>
       {inputMode === 'tap' && (
-        <span className={styles.inputModeBadge}>Tap Mode</span>
+        <span className={styles.inputModeBadge}>Tap Mode · HandiTap</span>
       )}
       <h1>
         <span className={styles.resultRank}>{results.resultRank}</span>

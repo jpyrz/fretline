@@ -30,7 +30,10 @@ import {
   normalizePerformanceTimestamp,
   readControllerState,
 } from './input/controllerState'
-import { tapAssistedHeldLanes } from './input/tapInput'
+import {
+  handiTapSustainReleaseExpired,
+  isPartialHandiTapChord,
+} from './input/tapInput'
 import type {
   CalibrationSettings,
   ControllerMapping,
@@ -107,7 +110,6 @@ export class GameEngine {
   private readonly whammyEffects: WhammyEffectNodes[] = []
   private readonly keyboardLanes = new Set<Lane>()
   private touchLanes: Lane[] = []
-  private readonly touchAssistedSustains = new Map<number, Lane[]>()
   private readonly noteStates: Array<'pending' | 'hit' | 'miss'>
   private readonly sustainStates: SustainState[]
   private readonly sustainBasePointsAwarded: number[]
@@ -227,7 +229,6 @@ export class GameEngine {
     this.gamepadWhammy = 0
     this.keyboardWhammy = false
     this.touchLanes = []
-    this.touchAssistedSustains.clear()
     this.touchWhammy = 0
     this.lastStatsPush = 0
     this.statsDirty = true
@@ -274,6 +275,7 @@ export class GameEngine {
     this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
     const performanceTime = normalizePerformanceTimestamp(eventTimestamp)
     if (this.attemptHit(performanceTime, 'tap')) return
+    if (this.isPartialTapChordAt(performanceTime)) return
     this.recordOverstrum(performanceTime)
   }
 
@@ -287,7 +289,10 @@ export class GameEngine {
   submitTapFretChange(lanes: Lane[], eventTimestamp: number): void {
     if (this.inputMode !== 'tap') return
     this.touchLanes = [...new Set(lanes)].sort((a, b) => a - b)
-    this.fretChange(normalizePerformanceTimestamp(eventTimestamp))
+    this.attemptHit(
+      normalizePerformanceTimestamp(eventTimestamp),
+      this.touchLanes.length === 0 ? 'tap-open-release' : 'tap-slide',
+    )
   }
 
   setTapLanes(lanes: Lane[]): void {
@@ -481,19 +486,11 @@ export class GameEngine {
   }
 
   private heldLanes(): Lane[] {
-    const assistedLanes: Lane[] = []
-    for (const lanes of this.touchAssistedSustains.values()) {
-      if (this.touchLanes.some((lane) => lanes.includes(lane))) {
-        assistedLanes.push(...lanes)
-      }
-    }
-
     return [
       ...new Set([
         ...this.keyboardLanes,
         ...this.gamepadLanes,
         ...this.touchLanes,
-        ...assistedLanes,
       ]),
     ].sort((a, b) => a - b)
   }
@@ -766,9 +763,47 @@ export class GameEngine {
     this.attemptHit(performanceTime, 'fret')
   }
 
+  private isPartialTapChordAt(performanceTime: number): boolean {
+    const rawSongTime = this.songTimeAt(performanceTime)
+    if (rawSongTime < 0) return false
+    const scoringTime =
+      rawSongTime - this.calibration.inputOffsetMs / 1000
+    const windowSeconds = HIT_WINDOW_MS / 1000
+    let candidateIndex = -1
+    let candidateDistance = Number.POSITIVE_INFINITY
+
+    for (
+      let index = this.missCursor;
+      index < this.chart.notes.length;
+      index += 1
+    ) {
+      if (this.noteStates[index] !== 'pending') continue
+      const note = this.chart.notes[index]
+      if (note.timeSeconds > scoringTime + windowSeconds) break
+      const distance = Math.abs(scoringTime - note.timeSeconds)
+      if (distance <= windowSeconds && distance < candidateDistance) {
+        candidateIndex = index
+        candidateDistance = distance
+      }
+    }
+
+    if (candidateIndex < 0) return false
+    return isPartialHandiTapChord(
+      this.chart.notes[candidateIndex],
+      this.heldLanes(),
+      this.activeSustainLanes(),
+    )
+  }
+
   private attemptHit(
     performanceTime: number,
-    inputType: 'strum' | 'fret' | 'tap' | 'calibration',
+    inputType:
+      | 'strum'
+      | 'fret'
+      | 'tap'
+      | 'tap-slide'
+      | 'tap-open-release'
+      | 'calibration',
   ): boolean {
     if (this.stopped || this.finished || this.paused) return false
     const rawSongTime = this.songTimeAt(performanceTime)
@@ -799,6 +834,14 @@ export class GameEngine {
       ) {
         continue
       }
+      if (
+        inputType === 'tap-slide' &&
+        !note.tap &&
+        !note.hopo
+      ) {
+        continue
+      }
+      if (inputType === 'tap-open-release' && !note.open) continue
       const distance = Math.abs(
         scoringTime - note.timeSeconds,
       )
@@ -815,21 +858,12 @@ export class GameEngine {
     const note = this.chart.notes[candidateIndex]
     const heldLanes = this.heldLanes()
     const activeSustainLanes = this.activeSustainLanes()
-    const assistedLanes =
-      inputType === 'tap'
-        ? tapAssistedHeldLanes(
-            note,
-            heldLanes,
-            activeSustainLanes,
-          )
-        : null
-    const matchingLanes = assistedLanes ?? heldLanes
 
     if (
       !this.calibrationMode &&
       !lanesMatchWithActiveSustains(
         note,
-        matchingLanes,
+        heldLanes,
         activeSustainLanes,
       )
     ) {
@@ -841,12 +875,6 @@ export class GameEngine {
     if (note.sustainTicks > 0 && note.sustainSeconds > 0.03) {
       this.sustainStates[candidateIndex] = 'holding'
       this.activeSustains.add(candidateIndex)
-      if (assistedLanes) {
-        this.touchAssistedSustains.set(
-          candidateIndex,
-          [...note.lanes],
-        )
-      }
     }
     this.stats.score += scoreForHit(
       Math.max(1, note.lanes.length),
@@ -891,12 +919,18 @@ export class GameEngine {
           this.sustainMismatchStartedAt[noteIndex]
         if (mismatchStartedAt === null) {
           this.sustainMismatchStartedAt[noteIndex] = scoringTime
-        } else if (sustainReleaseExpired(mismatchStartedAt, scoringTime)) {
+        } else if (
+          this.inputMode === 'tap'
+            ? handiTapSustainReleaseExpired(
+                mismatchStartedAt,
+                scoringTime,
+              )
+            : sustainReleaseExpired(mismatchStartedAt, scoringTime)
+        ) {
           this.sustainStates[noteIndex] = 'released'
           this.stats.sustainsBroken += 1
           this.statsDirty = true
           this.activeSustains.delete(noteIndex)
-          this.touchAssistedSustains.delete(noteIndex)
           continue
         }
       } else {
@@ -935,7 +969,6 @@ export class GameEngine {
         this.stats.sustainsCompleted += 1
         this.statsDirty = true
         this.activeSustains.delete(noteIndex)
-        this.touchAssistedSustains.delete(noteIndex)
       }
     }
   }

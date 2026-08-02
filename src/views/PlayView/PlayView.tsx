@@ -11,6 +11,7 @@ import { BackIconButton } from '../../components/BackIconButton/BackIconButton'
 import { HighwayCanvas } from '../../components/HighwayCanvas'
 import { GameEngine } from '../../game/GameEngine'
 import { drawHighway } from '../../game/drawHighway'
+import { adaptChartForHandiTap } from '../../game/handiTap/handiTap'
 import { preloadGameplayVfx } from '../../game/rendering/vfxSprites'
 import { createCalibrationAudio } from '../../lib/calibrationSong'
 import { audioFileMetadata } from '../../lib/songLibrary'
@@ -168,6 +169,13 @@ export function PlayView() {
   )
   const highwayVisualsRef = useRef(highwayVisuals)
   highwayVisualsRef.current = highwayVisuals
+  const gameplayChart = useMemo(
+    () =>
+      inputMode === 'tap' && song.kind === 'folder'
+        ? adaptChartForHandiTap(song.chart)
+        : song.chart,
+    [inputMode, song.chart, song.kind],
+  )
 
   const {
     suggestedCorrection,
@@ -184,19 +192,19 @@ export function PlayView() {
     () =>
       calculateSessionResults(
         stats,
-        song.chart.notes.length,
+        gameplayChart.notes.length,
         song.kind === 'calibration' ? 4 : 0,
       ),
-    [song.chart.notes.length, song.kind, stats],
+    [gameplayChart.notes.length, song.kind, stats],
   )
   const loadingFrame = useMemo<GameFrame>(
     () => ({
       songTimeSeconds: -10,
       visualTimeSeconds: -10,
       heldLanes: [],
-      noteStates: song.chart.notes.map(() => 'pending'),
-      sustainStates: song.chart.notes.map(() => 'none'),
-      starPowerPhraseStates: (song.chart.starPowerPhrases ?? []).map(
+      noteStates: gameplayChart.notes.map(() => 'pending'),
+      sustainStates: gameplayChart.notes.map(() => 'none'),
+      starPowerPhraseStates: (gameplayChart.starPowerPhrases ?? []).map(
         () => 'pending',
       ),
       activeSustainIndices: [],
@@ -206,14 +214,14 @@ export function PlayView() {
       missFlash: null,
       starPowerPhraseFlash: null,
     }),
-    [song.chart.notes, song.chart.starPowerPhrases],
+    [gameplayChart.notes, gameplayChart.starPowerPhrases],
   )
   const displayChart = useMemo(
     () =>
       song.kind === 'calibration'
-        ? { ...song.chart, notes: [], starPowerPhrases: [] }
-        : song.chart,
-    [song.chart, song.kind],
+        ? { ...gameplayChart, notes: [], starPowerPhrases: [] }
+        : gameplayChart,
+    [gameplayChart, song.kind],
   )
 
   const stopSession = () => {
@@ -306,7 +314,7 @@ export function PlayView() {
       const engine = new GameEngine({
         audioContext,
         audioBuffers,
-        chart: song.chart,
+        chart: gameplayChart,
         calibration: {
           ...calibration,
           audioOffsetMs:
@@ -599,7 +607,7 @@ export function PlayView() {
           {phase === 'finished' && (
             <ResultsOverlay
               stats={stats}
-              noteCount={song.chart.notes.length}
+              noteCount={gameplayChart.notes.length}
               calibrationRun={song.kind === 'calibration'}
               inputMode={inputMode}
               results={{

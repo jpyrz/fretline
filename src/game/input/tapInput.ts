@@ -1,25 +1,32 @@
 import type { ChartNote, Lane } from '../../types/game'
 
-export function tapAssistedHeldLanes(
+export const HANDITAP_SUSTAIN_RELEASE_GRACE_SECONDS = 0.18
+
+export function isPartialHandiTapChord(
   note: ChartNote,
   heldLanes: Lane[],
   activeSustainLanes: Lane[],
-): Lane[] | null {
-  if (note.open || note.lanes.length < 3) return null
+): boolean {
+  if (note.open || note.lanes.length !== 2) return false
 
-  const activeSustains = new Set(activeSustainLanes)
-  const intentionalLanes = heldLanes.filter(
-    (lane) => !activeSustains.has(lane),
+  const relevantHeldLanes = heldLanes.filter(
+    (lane) =>
+      note.lanes.includes(lane) || !activeSustainLanes.includes(lane),
   )
 
-  if (
-    intentionalLanes.length === 0 ||
-    intentionalLanes.some((lane) => !note.lanes.includes(lane))
-  ) {
-    return null
-  }
+  return (
+    relevantHeldLanes.length === 1 &&
+    note.lanes.includes(relevantHeldLanes[0])
+  )
+}
 
-  return [
-    ...new Set([...activeSustainLanes, ...note.lanes]),
-  ].sort((a, b) => a - b)
+export function handiTapSustainReleaseExpired(
+  mismatchStartedAt: number | null,
+  currentTime: number,
+): boolean {
+  return (
+    mismatchStartedAt !== null &&
+    currentTime - mismatchStartedAt >=
+      HANDITAP_SUSTAIN_RELEASE_GRACE_SECONDS
+  )
 }
