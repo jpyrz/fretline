@@ -318,6 +318,45 @@
   background: rgba(91, 214, 111, 0.08);
 }
 
+.profileSaveState {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: -0.35rem 0 0.8rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(218, 240, 251, 0.1);
+  color: rgba(235, 246, 251, 0.55);
+  background: rgba(8, 18, 24, 0.72);
+
+  span {
+    overflow: hidden;
+    font-size: 0.63rem;
+    font-weight: 850;
+    letter-spacing: 0.1em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: rgba(235, 246, 251, 0.78);
+    font-size: 0.68rem;
+    text-align: right;
+    text-transform: uppercase;
+  }
+
+  &[data-state='saved'] {
+    border-color: rgba(91, 214, 111, 0.25);
+
+    strong { color: var(--green); }
+  }
+
+  &[data-state='error'] strong { color: #ff8290; }
+}
+
 .resultsGrid {
   display: grid;
   width: 100%;

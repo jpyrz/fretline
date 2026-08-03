@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlbumArtwork } from '../../components/AlbumArtwork'
+import { useProfiles } from '../../features/profiles/ProfileProvider'
 import { useControllerConnection } from '../../hooks/useControllerConnection'
 import { reauthorizeDirectHidDevice } from '../../lib/directHidController'
 import { useAppState } from '../../state/AppState'
@@ -33,6 +34,13 @@ function playbackLabel(status: ReturnType<typeof useHomeAudio>['status']) {
 export function HomeView() {
   const navigate = useNavigate()
   const {
+    session,
+    activeProfile,
+    activePlayerName,
+    profilesReady,
+    openProfilePicker,
+  } = useProfiles()
+  const {
     songs,
     controllerMapping,
     libraryReady,
@@ -52,6 +60,21 @@ export function HomeView() {
   const songCountLabel = `${playableSongs.length} ${
     playableSongs.length === 1 ? 'song' : 'songs'
   } ready`
+  const playerJoined = session.kind !== 'none'
+
+  useEffect(() => {
+    const handleStart = (event: Event) => {
+      if (
+        event instanceof CustomEvent &&
+        event.detail?.action === 'start'
+      ) {
+        openProfilePicker()
+      }
+    }
+    window.addEventListener('fretline:controller-action', handleStart)
+    return () =>
+      window.removeEventListener('fretline:controller-action', handleStart)
+  }, [openProfilePicker])
 
   const reconnectController = async () => {
     if (controllerMapping?.source !== 'hid') return
@@ -85,13 +108,16 @@ export function HomeView() {
           <p>Main menu</p>
           <button
             type="button"
-            data-controller-default
+            data-controller-default={playerJoined || undefined}
             data-controller-nav-item
+            disabled={!playerJoined}
             onClick={() => navigate('/songs')}
           >
             <span>Quick Play</span>
             <small>
-              {libraryReady
+              {!playerJoined
+                ? 'Press Start to choose a player'
+                : libraryReady
                 ? songCountLabel
                 : 'Loading library…'}
             </small>
@@ -193,6 +219,33 @@ export function HomeView() {
 
       <footer className={styles.footer}>
         <div>
+          <button
+            type="button"
+            className={styles.playerSlot}
+            data-controller-nav-item={!playerJoined || undefined}
+            data-controller-default={!playerJoined || undefined}
+            onClick={() =>
+              playerJoined ? navigate('/profile') : openProfilePicker()
+            }
+          >
+            <b aria-hidden="true">
+              {activePlayerName?.charAt(0).toUpperCase() ?? '+'}
+            </b>
+            <span>
+              <strong>
+                {activePlayerName ??
+                  (profilesReady ? 'Press Start' : 'Loading players…')}
+              </strong>
+              <small>
+                {session.kind === 'profile'
+                  ? `${activeProfile?.lifetimeStats.songsPlayed ?? 0} songs · ${activeProfile?.lifetimeStats.fullCombos ?? 0} FCs`
+                  : session.kind === 'guest'
+                    ? 'Scores are not saved'
+                    : 'Tap to choose a profile'}
+              </small>
+            </span>
+          </button>
+          <em aria-hidden="true" />
           <i data-connected={controllerConnected} />
           <span>
             {controllerConnected

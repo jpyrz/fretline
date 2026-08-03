@@ -1,6 +1,14 @@
 import { median } from '../../lib/scoring'
 import type { SessionStats } from '../../types/game'
 
+export type RunSaveState =
+  | 'idle'
+  | 'saving'
+  | 'saved'
+  | 'guest'
+  | 'practice'
+  | 'error'
+
 export interface SessionResults {
   suggestedCorrection: number | null
   timingMedian: number | null

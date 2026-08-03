@@ -11,9 +11,14 @@ import { BackIconButton } from '../../components/BackIconButton/BackIconButton'
 import { HighwayCanvas } from '../../components/HighwayCanvas'
 import { GameEngine } from '../../game/GameEngine'
 import { drawHighway } from '../../game/drawHighway'
-import { adaptChartForHandiTap } from '../../game/handiTap/handiTap'
+import {
+  adaptChartForHandiTap,
+  HANDITAP_VERSION,
+} from '../../game/handiTap/handiTap'
 import { preloadGameplayVfx } from '../../game/rendering/vfxSprites'
 import { DEFAULT_HIT_LINE_RATIO } from '../../game/rendering/highwayGeometry'
+import { useProfiles } from '../../features/profiles/ProfileProvider'
+import { profileChartKey } from '../../features/profiles/runIdentity'
 import { createCalibrationAudio } from '../../lib/calibrationSong'
 import { audioFileMetadata } from '../../lib/songLibrary'
 import {
@@ -25,6 +30,7 @@ import {
   normalizePracticeSpeed,
   type PracticeSpeed,
 } from '../../lib/practiceMode'
+import { parseTrackChoice } from '../../lib/trackSelection'
 import { useAppState } from '../../state/AppState'
 import type { GameFrame, LocalSong, SessionStats } from '../../types/game'
 import { PauseScreen } from './components/PauseScreen'
@@ -34,7 +40,10 @@ import { TouchControls } from './components/TouchControls'
 import { StarPowerRail } from './components/TouchControls/StarPowerRail'
 import { useVisualImage } from './hooks/useVisualImage'
 import { useGameplayInteractionLock } from './hooks/useGameplayInteractionLock'
-import { calculateSessionResults } from './sessionResults'
+import {
+  calculateSessionResults,
+  type RunSaveState,
+} from './sessionResults'
 import styles from './PlayView.module.scss'
 
 type Phase =
@@ -85,6 +94,7 @@ function whammyBufferIndices(song: LocalSong): number[] {
 export function PlayView() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { session, activePlayerName, recordRun } = useProfiles()
   const {
     song,
     setSong,
@@ -130,6 +140,8 @@ export function PlayView() {
     calibration.inputOffsetMs,
   )
   const [appliedOffsetMs, setAppliedOffsetMs] = useState<number | null>(null)
+  const [runSaveState, setRunSaveState] = useState<RunSaveState>('idle')
+  const [newPersonalBest, setNewPersonalBest] = useState(false)
 
   useEffect(() => {
     preloadGameplayVfx()
@@ -320,6 +332,8 @@ export function PlayView() {
     setError('')
     setRunInputOffsetMs(calibration.inputOffsetMs)
     setAppliedOffsetMs(null)
+    setRunSaveState('idle')
+    setNewPersonalBest(false)
 
     try {
       const audioContext =
@@ -382,6 +396,51 @@ export function PlayView() {
           engineRef.current = null
           void audioContextRef.current?.close()
           audioContextRef.current = null
+
+          if (song.kind !== 'folder') return
+          if (practiceSection || practiceSpeed !== 1) {
+            setRunSaveState('practice')
+            return
+          }
+          if (session.kind === 'guest') {
+            setRunSaveState('guest')
+            return
+          }
+          const track = parseTrackChoice(song.chart)
+          if (!track || session.kind !== 'profile') return
+          const finalResults = calculateSessionResults(
+            finalStats,
+            activeNoteCount,
+          )
+          setRunSaveState('saving')
+          void recordRun({
+            chartKey: profileChartKey({
+              songId: song.id,
+              trackName: song.chart.trackName,
+              inputMode,
+            }),
+            songId: song.id,
+            songName: song.chart.metadata.name,
+            artist: song.chart.metadata.artist,
+            trackName: song.chart.trackName,
+            difficulty: track.difficulty,
+            instrumentId: track.instrumentId,
+            inputMode,
+            handiTapVersion: inputMode === 'tap' ? HANDITAP_VERSION : null,
+            score: finalStats.score,
+            accuracy: finalResults.noteAccuracy,
+            fullCombo: finalResults.fullCombo,
+            misses: finalStats.misses,
+            overstrums: finalStats.overstrums,
+            bestStreak: finalStats.bestStreak,
+            hits: finalStats.hits,
+            rank: finalResults.resultRank,
+            starPowerActivations: finalStats.starPowerActivations,
+            durationSeconds: gameplayChart.durationSeconds,
+          }).then((result) => {
+            setRunSaveState(result ? 'saved' : 'error')
+            setNewPersonalBest(Boolean(result?.newPersonalBest))
+          })
         },
         onPauseChange: (paused) => {
           setPhase(paused ? 'paused' : 'playing')
@@ -703,6 +762,9 @@ export function PlayView() {
               appliedOffsetMs={appliedOffsetMs}
               onApplySuggestion={applySuggestion}
               onRunAgain={() => void startSession()}
+              playerName={activePlayerName}
+              saveState={runSaveState}
+              newPersonalBest={newPersonalBest}
             />
           )}
 

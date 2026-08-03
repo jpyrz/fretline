@@ -1,0 +1,166 @@
+.viewport {
+  position: fixed;
+  z-index: 1000;
+  right: 1rem;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  left: 1rem;
+  display: grid;
+  pointer-events: none;
+  place-items: center;
+}
+
+.toast {
+  position: relative;
+  display: grid;
+  width: min(430px, calc(100vw - 2rem));
+  min-height: 82px;
+  align-items: center;
+  padding: 0.7rem 1rem 0.7rem 5.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  grid-template-columns: minmax(0, 1fr);
+  color: #f8f6f3;
+  background:
+    linear-gradient(90deg, rgba(22, 22, 26, 0.99), rgba(48, 15, 20, 0.98));
+  box-shadow:
+    0 18px 52px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(226, 38, 54, 0.08);
+  transform-origin: left center;
+  animation: toast-lifecycle 5.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.medallion {
+  position: absolute;
+  left: -0.35rem;
+  display: grid;
+  width: 82px;
+  height: 82px;
+  overflow: hidden;
+  place-items: center;
+  border: 3px solid #17171b;
+  border-radius: 50%;
+  color: white;
+  background:
+    radial-gradient(circle, #4b1017 0 36%, #16161a 38% 58%, #09090c 60%);
+  box-shadow:
+    0 0 0 2px rgba(244, 242, 239, 0.26),
+    0 0 28px rgba(226, 38, 54, 0.52);
+
+  > i {
+    position: absolute;
+    width: 70%;
+    height: 70%;
+    border: 3px solid transparent;
+    border-top-color: var(--accent-bright);
+    border-radius: 50%;
+    animation: ring-spin 1.25s 1.3s ease-in-out both;
+
+    &:last-child {
+      width: 88%;
+      height: 88%;
+      border-top-color: transparent;
+      border-right-color: rgba(244, 242, 239, 0.65);
+      animation-direction: reverse;
+    }
+  }
+}
+
+.brandMark,
+.achievementMark {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  font-weight: 950;
+}
+
+.brandMark {
+  text-shadow: 3px 0 0 rgba(226, 38, 54, 0.75);
+  animation: brand-out 5.2s ease both;
+}
+
+.achievementMark {
+  color: white;
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(255, 88, 102, 0.8));
+  transform: scale(0.35) rotate(-100deg);
+  animation: achievement-in 5.2s ease both;
+}
+
+.copy {
+  display: grid;
+  min-width: 0;
+
+  span {
+    color: #ff8994;
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    overflow: hidden;
+    margin-top: 0.08rem;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    overflow: hidden;
+    margin-top: 0.06rem;
+    color: rgba(244, 242, 239, 0.58);
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@keyframes toast-lifecycle {
+  0% { opacity: 0; transform: translateX(-28px) scaleX(0.2); }
+  8% { opacity: 1; transform: translateX(0) scaleX(1); }
+  88% { opacity: 1; transform: translateX(0) scaleX(1); }
+  100% { opacity: 0; transform: translateX(18px) scaleX(0.24); }
+}
+
+@keyframes brand-out {
+  0%, 27% { opacity: 1; transform: scale(1) rotate(0); }
+  38%, 100% { opacity: 0; transform: scale(0.35) rotate(100deg); }
+}
+
+@keyframes achievement-in {
+  0%, 30% { opacity: 0; transform: scale(0.35) rotate(-100deg); }
+  43% { opacity: 1; transform: scale(1.2) rotate(8deg); }
+  50%, 100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes ring-spin {
+  0% { opacity: 0; transform: rotate(0) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(410deg) scale(1.25); }
+}
+
+html[data-gameplay-active='true'] .viewport {
+  top: calc(76px + env(safe-area-inset-top));
+  bottom: auto;
+}
+
+@media (max-width: 540px) {
+  .viewport {
+    right: 0.55rem;
+    left: 0.55rem;
+  }
+
+  .toast {
+    width: min(390px, calc(100vw - 1.1rem));
+    min-height: 70px;
+    padding-left: 4.65rem;
+  }
+
+  .medallion {
+    width: 70px;
+    height: 70px;
+  }
+}

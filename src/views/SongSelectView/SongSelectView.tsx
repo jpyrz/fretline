@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlbumArtwork } from '../../components/AlbumArtwork'
 import { BackIconButton } from '../../components/BackIconButton/BackIconButton'
+import { useProfiles } from '../../features/profiles/ProfileProvider'
 import {
   discardPreparedGameplayAudioContext,
   prepareGameplayAudioContext,
@@ -38,6 +39,7 @@ function songSearchText(song: LocalSong): string {
 
 export function SongSelectView() {
   const navigate = useNavigate()
+  const { bestScores, activePlayerName } = useProfiles()
   const {
     song,
     songs,
@@ -79,6 +81,21 @@ export function SongSelectView() {
     () => songs.filter((candidate) => candidate.kind === 'folder'),
     [songs],
   )
+  const bestBySongId = useMemo(() => {
+    const records = new Map<
+      string,
+      { bestScore: number; fullCombo: boolean; playCount: number }
+    >()
+    for (const score of bestScores) {
+      const current = records.get(score.songId)
+      records.set(score.songId, {
+        bestScore: Math.max(current?.bestScore ?? 0, score.bestScore),
+        fullCombo: Boolean(current?.fullCombo || score.fullCombo),
+        playCount: (current?.playCount ?? 0) + score.playCount,
+      })
+    }
+    return records
+  }, [bestScores])
   const visibleSongs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return playableSongs
@@ -450,6 +467,7 @@ export function SongSelectView() {
           <div className={styles.songList}>
             {visibleSongs.map((candidate, index) => {
               const selected = candidate.id === selectedSong?.id
+              const personalBest = bestBySongId.get(candidate.id)
               return (
                 <button
                   type="button"
@@ -472,8 +490,15 @@ export function SongSelectView() {
                     <small>{candidate.chart.metadata.artist}</small>
                   </span>
                   <span className={styles.rowMeta}>
-                    <small>{trackLabel(candidate.chart.trackName)}</small>
-                    <strong>{candidate.chart.notes.length}</strong>
+                    <small>
+                      {personalBest?.fullCombo && <i>FC</i>}
+                      {trackLabel(candidate.chart.trackName)}
+                    </small>
+                    <strong>
+                      {personalBest
+                        ? personalBest.bestScore.toLocaleString()
+                        : candidate.chart.notes.length}
+                    </strong>
                   </span>
                 </button>
               )
@@ -512,6 +537,24 @@ export function SongSelectView() {
                 <p>{selectedSong.chart.metadata.artist}</p>
               </div>
               <dl>
+                <div>
+                  <dt>{activePlayerName ?? 'Player'} best</dt>
+                  <dd>
+                    {bestBySongId
+                      .get(selectedSong.id)
+                      ?.bestScore.toLocaleString() ?? '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Record</dt>
+                  <dd>
+                    {bestBySongId.get(selectedSong.id)?.fullCombo
+                      ? 'Full Combo'
+                      : bestBySongId.get(selectedSong.id)
+                        ? `${bestBySongId.get(selectedSong.id)?.playCount} plays`
+                        : 'Unplayed'}
+                  </dd>
+                </div>
                 <div>
                   <dt>Charter</dt>
                   <dd>{selectedSong.chart.metadata.charter}</dd>

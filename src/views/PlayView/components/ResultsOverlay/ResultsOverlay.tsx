@@ -1,6 +1,6 @@
 import type { PlayInputMode } from '../../../../lib/inputMode'
 import type { SessionStats } from '../../../../types/game'
-import type { SessionResults } from '../../sessionResults'
+import type { RunSaveState, SessionResults } from '../../sessionResults'
 import styles from '../../PlayView.module.scss'
 
 interface ResultsOverlayProps {
@@ -13,6 +13,9 @@ interface ResultsOverlayProps {
   appliedOffsetMs: number | null
   onApplySuggestion: () => void
   onRunAgain: () => void
+  playerName: string | null
+  saveState: RunSaveState
+  newPersonalBest: boolean
 }
 
 export function ResultsOverlay({
@@ -25,6 +28,9 @@ export function ResultsOverlay({
   appliedOffsetMs,
   onApplySuggestion,
   onRunAgain,
+  playerName,
+  saveState,
+  newPersonalBest,
 }: ResultsOverlayProps) {
   return (
     <div className={`${styles.overlay} ${styles.resultsOverlay}`}>
@@ -38,6 +44,26 @@ export function ResultsOverlay({
       </h1>
       {results.fullCombo && (
         <strong className={styles.fullCombo}>Full combo</strong>
+      )}
+      {!calibrationRun && (
+        <div className={styles.profileSaveState} data-state={saveState}>
+          <span>{playerName ?? 'Player'}</span>
+          <strong>
+            {saveState === 'saving'
+              ? 'Saving run…'
+              : saveState === 'saved'
+                ? newPersonalBest
+                  ? 'New personal best'
+                  : 'Run saved'
+                : saveState === 'guest'
+                  ? 'Guest run · not saved'
+                  : saveState === 'practice'
+                    ? 'Practice run · records unchanged'
+                    : saveState === 'error'
+                      ? 'Run could not be saved'
+                      : 'Finishing run…'}
+          </strong>
+        </div>
       )}
       <div className={styles.resultsGrid}>
         <div>

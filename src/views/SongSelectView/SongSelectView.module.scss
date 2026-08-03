@@ -363,6 +363,13 @@
     color: rgba(222, 240, 248, 0.48);
     font-size: 0.62rem;
     text-transform: uppercase;
+
+    i {
+      margin-right: 0.35rem;
+      color: var(--accent);
+      font-style: normal;
+      font-weight: 950;
+    }
   }
 
   strong {

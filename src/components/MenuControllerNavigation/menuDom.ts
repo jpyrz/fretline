@@ -12,8 +12,10 @@ const focusableSelector = [
 ].join(',')
 
 export function visibleFocusableElements(): HTMLElement[] {
+  const modal = [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')]
+    .find((element) => element.getClientRects().length > 0)
   const focusable = [
-    ...document.querySelectorAll<HTMLElement>(focusableSelector),
+    ...(modal ?? document).querySelectorAll<HTMLElement>(focusableSelector),
   ].filter(
     (element) =>
       element.getClientRects().length > 0 &&
