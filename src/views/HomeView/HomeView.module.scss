@@ -463,6 +463,28 @@
         box-shadow: 0 0 12px rgba(226, 38, 54, 0.85);
       }
     }
+
+    button {
+      padding: 0.28rem 0.5rem;
+      border: 1px solid rgba(244, 242, 239, 0.2);
+      border-radius: 2px;
+      color: var(--text);
+      font: inherit;
+      font-weight: 800;
+      background: rgba(244, 242, 239, 0.06);
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      &:disabled {
+        cursor: wait;
+        opacity: 0.55;
+      }
+    }
   }
 
   > p {

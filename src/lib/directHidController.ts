@@ -113,6 +113,24 @@ export async function requestDirectHidDevice(): Promise<HidDeviceIdentity> {
   return attachDevice(device)
 }
 
+export async function reauthorizeDirectHidDevice(
+  identity: HidDeviceIdentity,
+): Promise<boolean> {
+  if (!navigator.hid) return false
+  ensureHidLifecycleListeners()
+  const [device] = await navigator.hid.requestDevice({
+    filters: [
+      {
+        vendorId: identity.vendorId,
+        productId: identity.productId,
+      },
+    ],
+  })
+  if (!device) return false
+  await attachDevice(device, true)
+  return true
+}
+
 export async function reconnectDirectHidDevice(
   identity: HidDeviceIdentity,
   restart = false,
@@ -134,11 +152,13 @@ export function directHidSnapshot(identity: HidDeviceIdentity): {
   reports: HidReports
   timestamp: number
   connected: boolean
+  opened: boolean
 } {
   const state = deviceStates.get(hidDeviceKey(identity))
   return {
     reports: state?.reports ?? new Map(),
     timestamp: state?.timestamp ?? 0,
     connected: state?.connected ?? false,
+    opened: state?.device.opened ?? false,
   }
 }

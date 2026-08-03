@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlbumArtwork } from '../../components/AlbumArtwork'
 import { useControllerConnection } from '../../hooks/useControllerConnection'
+import { reauthorizeDirectHidDevice } from '../../lib/directHidController'
 import { useAppState } from '../../state/AppState'
 import { useHomeAudio } from './hooks/useHomeAudio'
 import styles from './HomeView.module.scss'
@@ -42,6 +43,8 @@ export function HomeView() {
     [songs],
   )
   const controllerConnected = useControllerConnection(controllerMapping)
+  const [controllerReconnecting, setControllerReconnecting] =
+    useState(false)
   const homeAudio = useHomeAudio(
     playableSongs,
     audioSettings.homeMusicMuted,
@@ -49,6 +52,18 @@ export function HomeView() {
   const songCountLabel = `${playableSongs.length} ${
     playableSongs.length === 1 ? 'song' : 'songs'
   } ready`
+
+  const reconnectController = async () => {
+    if (controllerMapping?.source !== 'hid') return
+    setControllerReconnecting(true)
+    try {
+      await reauthorizeDirectHidDevice(controllerMapping.device)
+    } catch {
+      // The Settings input panel exposes the detailed browser error.
+    } finally {
+      setControllerReconnecting(false)
+    }
+  }
 
   return (
     <main className={styles.page}>
@@ -186,6 +201,16 @@ export function HomeView() {
                 ? 'Guitar mapped · Waiting to reconnect'
                 : 'Keyboard ready · Map a guitar in Settings'}
           </span>
+          {!controllerConnected &&
+            controllerMapping?.source === 'hid' && (
+              <button
+                type="button"
+                onClick={() => void reconnectController()}
+                disabled={controllerReconnecting}
+              >
+                {controllerReconnecting ? 'Opening…' : 'Reconnect'}
+              </button>
+            )}
         </div>
         <p>
           {controllerMapping ? (

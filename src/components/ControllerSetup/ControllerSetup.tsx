@@ -4,6 +4,7 @@ import {
 } from '../../lib/controllerInput'
 import {
   directHidSnapshot,
+  reauthorizeDirectHidDevice,
   reconnectDirectHidDevice,
   requestDirectHidDevice,
 } from '../../lib/directHidController'
@@ -145,6 +146,27 @@ export function ControllerSetup({
     setCaptured([])
     setMessage('Mapping cancelled.')
     armed.current = false
+  }
+
+  const reconnectSavedHidMapping = async () => {
+    if (mapping?.source !== 'hid') return
+    setMessage(
+      'Choose the Xbox 360 receiver again. Your existing controls will stay mapped.',
+    )
+    try {
+      const connected = await reauthorizeDirectHidDevice(mapping.device)
+      setMessage(
+        connected
+          ? 'Receiver reopened. Existing guitar mapping preserved.'
+          : 'The receiver was not selected.',
+      )
+    } catch (reason: unknown) {
+      setMessage(
+        reason instanceof Error
+          ? reason.message
+          : 'The receiver could not be reopened.',
+      )
+    }
   }
 
   useEffect(() => {
@@ -558,6 +580,15 @@ export function ControllerSetup({
       )}
 
       <div className={styles.actions}>
+        {mapping?.source === 'hid' && !mappingActive && (
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void reconnectSavedHidMapping()}
+          >
+            Reconnect guitar
+          </button>
+        )}
         <button
           type="button"
           className="button secondary"
