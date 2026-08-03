@@ -281,15 +281,50 @@ function newestGamepad<T extends IdentifiedGamepadState>(
   )
 }
 
+function gamepadSupportsBinding(
+  gamepad: GamepadState,
+  binding: GamepadBinding | undefined,
+): boolean {
+  if (!binding) return true
+  return binding.type === 'button'
+    ? binding.index < gamepad.buttons.length
+    : binding.index < gamepad.axes.length
+}
+
+function gamepadSupportsMapping(
+  gamepad: GamepadState,
+  mapping: GamepadControllerMapping,
+): boolean {
+  return [
+    ...mapping.frets,
+    mapping.strumUp,
+    mapping.strumDown,
+    mapping.starPower,
+    mapping.whammy,
+    mapping.start,
+  ].every((binding) => gamepadSupportsBinding(gamepad, binding))
+}
+
 function selectMappedGamepad<T extends IdentifiedGamepadState>(
   mapping: GamepadControllerMapping,
   gamepads: readonly (T | null)[],
 ): T | null {
-  const candidates = gamepads.filter(
+  const connectedGamepads = gamepads.filter(
     (candidate): candidate is T =>
-      candidate?.id === mapping.gamepadId &&
-      candidate.connected !== false,
+      candidate !== null && candidate.connected !== false,
   )
+  const exactCandidates = connectedGamepads.filter(
+    (candidate) => candidate.id === mapping.gamepadId,
+  )
+  // Some Windows receiver/driver combinations return a slightly different
+  // browser id after a wireless controller powers back on. Reuse the saved
+  // bindings when the replacement gamepad has the same required controls.
+  const compatibleCandidates = connectedGamepads.filter(
+    (candidate) =>
+      candidate.id !== mapping.gamepadId &&
+      gamepadSupportsMapping(candidate, mapping),
+  )
+  const candidates = [...exactCandidates, ...compatibleCandidates]
   if (candidates.length === 0) {
     gamepadSelectionByMapping.delete(mapping)
     return null

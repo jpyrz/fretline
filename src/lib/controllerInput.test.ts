@@ -362,6 +362,57 @@ describe('controller input', () => {
     ).toBe(releasedReconnectedSlot)
   })
 
+  it('reuses the saved bindings when Windows changes the receiver id', () => {
+    const mapping: GamepadControllerMapping = {
+      source: 'gamepad',
+      gamepadId: 'Guitar (Xbox 360 Wireless Receiver)',
+      gamepadIndex: 0,
+      frets: [
+        { type: 'button', index: 0 },
+        { type: 'button', index: 1 },
+        { type: 'button', index: 2 },
+        { type: 'button', index: 3 },
+        { type: 'button', index: 4 },
+      ],
+      strumUp: { type: 'button', index: 12 },
+      strumDown: { type: 'button', index: 13 },
+    }
+    const reidentifiedReceiver = {
+      ...gamepad(
+        [
+          false,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          true,
+        ],
+        [],
+      ),
+      id: 'Xbox 360 Controller (XInput STANDARD GAMEPAD)',
+      index: 1,
+      timestamp: 250,
+      connected: true,
+    }
+
+    const snapshot = mappedGamepadSnapshot(mapping, [
+      null,
+      reidentifiedReceiver,
+    ])
+
+    expect(snapshot?.gamepad).toBe(reidentifiedReceiver)
+    expect(snapshot?.frets[3]).toBe(true)
+    expect(snapshot?.strumDirections.down).toBe(true)
+  })
+
   it('reports no snapshot while only the disconnected slot remains', () => {
     const mapping: GamepadControllerMapping = {
       source: 'gamepad',

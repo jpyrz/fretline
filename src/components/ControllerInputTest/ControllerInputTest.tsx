@@ -85,7 +85,24 @@ function readLiveInput(mapping: ControllerMapping): LiveInputState {
 
   const gamepads = navigator.getGamepads?.() ?? []
   const snapshot = mappedGamepadSnapshot(mapping, gamepads)
-  if (!snapshot) return disconnectedState
+  if (!snapshot) {
+    const visibleGamepads = [...gamepads].filter(
+      (candidate): candidate is Gamepad =>
+        candidate !== null && candidate.connected !== false,
+    )
+    return {
+      ...disconnectedState,
+      source:
+        visibleGamepads.length === 0
+          ? 'The browser currently exposes no gamepads'
+          : visibleGamepads
+              .map(
+                (candidate) =>
+                  `index ${candidate.index} · ${candidate.id || 'unnamed gamepad'}`,
+              )
+              .join(' | '),
+    }
+  }
   const { gamepad } = snapshot
   const pressedButtons = [...gamepad.buttons]
     .flatMap((button, index) => (button.pressed ? [index] : []))

@@ -13,7 +13,9 @@ const attachedDevices = new WeakSet<HIDDevice>()
 let lifecycleListenersAttached = false
 
 export function hidDeviceKey(device: HidDeviceIdentity): string {
-  return `${device.vendorId}:${device.productId}:${device.productName}`
+  // Product names are descriptive browser strings and can change after a
+  // Windows driver/receiver reconnect. VID/PID are the stable HID identity.
+  return `${device.vendorId}:${device.productId}`
 }
 
 function identityFor(device: HIDDevice): HidDeviceIdentity {
@@ -112,9 +114,7 @@ export async function reconnectDirectHidDevice(
   const device = devices.find(
     (candidate) =>
       candidate.vendorId === identity.vendorId &&
-      candidate.productId === identity.productId &&
-      (candidate.productName || 'Direct HID controller') ===
-        identity.productName,
+      candidate.productId === identity.productId,
   )
   if (!device) return false
   await attachDevice(device)
