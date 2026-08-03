@@ -37,6 +37,10 @@ import {
   type NoteJudgementState,
 } from './input/hitCandidate'
 import {
+  isPendingStrumActive,
+  isStrumInsideHopoLeniency,
+} from './input/guitarInputTiming'
+import {
   findHandiTapBurstReentry,
   handiTapSustainReleaseExpired,
   isPartialHandiTapChord,
@@ -162,6 +166,8 @@ export class GameEngine {
   private recordsDirty = true
   private mixGain: GainNode | null = null
   private bufferedHopoNoteIndex: number | null = null
+  private lastHopoHitScoringTime: number | null = null
+  private pendingStrumPerformanceTime: number | null = null
 
   constructor(options: GameEngineOptions) {
     this.audioContext = options.audioContext
@@ -266,6 +272,8 @@ export class GameEngine {
     this.touchWhammy = 0
     this.tapSweepBuffer.reset()
     this.bufferedHopoNoteIndex = null
+    this.lastHopoHitScoringTime = null
+    this.pendingStrumPerformanceTime = null
     this.lastStatsPush = 0
     this.statsDirty = true
     this.recordsSnapshot = []
@@ -286,6 +294,8 @@ export class GameEngine {
     this.mixGain = null
     this.tapSweepBuffer.reset()
     this.bufferedHopoNoteIndex = null
+    this.lastHopoHitScoringTime = null
+    this.pendingStrumPerformanceTime = null
     this.onPauseChange(true)
   }
 
@@ -389,6 +399,8 @@ export class GameEngine {
     window.removeEventListener('keyup', this.handleKeyUp)
     this.stopSources()
     this.tapSweepBuffer.reset()
+    this.lastHopoHitScoringTime = null
+    this.pendingStrumPerformanceTime = null
     this.mixGain?.disconnect()
     this.mixGain = null
   }
@@ -874,8 +886,60 @@ export class GameEngine {
   }
 
   private strum(performanceTime: number): void {
+    const scoringTime =
+      this.songTimeAt(performanceTime) -
+      this.calibration.inputOffsetMs / 1000
+    if (
+      isStrumInsideHopoLeniency({
+        lastHopoHitTime: this.lastHopoHitScoringTime,
+        currentTime: scoringTime,
+        playbackRate: this.playbackRate,
+      })
+    ) {
+      // A HOPO may register from its fret input immediately before the player
+      // strums the same gesture. Consume that strum once instead of breaking
+      // the chain.
+      this.lastHopoHitScoringTime = null
+      return
+    }
+
+    if (this.pendingStrumPerformanceTime !== null) {
+      this.flushPendingStrum()
+    }
     if (this.attemptHit(performanceTime, 'strum')) return
+    if (this.songTimeAt(performanceTime) >= 0) {
+      this.pendingStrumPerformanceTime = performanceTime
+    }
+  }
+
+  private flushPendingStrum(): void {
+    const performanceTime = this.pendingStrumPerformanceTime
+    if (performanceTime === null) return
+    this.pendingStrumPerformanceTime = null
     this.recordOverstrum(performanceTime)
+  }
+
+  private resolvePendingStrumWithFret(performanceTime: number): boolean {
+    const strumTime = this.pendingStrumPerformanceTime
+    if (strumTime === null) return false
+    if (!isPendingStrumActive(strumTime, performanceTime)) {
+      this.flushPendingStrum()
+      return false
+    }
+
+    if (!this.attemptHit(performanceTime, 'strum')) return false
+    this.pendingStrumPerformanceTime = null
+    return true
+  }
+
+  private expirePendingStrum(performanceTime: number): void {
+    const strumTime = this.pendingStrumPerformanceTime
+    if (
+      strumTime !== null &&
+      !isPendingStrumActive(strumTime, performanceTime)
+    ) {
+      this.flushPendingStrum()
+    }
   }
 
   private recordOverstrum(performanceTime: number): void {
@@ -886,12 +950,14 @@ export class GameEngine {
     this.stats.streak = 0
     this.lastHitNoteIndex = null
     this.bufferedHopoNoteIndex = null
+    this.lastHopoHitScoringTime = null
     this.pushStats()
   }
 
   private fretChange(performanceTime: number): void {
     if (this.calibrationMode) return
     this.bufferedHopoNoteIndex = null
+    if (this.resolvePendingStrumWithFret(performanceTime)) return
     if (this.attemptHit(performanceTime, 'fret')) return
 
     const candidateIndex = frontendHopoCandidate({
@@ -1066,6 +1132,7 @@ export class GameEngine {
     }
 
     this.bufferedHopoNoteIndex = null
+    this.pendingStrumPerformanceTime = null
     const errorMs = (scoringTime - note.timeSeconds) * 1000
     this.noteStates[candidateIndex] = 'hit'
     if (note.sustainTicks > 0 && note.sustainSeconds > 0.03) {
@@ -1081,6 +1148,8 @@ export class GameEngine {
     this.stats.bestStreak = Math.max(this.stats.bestStreak, this.stats.streak)
     this.stats.hits += 1
     this.lastHitNoteIndex = candidateIndex
+    this.lastHopoHitScoringTime =
+      note.hopo || note.tap ? scoringTime : null
     this.stats.lastErrorMs = errorMs
     this.stats.records.push({
       noteIndex: candidateIndex,
@@ -1220,6 +1289,7 @@ export class GameEngine {
         this.stats.misses += 1
         this.stats.streak = 0
         this.lastHitNoteIndex = null
+        this.lastHopoHitScoringTime = null
         this.stats.records.push({
           noteIndex: this.missCursor,
           errorMs: HIT_WINDOW_MS,
@@ -1272,6 +1342,7 @@ export class GameEngine {
     if (this.inputMode === 'standard') {
       this.readGamepad(now)
     }
+    this.expirePendingStrum(now)
     this.updateStarPower(scoringTime)
     this.attemptBufferedHopo(songTimeSeconds, scoringTime)
     this.attemptBufferedTapSweep(songTimeSeconds, scoringTime)
