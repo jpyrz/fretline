@@ -48,6 +48,21 @@ function hasStarPowerMembership(note: ChartNote): boolean {
   return note.starPower || (note.starPowerPhraseIndices?.length ?? 0) > 0
 }
 
+function sameStarPowerMembership(
+  left: ChartNote,
+  right: ChartNote,
+): boolean {
+  const leftPhrases = left.starPowerPhraseIndices ?? []
+  const rightPhrases = right.starPowerPhraseIndices ?? []
+  return (
+    Boolean(left.starPower) === Boolean(right.starPower) &&
+    leftPhrases.length === rightPhrases.length &&
+    leftPhrases.every(
+      (phraseIndex, index) => phraseIndex === rightPhrases[index],
+    )
+  )
+}
+
 function sameLanes(left: ChartNote, right: ChartNote): boolean {
   return (
     left.open === right.open &&
@@ -80,7 +95,10 @@ function mergeRapidRepeatedHolds(notes: ChartNote[]): {
   for (let index = 0; index < notes.length; ) {
     const first = notes[index]
     const threshold = repeatedHoldThreshold(first)
-    if (threshold === null || hasStarPowerMembership(first)) {
+    if (
+      threshold === null ||
+      (first.lanes.length !== 1 && hasStarPowerMembership(first))
+    ) {
       playable.push(first)
       index += 1
       continue
@@ -93,7 +111,7 @@ function mergeRapidRepeatedHolds(notes: ChartNote[]): {
       const attackInterval = next.timeSeconds - current.timeSeconds
       if (
         !sameLanes(first, next) ||
-        hasStarPowerMembership(next) ||
+        !sameStarPowerMembership(first, next) ||
         attackInterval > threshold + 0.000001
       ) {
         break

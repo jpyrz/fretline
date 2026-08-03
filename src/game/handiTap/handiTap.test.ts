@@ -176,14 +176,34 @@ describe('HandiTap chart adaptation', () => {
     expect(adaptChartForHandiTap(source).notes).toHaveLength(2)
   })
 
-  it('does not merge star-power tremolo repetitions', () => {
+  it('turns a rapid same-phrase star-power tremolo run into a hold', () => {
     const source = chart([
       note(2, [1], { starPower: true, starPowerPhraseIndices: [0] }),
       note(2.1, [1], { starPower: true, starPowerPhraseIndices: [0] }),
       note(2.2, [1], { starPower: true, starPowerPhraseIndices: [0] }),
+      note(2.3, [1], { starPower: true, starPowerPhraseIndices: [0] }),
     ])
 
-    expect(adaptChartForHandiTap(source).notes).toHaveLength(3)
+    const adapted = adaptChartForHandiTap(source)
+
+    expect(adapted.notes).toHaveLength(1)
+    expect(adapted.notes[0]).toMatchObject({
+      starPower: true,
+      starPowerPhraseIndices: [0],
+    })
+    expect(adapted.notes[0].sustainSeconds).toBeCloseTo(0.3)
+    expect(adapted.handiTapBurstMarkers).toHaveLength(3)
+  })
+
+  it('does not merge a tremolo run across star-power phrase boundaries', () => {
+    const source = chart([
+      note(2, [1], { starPower: true, starPowerPhraseIndices: [0] }),
+      note(2.1, [1], { starPower: true, starPowerPhraseIndices: [0] }),
+      note(2.2, [1], { starPower: true, starPowerPhraseIndices: [1] }),
+      note(2.3, [1], { starPower: true, starPowerPhraseIndices: [1] }),
+    ])
+
+    expect(adaptChartForHandiTap(source).notes).toHaveLength(4)
   })
 
   it('folds rapid full-fretboard leads into three thumb-friendly lanes', () => {

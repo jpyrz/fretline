@@ -140,6 +140,7 @@ export class GameEngine {
   private readonly activeSustains = new Set<number>()
   private readonly starPowerPhraseStates: StarPowerPhraseState[]
   private readonly starPowerPhraseNoteIndices: number[][]
+  private readonly handiTapBurstHoldIndices: ReadonlySet<number>
   private readonly stats = freshStats()
 
   private startContextTime = 0
@@ -229,6 +230,11 @@ export class GameEngine {
         note.starPowerPhraseIndices?.includes(phraseIndex)
           ? [noteIndex]
           : [],
+      ),
+    )
+    this.handiTapBurstHoldIndices = new Set(
+      (options.chart.handiTapBurstMarkers ?? []).map(
+        (marker) => marker.parentNoteIndex,
       ),
     )
   }
@@ -865,7 +871,9 @@ export class GameEngine {
       if (
         phraseNotes.length === 0 ||
         phraseNotes[phraseNotes.length - 1] !== noteIndex ||
-        phraseNotes.some((index) => this.noteStates[index] !== 'hit')
+        phraseNotes.some((index) => this.noteStates[index] !== 'hit') ||
+        (this.handiTapBurstHoldIndices.has(noteIndex) &&
+          this.sustainStates[noteIndex] !== 'complete')
       ) {
         continue
       }
@@ -1218,7 +1226,10 @@ export class GameEngine {
     }
   }
 
-  private updateSustains(scoringTime: number): void {
+  private updateSustains(
+    scoringTime: number,
+    songTimeSeconds: number,
+  ): void {
     if (this.activeSustains.size === 0) return
 
     const heldLanes = this.heldLanes()
@@ -1242,6 +1253,9 @@ export class GameEngine {
             : sustainReleaseExpired(mismatchStartedAt, scoringTime)
         ) {
           this.sustainStates[noteIndex] = 'released'
+          if (this.handiTapBurstHoldIndices.has(noteIndex)) {
+            this.failStarPowerPhrases(noteIndex)
+          }
           this.stats.sustainsBroken += 1
           this.statsDirty = true
           this.activeSustains.delete(noteIndex)
@@ -1283,6 +1297,7 @@ export class GameEngine {
         this.stats.sustainsCompleted += 1
         this.statsDirty = true
         this.activeSustains.delete(noteIndex)
+        this.completeStarPowerPhrases(noteIndex, songTimeSeconds)
       }
     }
   }
@@ -1360,7 +1375,7 @@ export class GameEngine {
     this.updateStarPower(scoringTime)
     this.attemptBufferedHopo(songTimeSeconds, scoringTime)
     this.attemptBufferedTapSweep(songTimeSeconds, scoringTime)
-    this.updateSustains(scoringTime)
+    this.updateSustains(scoringTime, songTimeSeconds)
     this.updateWhammyAudio(scoringTime)
     this.markMisses(scoringTime)
     if (this.hitFlash && this.hitFlash.expiresAt < songTimeSeconds) {

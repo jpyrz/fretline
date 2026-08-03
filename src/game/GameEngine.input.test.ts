@@ -7,6 +7,7 @@ import type {
   SessionStats,
 } from '../types/game'
 import { GameEngine } from './GameEngine'
+import { adaptChartForHandiTap } from './handiTap/handiTap'
 
 const keyboardMapping: KeyboardMapping = {
   frets: ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG'],
@@ -37,8 +38,8 @@ function note(
   }
 }
 
-function makeEngine(notes: ChartNote[]) {
-  const chart: ParsedChart = {
+function testChart(notes: ChartNote[]): ParsedChart {
+  return {
     metadata: {
       name: 'Input timing test',
       artist: 'Fretline',
@@ -52,6 +53,10 @@ function makeEngine(notes: ChartNote[]) {
     availableTracks: ['ExpertSingle'],
     durationSeconds: 4,
   }
+}
+
+function makeEngine(notes: ChartNote[]) {
+  const chart = testChart(notes)
   let latestStats: SessionStats | null = null
   const engine = new GameEngine({
     audioContext: {} as AudioContext,
@@ -84,6 +89,43 @@ function makeEngine(notes: ChartNote[]) {
   return {
     input,
     stats: () => latestStats,
+  }
+}
+
+function makeTapEngine(chart: ParsedChart) {
+  const engine = new GameEngine({
+    audioContext: {} as AudioContext,
+    audioBuffers: [],
+    chart,
+    calibration: {
+      modelVersion: 2,
+      audioOffsetMs: 0,
+      inputOffsetMs: 0,
+      videoOffsetMs: 0,
+    },
+    controllerMapping: null,
+    keyboardMapping,
+    inputMode: 'tap',
+    onFrame: () => undefined,
+    onStats: () => undefined,
+    onFinish: () => undefined,
+    onPauseChange: () => undefined,
+  })
+
+  return engine as unknown as {
+    touchLanes: Lane[]
+    stats: SessionStats
+    starPowerPhraseStates: Array<'pending' | 'earned' | 'failed'>
+    completeHit: (
+      noteIndex: number,
+      songTimeSeconds: number,
+      scoringTime: number,
+      heldLanes: Lane[],
+    ) => boolean
+    updateSustains: (
+      scoringTime: number,
+      songTimeSeconds: number,
+    ) => void
   }
 }
 
@@ -126,5 +168,57 @@ describe('standard guitar input reconciliation', () => {
       overstrums: 0,
       streak: 1,
     })
+  })
+})
+
+describe('HandiTap star-power tremolo holds', () => {
+  function starPowerTremoloChart(): ParsedChart {
+    const notes = [
+      note(2, 1, false),
+      note(2.1, 1, false),
+      note(2.2, 1, false),
+      note(2.3, 1, false),
+    ].map((item) => ({
+      ...item,
+      starPower: true,
+      starPowerPhraseIndices: [0],
+    }))
+    return adaptChartForHandiTap({
+      ...testChart(notes),
+      starPowerPhrases: [
+        {
+          tick: notes[0].tick,
+          tickLength: notes[3].tick - notes[0].tick,
+          timeSeconds: notes[0].timeSeconds,
+          endTimeSeconds: notes[3].timeSeconds,
+        },
+      ],
+    })
+  }
+
+  it('awards the phrase only after its generated hold completes', () => {
+    const input = makeTapEngine(starPowerTremoloChart())
+    input.touchLanes = [1]
+
+    expect(input.completeHit(0, 2, 2, [1])).toBe(true)
+    expect(input.stats.starPowerMeter).toBe(0)
+    expect(input.starPowerPhraseStates).toEqual(['pending'])
+
+    input.updateSustains(2.31, 2.31)
+    expect(input.stats.starPowerMeter).toBe(0.25)
+    expect(input.starPowerPhraseStates).toEqual(['earned'])
+  })
+
+  it('fails the phrase when its generated hold is released early', () => {
+    const input = makeTapEngine(starPowerTremoloChart())
+    input.touchLanes = [1]
+    expect(input.completeHit(0, 2, 2, [1])).toBe(true)
+
+    input.touchLanes = []
+    input.updateSustains(2.05, 2.05)
+    input.updateSustains(2.24, 2.24)
+
+    expect(input.stats.starPowerMeter).toBe(0)
+    expect(input.starPowerPhraseStates).toEqual(['failed'])
   })
 })
