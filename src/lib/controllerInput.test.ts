@@ -305,6 +305,63 @@ describe('controller input', () => {
     expect(snapshot?.frets[0]).toBe(true)
   })
 
+  it('follows fresh input when a wireless receiver keeps old slots connected', () => {
+    const mapping: GamepadControllerMapping = {
+      source: 'gamepad',
+      gamepadId: 'xbox 360 wireless receiver',
+      gamepadIndex: 0,
+      frets: [
+        { type: 'button', index: 0 },
+        { type: 'button', index: 1 },
+        { type: 'button', index: 2 },
+        { type: 'button', index: 3 },
+        { type: 'button', index: 4 },
+      ],
+      strumUp: { type: 'button', index: 12 },
+      strumDown: { type: 'button', index: 13 },
+    }
+    const receiverSlot = (
+      index: number,
+      green: boolean,
+      timestamp: number,
+    ) => ({
+      ...gamepad([green, false, false, false, false], []),
+      id: 'xbox 360 wireless receiver',
+      index,
+      timestamp,
+      connected: true,
+    })
+
+    const originalSlot = receiverSlot(0, false, 100)
+    const alternateSlot = receiverSlot(2, false, 90)
+    expect(
+      mappedGamepadSnapshot(mapping, [
+        originalSlot,
+        null,
+        alternateSlot,
+      ])?.gamepad,
+    ).toBe(originalSlot)
+
+    const staleOriginalSlot = receiverSlot(0, false, 100)
+    const activeReconnectedSlot = receiverSlot(2, true, 200)
+    const activeSnapshot = mappedGamepadSnapshot(mapping, [
+      staleOriginalSlot,
+      null,
+      activeReconnectedSlot,
+    ])
+    expect(activeSnapshot?.gamepad).toBe(activeReconnectedSlot)
+    expect(activeSnapshot?.frets[0]).toBe(true)
+
+    const releasedReconnectedSlot = receiverSlot(2, false, 210)
+    expect(
+      mappedGamepadSnapshot(mapping, [
+        staleOriginalSlot,
+        null,
+        releasedReconnectedSlot,
+      ])?.gamepad,
+    ).toBe(releasedReconnectedSlot)
+  })
+
   it('reports no snapshot while only the disconnected slot remains', () => {
     const mapping: GamepadControllerMapping = {
       source: 'gamepad',

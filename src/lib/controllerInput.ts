@@ -16,6 +16,16 @@ interface IdentifiedGamepadState extends GamepadState {
   connected?: boolean
 }
 
+interface GamepadSelectionState {
+  preferredIndex: number
+  signatures: Map<number, string>
+}
+
+const gamepadSelectionByMapping = new WeakMap<
+  GamepadControllerMapping,
+  GamepadSelectionState
+>()
+
 export interface MappedGamepadSnapshot<T extends IdentifiedGamepadState> {
   gamepad: T
   frets: boolean[]
@@ -240,20 +250,102 @@ export function gamepadStarPowerActive(
   )
 }
 
+function mappedDigitalInputSignature(
+  gamepad: GamepadState,
+  mapping: GamepadControllerMapping,
+): string {
+  const frets = mapping.frets
+    .map((binding) => (gamepadBindingActive(gamepad, binding) ? '1' : '0'))
+    .join('')
+  const strum = gamepadStrumDirections(
+    gamepad,
+    mapping.strumUp,
+    mapping.strumDown,
+  )
+  return `${frets}:${strum.up ? '1' : '0'}${strum.down ? '1' : '0'}:${gamepadStartActive(gamepad, mapping.start) ? '1' : '0'}`
+}
+
+function signatureHasInput(signature: string): boolean {
+  return signature.includes('1')
+}
+
+function newestGamepad<T extends IdentifiedGamepadState>(
+  gamepads: readonly T[],
+): T | undefined {
+  return gamepads.reduce<T | undefined>(
+    (newest, candidate) =>
+      !newest || candidate.timestamp > newest.timestamp
+        ? candidate
+        : newest,
+    undefined,
+  )
+}
+
+function selectMappedGamepad<T extends IdentifiedGamepadState>(
+  mapping: GamepadControllerMapping,
+  gamepads: readonly (T | null)[],
+): T | null {
+  const candidates = gamepads.filter(
+    (candidate): candidate is T =>
+      candidate?.id === mapping.gamepadId &&
+      candidate.connected !== false,
+  )
+  if (candidates.length === 0) {
+    gamepadSelectionByMapping.delete(mapping)
+    return null
+  }
+
+  const previous = gamepadSelectionByMapping.get(mapping)
+  const signatures = new Map<number, string>()
+  const activeCandidates: T[] = []
+  const newlyActiveCandidates: T[] = []
+
+  for (const candidate of candidates) {
+    const signature = mappedDigitalInputSignature(candidate, mapping)
+    signatures.set(candidate.index, signature)
+    if (!signatureHasInput(signature)) continue
+    activeCandidates.push(candidate)
+    if (
+      previous?.signatures.has(candidate.index) &&
+      previous.signatures.get(candidate.index) !== signature
+    ) {
+      newlyActiveCandidates.push(candidate)
+    }
+  }
+
+  const previousCandidate = candidates.find(
+    (candidate) => candidate.index === previous?.preferredIndex,
+  )
+  const indexedCandidate = candidates.find(
+    (candidate) => candidate.index === mapping.gamepadIndex,
+  )
+  const previousIsActive = previousCandidate
+    ? signatureHasInput(signatures.get(previousCandidate.index) ?? '')
+    : false
+
+  // Xbox 360 wireless receivers can leave several same-ID virtual gamepads
+  // marked connected. When the guitar reconnects on another receiver slot,
+  // prefer the slot whose mapped controls just became active.
+  const selected =
+    newestGamepad(newlyActiveCandidates) ??
+    (!previousIsActive ? newestGamepad(activeCandidates) : undefined) ??
+    previousCandidate ??
+    indexedCandidate ??
+    newestGamepad(candidates) ??
+    candidates[0]
+
+  gamepadSelectionByMapping.set(mapping, {
+    preferredIndex: selected.index,
+    signatures,
+  })
+  return selected
+}
+
 export function mappedGamepadSnapshot<T extends IdentifiedGamepadState>(
   mapping: GamepadControllerMapping,
   gamepads: readonly (T | null)[],
 ): MappedGamepadSnapshot<T> | null {
-  const indexedGamepad = gamepads[mapping.gamepadIndex]
-  const gamepad =
-    indexedGamepad?.id === mapping.gamepadId &&
-    indexedGamepad.connected !== false
-      ? indexedGamepad
-      : gamepads.find(
-          (candidate): candidate is T =>
-            candidate?.id === mapping.gamepadId &&
-            candidate.connected !== false,
-        )
+  const gamepad = selectMappedGamepad(mapping, gamepads)
   if (!gamepad) return null
 
   return {
