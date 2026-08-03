@@ -1,4 +1,7 @@
-import { mappedGamepadSnapshot } from '../../lib/controllerInput'
+import {
+  exclusiveStrumDirections,
+  mappedGamepadSnapshot,
+} from '../../lib/controllerInput'
 import { directHidSnapshot } from '../../lib/directHidController'
 import { hidAnalogValue, hidBindingActive } from '../../lib/hidInput'
 import type { ControllerMapping, Lane } from '../../types/game'
@@ -6,10 +9,25 @@ import type { ControllerMapping, Lane } from '../../types/game'
 export interface ControllerState {
   connected: boolean
   lanes: Lane[]
-  strumming: boolean
+  strumDirections: StrumDirections
   starPower: boolean
   whammy: number
   timestamp: number
+}
+
+export interface StrumDirections {
+  up: boolean
+  down: boolean
+}
+
+export function newlyPressedStrumDirections(
+  current: StrumDirections,
+  previous: StrumDirections,
+): StrumDirections {
+  return {
+    up: current.up && !previous.up,
+    down: current.down && !previous.down,
+  }
 }
 
 export function normalizePerformanceTimestamp(timestamp: number): number {
@@ -27,6 +45,10 @@ export function readControllerState(
 
   if (mapping.source === 'hid') {
     const snapshot = directHidSnapshot(mapping.device)
+    const strumDirections = exclusiveStrumDirections(
+      hidBindingActive(snapshot.reports, mapping.strumUp),
+      hidBindingActive(snapshot.reports, mapping.strumDown),
+    )
     return {
       connected: true,
       lanes: mapping.frets
@@ -36,9 +58,7 @@ export function readControllerState(
             : null,
         )
         .filter((lane): lane is Lane => lane !== null),
-      strumming:
-        hidBindingActive(snapshot.reports, mapping.strumUp) ||
-        hidBindingActive(snapshot.reports, mapping.strumDown),
+      strumDirections,
       starPower: mapping.starPower
         ? hidBindingActive(snapshot.reports, mapping.starPower)
         : false,
@@ -55,7 +75,7 @@ export function readControllerState(
     return {
       connected: false,
       lanes: [],
-      strumming: false,
+      strumDirections: { up: false, down: false },
       starPower: false,
       whammy: 0,
       timestamp: now,
@@ -67,8 +87,7 @@ export function readControllerState(
     lanes: snapshot.frets
       .map((active, index) => (active ? (index as Lane) : null))
       .filter((lane): lane is Lane => lane !== null),
-    strumming:
-      snapshot.strumDirections.up || snapshot.strumDirections.down,
+    strumDirections: snapshot.strumDirections,
     starPower: snapshot.starPower,
     whammy: snapshot.whammy,
     timestamp:

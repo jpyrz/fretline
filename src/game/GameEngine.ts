@@ -28,8 +28,10 @@ import { whammyAudioParameters } from './whammyAudio'
 import { playStarPowerIgnition } from './starPowerIgnitionAudio'
 import type { PlayInputMode } from '../lib/inputMode'
 import {
+  newlyPressedStrumDirections,
   normalizePerformanceTimestamp,
   readControllerState,
+  type StrumDirections,
 } from './input/controllerState'
 import {
   closestHitCandidate,
@@ -148,7 +150,10 @@ export class GameEngine {
   private finished = false
   private paused = false
   private pausedSongTimeSeconds = 0
-  private previousGamepadStrum = false
+  private previousGamepadStrumDirections: StrumDirections = {
+    up: false,
+    down: false,
+  }
   private previousGamepadStarPower = false
   private gamepadLanes: Lane[] = []
   private gamepadWhammy = 0
@@ -264,7 +269,7 @@ export class GameEngine {
     this.starPowerPhraseFlash = null
     this.lastStarPowerTick = null
     this.lastWhammyAudioAmount = -1
-    this.previousGamepadStrum = false
+    this.previousGamepadStrumDirections = { up: false, down: false }
     this.previousGamepadStarPower = false
     this.gamepadWhammy = 0
     this.keyboardWhammy = false
@@ -721,7 +726,7 @@ export class GameEngine {
     if (!snapshot.connected) {
       this.gamepadLanes = []
       this.gamepadWhammy = 0
-      this.previousGamepadStrum = false
+      this.previousGamepadStrumDirections = { up: false, down: false }
       this.previousGamepadStarPower = false
       return
     }
@@ -733,15 +738,24 @@ export class GameEngine {
       previousLanes.length !== this.gamepadLanes.length ||
       previousLanes.some((lane) => !this.gamepadLanes.includes(lane))
 
-    if (snapshot.strumming && !this.previousGamepadStrum) {
+    const pressedStrums = newlyPressedStrumDirections(
+      snapshot.strumDirections,
+      this.previousGamepadStrumDirections,
+    )
+    const strummed = pressedStrums.up || pressedStrums.down
+    if (pressedStrums.up) {
       this.strum(snapshot.timestamp)
-    } else if (fretsChanged) {
+    }
+    if (pressedStrums.down) {
+      this.strum(snapshot.timestamp)
+    }
+    if (!strummed && fretsChanged) {
       this.fretChange(snapshot.timestamp)
     }
     if (snapshot.starPower && !this.previousGamepadStarPower) {
       this.activateStarPower(snapshot.timestamp)
     }
-    this.previousGamepadStrum = snapshot.strumming
+    this.previousGamepadStrumDirections = snapshot.strumDirections
     this.previousGamepadStarPower = snapshot.starPower
   }
 

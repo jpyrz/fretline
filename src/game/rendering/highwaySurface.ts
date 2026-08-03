@@ -98,7 +98,6 @@ export function resizeHighwayCanvas(
   }
   const context = canvas.getContext('2d', {
     alpha: false,
-    desynchronized: true,
   })
   context?.setTransform(ratio, 0, 0, ratio, 0, 0)
   return context
