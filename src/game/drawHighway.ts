@@ -1431,6 +1431,14 @@ function lowerBoundBurstMarkerTime(
   return low
 }
 
+export function shouldRenderHandiTapBurstMarker(
+  progress: number,
+  satisfiedByHold: boolean,
+): boolean {
+  if (progress < 0 || progress > 1.12) return false
+  return !satisfiedByHold || progress < 1
+}
+
 function drawHandiTapBurstMarkers(
   context: CanvasRenderingContext2D,
   width: number,
@@ -1453,12 +1461,23 @@ function drawHandiTapBurstMarkers(
     const secondsUntil = marker.timeSeconds - frame.visualTimeSeconds
     if (secondsUntil > travelSeconds) break
     const progress = 1 - secondsUntil / travelSeconds
-    if (progress < 0 || progress > 1.12) continue
 
     const parentNote = chart.notes[marker.parentNoteIndex]
     if (!parentNote) continue
     const parentState = frame.noteStates[marker.parentNoteIndex]
     const sustainState = frame.sustainStates[marker.parentNoteIndex]
+    const satisfiedByHold =
+      parentState === 'hit' &&
+      sustainState !== 'released' &&
+      frame.heldLanes.includes(marker.lane)
+    if (
+      !shouldRenderHandiTapBurstMarker(
+        progress,
+        satisfiedByHold,
+      )
+    ) {
+      continue
+    }
     const missed = parentState === 'miss' || sustainState === 'released'
     const point = highwayPoint(
       width,

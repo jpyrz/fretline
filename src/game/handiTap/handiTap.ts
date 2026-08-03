@@ -5,13 +5,15 @@ import type {
   ParsedChart,
 } from '../../types/game'
 
-export const HANDITAP_VERSION = 4
+export const HANDITAP_VERSION = 5
 
 // Only bursts beyond roughly 14 notes per second are thinned. Ordinary authored
 // rhythms, including 16th notes at common tempos, pass through unchanged.
 const MIN_NOTE_INTERVAL_SECONDS = 0.07
-const RAPID_REPEATED_CHORD_SECONDS = 0.115
-const RAPID_TREMOLO_SECONDS = 0.1
+// Repeated chords and single-note tremolo use the same attack-rate cutoff.
+// Authored sustain tails must not make an otherwise playable rhythm appear
+// faster than it is.
+const RAPID_REPEATED_HOLD_SECONDS = 0.1
 const RAPID_LEAD_INTERVAL_SECONDS = 0.18
 const RAPID_LEAD_MIN_NOTES = 5
 
@@ -56,8 +58,9 @@ function sameLanes(left: ChartNote, right: ChartNote): boolean {
 
 function repeatedHoldThreshold(note: ChartNote): number | null {
   if (note.open) return null
-  if (note.lanes.length === 2) return RAPID_REPEATED_CHORD_SECONDS
-  if (note.lanes.length === 1) return RAPID_TREMOLO_SECONDS
+  if (note.lanes.length === 1 || note.lanes.length === 2) {
+    return RAPID_REPEATED_HOLD_SECONDS
+  }
   return null
 }
 
@@ -87,13 +90,11 @@ function mergeRapidRepeatedHolds(notes: ChartNote[]): {
     while (runEnd + 1 < notes.length) {
       const current = notes[runEnd]
       const next = notes[runEnd + 1]
-      const gap =
-        next.timeSeconds -
-        (current.timeSeconds + current.sustainSeconds)
+      const attackInterval = next.timeSeconds - current.timeSeconds
       if (
         !sameLanes(first, next) ||
         hasStarPowerMembership(next) ||
-        gap > threshold + 0.000001
+        attackInterval > threshold + 0.000001
       ) {
         break
       }
@@ -101,7 +102,7 @@ function mergeRapidRepeatedHolds(notes: ChartNote[]): {
     }
 
     const runLength = runEnd - index + 1
-    const minimumRunLength = first.lanes.length === 1 ? 4 : 2
+    const minimumRunLength = first.lanes.length === 1 ? 4 : 3
     if (runLength < minimumRunLength) {
       playable.push(...notes.slice(index, runEnd + 1))
       index = runEnd + 1

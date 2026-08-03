@@ -41,7 +41,7 @@ function chart(notes: ChartNote[]): ParsedChart {
 
 describe('HandiTap chart adaptation', () => {
   it('has an explicit cache version', () => {
-    expect(HANDITAP_VERSION).toBe(4)
+    expect(HANDITAP_VERSION).toBe(5)
   })
 
   it('caps chords at two reachable outer lanes', () => {
@@ -104,6 +104,31 @@ describe('HandiTap chart adaptation', () => {
       sustainTicks: 192,
     })
     expect(adapted.notes[0].sustainSeconds).toBeCloseTo(0.2)
+  })
+
+  it('preserves playable repeated chords regardless of authored note tails', () => {
+    const source = chart([
+      note(2, [0, 4], { sustainTicks: 77, sustainSeconds: 0.08 }),
+      note(2.18, [0, 4], {
+        sustainTicks: 77,
+        sustainSeconds: 0.08,
+      }),
+      note(2.36, [0, 4], {
+        sustainTicks: 77,
+        sustainSeconds: 0.08,
+      }),
+    ])
+
+    expect(adaptChartForHandiTap(source).notes).toEqual(source.notes)
+  })
+
+  it('preserves a two-chord accent even when its attacks are rapid', () => {
+    const source = chart([
+      note(2, [1, 3]),
+      note(2.08, [1, 3]),
+    ])
+
+    expect(adaptChartForHandiTap(source).notes).toEqual(source.notes)
   })
 
   it('turns only very rapid four-note tremolo runs into a marked hold', () => {

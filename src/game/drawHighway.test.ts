@@ -4,6 +4,7 @@ import {
   highwayTopY,
   highwayTrackWidth,
   projectHighwayProgress,
+  shouldRenderHandiTapBurstMarker,
   shouldRenderStarPowerNote,
   travelSecondsForNoteSpeed,
   visibleNoteIndices,
@@ -107,6 +108,20 @@ describe('highway render culling', () => {
     expect(indices.length).toBeLessThan(10)
     expect(indices).not.toContain(399)
     expect(indices).not.toContain(405)
+  })
+})
+
+describe('HandiTap burst marker lifecycle', () => {
+  it('removes a hold-satisfied mini-gem at the strike line', () => {
+    expect(shouldRenderHandiTapBurstMarker(0.999, true)).toBe(true)
+    expect(shouldRenderHandiTapBurstMarker(1, true)).toBe(false)
+    expect(shouldRenderHandiTapBurstMarker(1.08, true)).toBe(false)
+  })
+
+  it('lets an unsatisfied mini-gem pass briefly as miss feedback', () => {
+    expect(shouldRenderHandiTapBurstMarker(1, false)).toBe(true)
+    expect(shouldRenderHandiTapBurstMarker(1.08, false)).toBe(true)
+    expect(shouldRenderHandiTapBurstMarker(1.121, false)).toBe(false)
   })
 })
 
