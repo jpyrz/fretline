@@ -5,10 +5,12 @@ interface HidDeviceState {
   device: HIDDevice
   reports: Map<number, Uint8Array>
   timestamp: number
+  connected: boolean
 }
 
 const deviceStates = new Map<string, HidDeviceState>()
 const attachedDevices = new WeakSet<HIDDevice>()
+let lifecycleListenersAttached = false
 
 export function hidDeviceKey(device: HidDeviceIdentity): string {
   return `${device.vendorId}:${device.productId}:${device.productName}`
@@ -29,10 +31,20 @@ async function attachDevice(device: HIDDevice): Promise<HidDeviceIdentity> {
   const key = hidDeviceKey(identity)
   let state = deviceStates.get(key)
   if (!state) {
-    state = { device, reports: new Map(), timestamp: 0 }
+    state = {
+      device,
+      reports: new Map(),
+      timestamp: 0,
+      connected: true,
+    }
     deviceStates.set(key, state)
   } else {
+    if (state.device !== device || !state.connected) {
+      state.reports.clear()
+      state.timestamp = 0
+    }
     state.device = device
+    state.connected = true
   }
 
   if (!attachedDevices.has(device)) {
@@ -40,6 +52,7 @@ async function attachDevice(device: HIDDevice): Promise<HidDeviceIdentity> {
     device.addEventListener('inputreport', (event) => {
       const current = deviceStates.get(key)
       if (!current) return
+      current.connected = true
       current.reports.set(
         event.reportId,
         Uint8Array.from(
@@ -57,12 +70,33 @@ async function attachDevice(device: HIDDevice): Promise<HidDeviceIdentity> {
   return identity
 }
 
+function ensureHidLifecycleListeners(): void {
+  if (lifecycleListenersAttached || !navigator.hid) return
+  lifecycleListenersAttached = true
+
+  navigator.hid.addEventListener('disconnect', (event) => {
+    const key = hidDeviceKey(identityFor(event.device))
+    const state = deviceStates.get(key)
+    if (!state || state.device !== event.device) return
+    state.connected = false
+    state.reports.clear()
+    state.timestamp = 0
+  })
+
+  navigator.hid.addEventListener('connect', (event) => {
+    void attachDevice(event.device).catch(() => {
+      // The normal reconnect polling path will try the granted device again.
+    })
+  })
+}
+
 export async function requestDirectHidDevice(): Promise<HidDeviceIdentity> {
   if (!navigator.hid) {
     throw new Error(
       'Direct controller access requires current Chrome or Edge.',
     )
   }
+  ensureHidLifecycleListeners()
 
   const [device] = await navigator.hid.requestDevice({ filters: [] })
   if (!device) throw new Error('No direct controller was selected.')
@@ -73,6 +107,7 @@ export async function reconnectDirectHidDevice(
   identity: HidDeviceIdentity,
 ): Promise<boolean> {
   if (!navigator.hid) return false
+  ensureHidLifecycleListeners()
   const devices = await navigator.hid.getDevices()
   const device = devices.find(
     (candidate) =>
@@ -89,10 +124,12 @@ export async function reconnectDirectHidDevice(
 export function directHidSnapshot(identity: HidDeviceIdentity): {
   reports: HidReports
   timestamp: number
+  connected: boolean
 } {
   const state = deviceStates.get(hidDeviceKey(identity))
   return {
     reports: state?.reports ?? new Map(),
     timestamp: state?.timestamp ?? 0,
+    connected: state?.connected ?? false,
   }
 }

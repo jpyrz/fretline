@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { reconnectDirectHidDevice } from '../../lib/directHidController'
+import {
+  directHidSnapshot,
+  reconnectDirectHidDevice,
+} from '../../lib/directHidController'
 import { keyboardEventCode } from '../../lib/keyboardMapping'
 import { useAppState } from '../../state/AppState'
 import {
@@ -26,7 +29,29 @@ export function MenuControllerNavigation() {
 
   useEffect(() => {
     if (controllerMapping?.source !== 'hid') return
-    void reconnectDirectHidDevice(controllerMapping.device)
+    let reconnecting = false
+    const reconnect = () => {
+      if (
+        reconnecting ||
+        directHidSnapshot(controllerMapping.device).connected
+      ) {
+        return
+      }
+      reconnecting = true
+      void reconnectDirectHidDevice(controllerMapping.device)
+        .catch(() => false)
+        .finally(() => {
+          reconnecting = false
+        })
+    }
+
+    reconnect()
+    const interval = window.setInterval(reconnect, 1_500)
+    window.addEventListener('focus', reconnect)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', reconnect)
+    }
   }, [controllerMapping])
 
   useEffect(() => {

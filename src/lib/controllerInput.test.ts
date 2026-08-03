@@ -264,4 +264,70 @@ describe('controller input', () => {
     expect(snapshot?.whammy).toBe(0.5)
     expect(snapshot?.start).toBe(true)
   })
+
+  it('ignores a stale disconnected slot after the guitar reconnects elsewhere', () => {
+    const mapping: GamepadControllerMapping = {
+      source: 'gamepad',
+      gamepadId: 'wireless guitar',
+      gamepadIndex: 0,
+      frets: [
+        { type: 'button', index: 0 },
+        { type: 'button', index: 1 },
+        { type: 'button', index: 2 },
+        { type: 'button', index: 3 },
+        { type: 'button', index: 4 },
+      ],
+      strumUp: { type: 'button', index: 12 },
+      strumDown: { type: 'button', index: 13 },
+    }
+    const stale = {
+      ...gamepad([false, false, false, false, false], []),
+      id: 'wireless guitar',
+      index: 0,
+      timestamp: 10,
+      connected: false,
+    }
+    const reconnected = {
+      ...gamepad([true, false, false, false, false], []),
+      id: 'wireless guitar',
+      index: 2,
+      timestamp: 20,
+      connected: true,
+    }
+
+    const snapshot = mappedGamepadSnapshot(mapping, [
+      stale,
+      null,
+      reconnected,
+    ])
+
+    expect(snapshot?.gamepad).toBe(reconnected)
+    expect(snapshot?.frets[0]).toBe(true)
+  })
+
+  it('reports no snapshot while only the disconnected slot remains', () => {
+    const mapping: GamepadControllerMapping = {
+      source: 'gamepad',
+      gamepadId: 'wireless guitar',
+      gamepadIndex: 0,
+      frets: [
+        { type: 'button', index: 0 },
+        { type: 'button', index: 1 },
+        { type: 'button', index: 2 },
+        { type: 'button', index: 3 },
+        { type: 'button', index: 4 },
+      ],
+      strumUp: { type: 'button', index: 12 },
+      strumDown: { type: 'button', index: 13 },
+    }
+    const stale = {
+      ...gamepad([false, false, false, false, false], []),
+      id: 'wireless guitar',
+      index: 0,
+      timestamp: 10,
+      connected: false,
+    }
+
+    expect(mappedGamepadSnapshot(mapping, [stale])).toBeNull()
+  })
 })

@@ -45,12 +45,22 @@ export function readControllerState(
 
   if (mapping.source === 'hid') {
     const snapshot = directHidSnapshot(mapping.device)
+    if (!snapshot.connected) {
+      return {
+        connected: false,
+        lanes: [],
+        strumDirections: { up: false, down: false },
+        starPower: false,
+        whammy: 0,
+        timestamp: now,
+      }
+    }
     const strumDirections = exclusiveStrumDirections(
       hidBindingActive(snapshot.reports, mapping.strumUp),
       hidBindingActive(snapshot.reports, mapping.strumDown),
     )
     return {
-      connected: true,
+      connected: snapshot.connected,
       lanes: mapping.frets
         .map((binding, index) =>
           hidBindingActive(snapshot.reports, binding)

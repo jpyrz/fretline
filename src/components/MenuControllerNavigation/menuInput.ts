@@ -33,7 +33,8 @@ export function emptyMenuInputState(): MenuInputState {
 
 export function readMenuInput(mapping: ControllerMapping): MenuInputState {
   if (mapping.source === 'hid') {
-    const { reports } = directHidSnapshot(mapping.device)
+    const { connected, reports } = directHidSnapshot(mapping.device)
+    if (!connected) return emptyMenuInputState()
     const strumDirections = exclusiveStrumDirections(
       hidBindingActive(reports, mapping.strumUp),
       hidBindingActive(reports, mapping.strumDown),

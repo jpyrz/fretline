@@ -52,7 +52,7 @@ function sameLiveInput(
 
 function readLiveInput(mapping: ControllerMapping): LiveInputState {
   if (mapping.source === 'hid') {
-    const { reports } = directHidSnapshot(mapping.device)
+    const { connected, reports } = directHidSnapshot(mapping.device)
     const directions = exclusiveStrumDirections(
       hidBindingActive(reports, mapping.strumUp),
       hidBindingActive(reports, mapping.strumDown),
@@ -67,7 +67,7 @@ function readLiveInput(mapping: ControllerMapping): LiveInputState {
       .join(' | ')
 
     return {
-      connected: reports.size > 0,
+      connected,
       source: `Direct HID · ${mapping.device.productName}`,
       up: directions.up,
       down: directions.down,

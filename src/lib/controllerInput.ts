@@ -13,6 +13,7 @@ interface IdentifiedGamepadState extends GamepadState {
   id: string
   index: number
   timestamp: number
+  connected?: boolean
 }
 
 export interface MappedGamepadSnapshot<T extends IdentifiedGamepadState> {
@@ -245,11 +246,13 @@ export function mappedGamepadSnapshot<T extends IdentifiedGamepadState>(
 ): MappedGamepadSnapshot<T> | null {
   const indexedGamepad = gamepads[mapping.gamepadIndex]
   const gamepad =
-    indexedGamepad?.id === mapping.gamepadId
+    indexedGamepad?.id === mapping.gamepadId &&
+    indexedGamepad.connected !== false
       ? indexedGamepad
       : gamepads.find(
           (candidate): candidate is T =>
-            candidate?.id === mapping.gamepadId,
+            candidate?.id === mapping.gamepadId &&
+            candidate.connected !== false,
         )
   if (!gamepad) return null
 

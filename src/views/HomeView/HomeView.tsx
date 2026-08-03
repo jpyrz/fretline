@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlbumArtwork } from '../../components/AlbumArtwork'
+import { useControllerConnection } from '../../hooks/useControllerConnection'
 import { useAppState } from '../../state/AppState'
 import { useHomeAudio } from './hooks/useHomeAudio'
 import styles from './HomeView.module.scss'
@@ -40,6 +41,7 @@ export function HomeView() {
     () => songs.filter((candidate) => candidate.kind === 'folder'),
     [songs],
   )
+  const controllerConnected = useControllerConnection(controllerMapping)
   const homeAudio = useHomeAudio(
     playableSongs,
     audioSettings.homeMusicMuted,
@@ -176,11 +178,13 @@ export function HomeView() {
 
       <footer className={styles.footer}>
         <div>
-          <i data-connected={Boolean(controllerMapping)} />
+          <i data-connected={controllerConnected} />
           <span>
-            {controllerMapping
+            {controllerConnected
               ? 'Guitar connected'
-              : 'Keyboard ready · Map a guitar in Settings'}
+              : controllerMapping
+                ? 'Guitar mapped · Waiting to reconnect'
+                : 'Keyboard ready · Map a guitar in Settings'}
           </span>
         </div>
         <p>

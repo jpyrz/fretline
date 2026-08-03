@@ -15,6 +15,10 @@ interface HIDInputReportEvent extends Event {
   readonly data: DataView
 }
 
+interface HIDConnectionEvent extends Event {
+  readonly device: HIDDevice
+}
+
 interface HIDDevice extends EventTarget {
   readonly opened: boolean
   readonly vendorId: number
@@ -32,6 +36,10 @@ interface HIDDevice extends EventTarget {
 interface HID extends EventTarget {
   getDevices(): Promise<HIDDevice[]>
   requestDevice(options: HIDDeviceRequestOptions): Promise<HIDDevice[]>
+  addEventListener(
+    type: 'connect' | 'disconnect',
+    listener: (event: HIDConnectionEvent) => void,
+  ): void
 }
 
 interface Navigator {
