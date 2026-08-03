@@ -26,12 +26,20 @@ function identityFor(device: HIDDevice): HidDeviceIdentity {
   }
 }
 
-async function attachDevice(device: HIDDevice): Promise<HidDeviceIdentity> {
-  if (!device.opened) await device.open()
-
+async function attachDevice(
+  device: HIDDevice,
+  restart = false,
+): Promise<HidDeviceIdentity> {
   const identity = identityFor(device)
   const key = hidDeviceKey(identity)
   let state = deviceStates.get(key)
+
+  // A wireless guitar can disappear while its USB receiver and HIDDevice stay
+  // present. Closing and reopening that granted device restarts the stalled
+  // input-report stream without asking the player to remap controls.
+  if (restart && device.opened) await device.close()
+  if (!device.opened) await device.open()
+
   if (!state) {
     state = {
       device,
@@ -107,6 +115,7 @@ export async function requestDirectHidDevice(): Promise<HidDeviceIdentity> {
 
 export async function reconnectDirectHidDevice(
   identity: HidDeviceIdentity,
+  restart = false,
 ): Promise<boolean> {
   if (!navigator.hid) return false
   ensureHidLifecycleListeners()
@@ -117,7 +126,7 @@ export async function reconnectDirectHidDevice(
       candidate.productId === identity.productId,
   )
   if (!device) return false
-  await attachDevice(device)
+  await attachDevice(device, restart)
   return true
 }
 

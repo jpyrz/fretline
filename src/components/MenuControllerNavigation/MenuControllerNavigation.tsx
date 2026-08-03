@@ -30,15 +30,21 @@ export function MenuControllerNavigation() {
   useEffect(() => {
     if (controllerMapping?.source !== 'hid') return
     let reconnecting = false
-    const reconnect = () => {
+    const reconnect = (force = false) => {
+      const connected = directHidSnapshot(
+        controllerMapping.device,
+      ).connected
       if (
         reconnecting ||
-        directHidSnapshot(controllerMapping.device).connected
+        (!force && connected)
       ) {
         return
       }
       reconnecting = true
-      void reconnectDirectHidDevice(controllerMapping.device)
+      void reconnectDirectHidDevice(
+        controllerMapping.device,
+        force || !connected,
+      )
         .catch(() => false)
         .finally(() => {
           reconnecting = false
@@ -47,10 +53,17 @@ export function MenuControllerNavigation() {
 
     reconnect()
     const interval = window.setInterval(reconnect, 1_500)
-    window.addEventListener('focus', reconnect)
+    const handleFocus = () => reconnect(true)
+    window.addEventListener('focus', handleFocus)
+    const handleGamepadConnected = () => reconnect(true)
+    window.addEventListener('gamepadconnected', handleGamepadConnected)
     return () => {
       window.clearInterval(interval)
-      window.removeEventListener('focus', reconnect)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener(
+        'gamepadconnected',
+        handleGamepadConnected,
+      )
     }
   }, [controllerMapping])
 
