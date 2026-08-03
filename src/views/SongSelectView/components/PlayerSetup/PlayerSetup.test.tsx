@@ -26,6 +26,20 @@ const instrument: InstrumentChoice = {
   tracks: [track],
 }
 
+const timingPreset = {
+  id: 'default-setup',
+  name: 'Default Setup',
+  calibration: {
+    modelVersion: 2 as const,
+    audioOffsetMs: 0,
+    inputOffsetMs: 12,
+    videoOffsetMs: 0,
+  },
+  measuredOutputLatencySeconds: null,
+  createdAt: 1,
+  updatedAt: 1,
+}
+
 function renderSetup(
   overrides: Partial<Parameters<typeof PlayerSetup>[0]> = {},
 ) {
@@ -42,16 +56,21 @@ function renderSetup(
     practiceLoop: false,
     touchAvailable: true,
     controllerConfigured: false,
+    timingPresets: [timingPreset],
+    activeTimingPreset: timingPreset,
+    timingOutputLatencyDifferenceMs: null,
     onBack: vi.fn(),
     onReady: vi.fn(),
     onShowInputModes: vi.fn(),
     onShowInstruments: vi.fn(),
     onShowDifficulties: vi.fn(),
+    onShowTimingPresets: vi.fn(),
     onShowPracticeSpeeds: vi.fn(),
     onShowPracticeSections: vi.fn(),
     onChooseInputMode: vi.fn(),
     onChooseInstrument: vi.fn(),
     onChooseDifficulty: vi.fn(),
+    onChooseTimingPreset: vi.fn(),
     onChoosePracticeSpeed: vi.fn(),
     onChoosePracticeSection: vi.fn(),
     onPracticeLoopChange: vi.fn(),
@@ -85,6 +104,16 @@ describe('PlayerSetup input mode selection', () => {
     const props = renderSetup({ step: 'speed', selectedPracticeSpeed: 0.5 })
     fireEvent.click(screen.getByRole('button', { name: /70% speed/i }))
     expect(props.onChoosePracticeSpeed).toHaveBeenCalledWith(0.7)
+  })
+
+  it('switches timing presets from the guitar-friendly inline picker', () => {
+    const airPods = { ...timingPreset, id: 'airpods', name: 'AirPods' }
+    const props = renderSetup({
+      step: 'timing',
+      timingPresets: [timingPreset, airPods],
+    })
+    fireEvent.click(screen.getByRole('button', { name: /AirPods/i }))
+    expect(props.onChooseTimingPreset).toHaveBeenCalledWith('airpods')
   })
 
   it('explains when an older saved chart needs a section rescan', () => {

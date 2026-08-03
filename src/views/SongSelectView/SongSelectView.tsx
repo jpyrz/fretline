@@ -49,6 +49,10 @@ export function SongSelectView() {
     setPlayPreferences,
     controllerMapping,
     selectTrack,
+    timingPresets,
+    activeTimingPreset,
+    timingOutputLatencyDifferenceMs,
+    activateTimingPreset,
   } = useAppState()
   const [query, setQuery] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('title')
@@ -210,6 +214,7 @@ export function SongSelectView() {
     selectedInputMode,
     selectedPracticeSpeed,
     selectedInstrumentId,
+    activeTimingPreset.id,
     setupStep,
   ])
 
@@ -269,6 +274,7 @@ export function SongSelectView() {
       setupStep === 'input' ||
       setupStep === 'instrument' ||
       setupStep === 'difficulty' ||
+      setupStep === 'timing' ||
       setupStep === 'speed' ||
       setupStep === 'section'
     ) {
@@ -324,16 +330,24 @@ export function SongSelectView() {
         practiceLoop={practiceLoop}
         touchAvailable={tapAvailable}
         controllerConfigured={controllerMapping !== null}
+        timingPresets={timingPresets}
+        activeTimingPreset={activeTimingPreset}
+        timingOutputLatencyDifferenceMs={timingOutputLatencyDifferenceMs}
         onBack={closeSetup}
         onReady={beginLoading}
         onShowInputModes={() => setSetupStep('input')}
         onShowInstruments={() => setSetupStep('instrument')}
         onShowDifficulties={() => setSetupStep('difficulty')}
+        onShowTimingPresets={() => setSetupStep('timing')}
         onShowPracticeSpeeds={() => setSetupStep('speed')}
         onShowPracticeSections={() => setSetupStep('section')}
         onChooseInputMode={chooseInputMode}
         onChooseInstrument={chooseInstrument}
         onChooseDifficulty={chooseDifficulty}
+        onChooseTimingPreset={(presetId) => {
+          activateTimingPreset(presetId)
+          setSetupStep('configure')
+        }}
         onChoosePracticeSpeed={(speed) => {
           setSelectedPracticeSpeed(speed)
           setSetupStep('configure')

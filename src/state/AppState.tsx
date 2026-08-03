@@ -10,6 +10,20 @@ import {
 } from 'react'
 import { calibrationSong } from '../lib/calibrationSong'
 import {
+  activeTimingPreset,
+  createTimingPreset as createTimingPresetState,
+  duplicateTimingPreset as duplicateTimingPresetState,
+  loadTimingPresetState,
+  outputLatencyDifferenceMs,
+  removeTimingPreset,
+  renameTimingPreset as renameTimingPresetState,
+  setActivePresetMeasuredLatency,
+  setLastObservedOutputLatency,
+  TIMING_PRESETS_STORAGE_KEY,
+  updateActivePresetCalibration,
+} from '../features/timingPresets/timingPresets'
+import type { TimingPreset } from '../features/timingPresets/types'
+import {
   deletePersistedVisualAsset,
   deletePersistedSong,
   loadPersistedVisualAssets,
@@ -48,6 +62,16 @@ interface AppStateValue {
   libraryError: string
   calibration: CalibrationSettings
   setCalibration: (calibration: CalibrationSettings) => void
+  timingPresets: TimingPreset[]
+  activeTimingPreset: TimingPreset
+  timingOutputLatencyDifferenceMs: number | null
+  activateTimingPreset: (presetId: string) => void
+  createTimingPreset: (name?: string) => void
+  duplicateTimingPreset: (presetId: string) => void
+  renameTimingPreset: (presetId: string, name: string) => void
+  deleteTimingPreset: (presetId: string) => void
+  observeOutputLatency: (latencySeconds: number) => void
+  saveActiveTimingPresetLatency: (latencySeconds: number) => void
   highwaySettings: HighwaySettings
   setHighwaySettings: (settings: HighwaySettings) => void
   audioSettings: AudioSettings
@@ -81,13 +105,19 @@ function upsertSong(songs: LocalSong[], nextSong: LocalSong): LocalSong[] {
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [initialSettings] = useState(loadInitialSettings)
+  const [initialTimingPresets] = useState(() =>
+    loadTimingPresetState(initialSettings.calibration),
+  )
+  const [timingPresetState, setTimingPresetState] = useState(
+    initialTimingPresets,
+  )
   const [song, setCurrentSong] = useState<LocalSong>(calibrationSong)
   const [songs, setSongs] = useState<LocalSong[]>([calibrationSong])
   const [libraryReady, setLibraryReady] = useState(false)
   const [librarySaving, setLibrarySaving] = useState(false)
   const [libraryError, setLibraryError] = useState('')
-  const [calibration, setCalibration] = useState<CalibrationSettings>(
-    initialSettings.calibration,
+  const [calibration, setCalibrationState] = useState<CalibrationSettings>(
+    activeTimingPreset(initialTimingPresets).calibration,
   )
   const [highwaySettings, setHighwaySettings] = useState<HighwaySettings>(
     initialSettings.highway,
@@ -170,6 +200,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       JSON.stringify(calibration),
     )
   }, [calibration])
+
+  useEffect(() => {
+    localStorage.setItem(
+      TIMING_PRESETS_STORAGE_KEY,
+      JSON.stringify(timingPresetState),
+    )
+  }, [timingPresetState])
 
   useEffect(() => {
     localStorage.setItem(
@@ -330,6 +367,83 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const setCalibration = useCallback((next: CalibrationSettings) => {
+    setCalibrationState(next)
+    setTimingPresetState((current) =>
+      updateActivePresetCalibration(current, next),
+    )
+  }, [])
+
+  const activateTimingPresetById = useCallback(
+    (presetId: string) => {
+      const preset = timingPresetState.presets.find(
+        (candidate) => candidate.id === presetId,
+      )
+      if (!preset) return
+      setTimingPresetState((current) => ({
+        ...current,
+        activePresetId: presetId,
+      }))
+      setCalibrationState(preset.calibration)
+    },
+    [timingPresetState.presets],
+  )
+
+  const createTimingPreset = useCallback(
+    (name?: string) => {
+      const next = createTimingPresetState(
+        timingPresetState,
+        calibration,
+        name,
+      )
+      setTimingPresetState(next)
+      setCalibrationState(activeTimingPreset(next).calibration)
+    },
+    [calibration, timingPresetState],
+  )
+
+  const duplicateTimingPreset = useCallback(
+    (presetId: string) => {
+      const next = duplicateTimingPresetState(timingPresetState, presetId)
+      setTimingPresetState(next)
+      setCalibrationState(activeTimingPreset(next).calibration)
+    },
+    [timingPresetState],
+  )
+
+  const renameTimingPreset = useCallback(
+    (presetId: string, name: string) => {
+      setTimingPresetState((current) =>
+        renameTimingPresetState(current, presetId, name),
+      )
+    },
+    [],
+  )
+
+  const deleteTimingPreset = useCallback(
+    (presetId: string) => {
+      const next = removeTimingPreset(timingPresetState, presetId)
+      setTimingPresetState(next)
+      setCalibrationState(activeTimingPreset(next).calibration)
+    },
+    [timingPresetState],
+  )
+
+  const observeOutputLatency = useCallback((latencySeconds: number) => {
+    setTimingPresetState((current) =>
+      setLastObservedOutputLatency(current, latencySeconds),
+    )
+  }, [])
+
+  const saveActiveTimingPresetLatency = useCallback(
+    (latencySeconds: number) => {
+      setTimingPresetState((current) =>
+        setActivePresetMeasuredLatency(current, latencySeconds),
+      )
+    },
+    [],
+  )
+
   const addVisualAssets = useCallback(async (assets: VisualAsset[]) => {
     if (assets.length === 0) return
     setVisualAssetsSaving(true)
@@ -400,6 +514,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       libraryError,
       calibration,
       setCalibration,
+      timingPresets: timingPresetState.presets,
+      activeTimingPreset: activeTimingPreset(timingPresetState),
+      timingOutputLatencyDifferenceMs:
+        outputLatencyDifferenceMs(timingPresetState),
+      activateTimingPreset: activateTimingPresetById,
+      createTimingPreset,
+      duplicateTimingPreset,
+      renameTimingPreset,
+      deleteTimingPreset,
+      observeOutputLatency,
+      saveActiveTimingPresetLatency,
       highwaySettings,
       setHighwaySettings,
       audioSettings,
@@ -432,6 +557,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       librarySaving,
       libraryError,
       calibration,
+      setCalibration,
+      timingPresetState,
+      activateTimingPresetById,
+      createTimingPreset,
+      duplicateTimingPreset,
+      renameTimingPreset,
+      deleteTimingPreset,
+      observeOutputLatency,
+      saveActiveTimingPresetLatency,
       highwaySettings,
       audioSettings,
       visualAssets,

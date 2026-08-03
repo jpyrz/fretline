@@ -782,6 +782,16 @@
   opacity: 0.4;
 }
 
+.timingWarning {
+  margin: 0.55rem 1rem 0;
+  padding: 0.55rem 0.7rem;
+  border-left: 2px solid #ffc76a;
+  color: rgba(255, 232, 194, 0.8);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  background: rgba(72, 43, 8, 0.24);
+}
+
 .inlinePicker {
   display: grid;
   padding: 0.8rem 0;

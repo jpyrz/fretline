@@ -6,6 +6,7 @@ import { BackIconButton } from '../../components/BackIconButton/BackIconButton'
 import { useAppState } from '../../state/AppState'
 import { VisualSettingsPanel } from './components/VisualSettingsPanel'
 import { LibrarySettingsPanel } from './components/LibrarySettingsPanel/LibrarySettingsPanel'
+import { TimingPresetManager } from './components/TimingPresetManager'
 import styles from './SettingsView.module.scss'
 
 type SettingsSection =
@@ -70,6 +71,14 @@ export function SettingsView() {
   const {
     calibration,
     setCalibration,
+    timingPresets,
+    activeTimingPreset,
+    timingOutputLatencyDifferenceMs,
+    activateTimingPreset,
+    createTimingPreset,
+    duplicateTimingPreset,
+    renameTimingPreset,
+    deleteTimingPreset,
     highwaySettings,
     setHighwaySettings,
     audioSettings,
@@ -151,6 +160,17 @@ export function SettingsView() {
 
           {section === 'gameplay' && (
             <div className={styles.settingList}>
+              <TimingPresetManager
+                presets={timingPresets}
+                activePreset={activeTimingPreset}
+                outputLatencyDifferenceMs={timingOutputLatencyDifferenceMs}
+                onActivate={activateTimingPreset}
+                onCreate={() => createTimingPreset()}
+                onDuplicate={duplicateTimingPreset}
+                onRename={renameTimingPreset}
+                onDelete={deleteTimingPreset}
+                onCalibrate={openTimingLab}
+              />
               <div className={styles.actionRow}>
                 <span>
                   <strong>Timing Lab</strong>

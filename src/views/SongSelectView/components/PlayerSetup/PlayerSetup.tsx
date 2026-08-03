@@ -8,6 +8,8 @@ import {
 } from '../../../../lib/trackSelection'
 import type { LocalSong, PracticeSection } from '../../../../types/game'
 import type { PlayInputMode } from '../../../../lib/inputMode'
+import type { TimingPreset } from '../../../../features/timingPresets/types'
+import { OUTPUT_LATENCY_WARNING_THRESHOLD_MS } from '../../../../features/timingPresets/timingPresets'
 import {
   formatPracticeSpeed,
   PRACTICE_SPEEDS,
@@ -21,6 +23,7 @@ export type SetupStep =
   | 'input'
   | 'instrument'
   | 'difficulty'
+  | 'timing'
   | 'speed'
   | 'section'
 
@@ -37,16 +40,21 @@ interface PlayerSetupProps {
   practiceLoop: boolean
   touchAvailable: boolean
   controllerConfigured: boolean
+  timingPresets: TimingPreset[]
+  activeTimingPreset: TimingPreset
+  timingOutputLatencyDifferenceMs: number | null
   onBack: () => void
   onReady: (track: TrackChoice) => void
   onShowInputModes: () => void
   onShowInstruments: () => void
   onShowDifficulties: () => void
+  onShowTimingPresets: () => void
   onShowPracticeSpeeds: () => void
   onShowPracticeSections: () => void
   onChooseInputMode: (mode: PlayInputMode) => void
   onChooseInstrument: (instrument: InstrumentChoice) => void
   onChooseDifficulty: (track: TrackChoice) => void
+  onChooseTimingPreset: (presetId: string) => void
   onChoosePracticeSpeed: (speed: PracticeSpeed) => void
   onChoosePracticeSection: (section: PracticeSection | null) => void
   onPracticeLoopChange: (enabled: boolean) => void
@@ -65,16 +73,21 @@ export function PlayerSetup({
   practiceLoop,
   touchAvailable,
   controllerConfigured,
+  timingPresets,
+  activeTimingPreset,
+  timingOutputLatencyDifferenceMs,
   onBack,
   onReady,
   onShowInputModes,
   onShowInstruments,
   onShowDifficulties,
+  onShowTimingPresets,
   onShowPracticeSpeeds,
   onShowPracticeSections,
   onChooseInputMode,
   onChooseInstrument,
   onChooseDifficulty,
+  onChooseTimingPreset,
   onChoosePracticeSpeed,
   onChoosePracticeSection,
   onPracticeLoopChange,
@@ -172,6 +185,14 @@ export function PlayerSetup({
               <button
                 type="button"
                 data-controller-nav-item
+                onClick={onShowTimingPresets}
+              >
+                <span>Timing</span>
+                <strong>{activeTimingPreset.name}</strong>
+              </button>
+              <button
+                type="button"
+                data-controller-nav-item
                 onClick={onShowPracticeSpeeds}
               >
                 <span>Practice speed</span>
@@ -222,6 +243,15 @@ export function PlayerSetup({
                 <span>Modifiers</span>
                 <strong>None</strong>
               </div>
+              {timingOutputLatencyDifferenceMs !== null &&
+                timingOutputLatencyDifferenceMs >=
+                  OUTPUT_LATENCY_WARNING_THRESHOLD_MS && (
+                  <p className={styles.timingWarning} role="status">
+                    Audio route changed by about{' '}
+                    {timingOutputLatencyDifferenceMs} ms. Check the timing
+                    setup before playing.
+                  </p>
+                )}
             </div>
           )}
 
@@ -345,6 +375,35 @@ export function PlayerSetup({
                         />
                       ))}
                     </b>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {step === 'timing' && (
+            <div className={styles.inlinePicker}>
+              <p>Timing setup</p>
+              {timingPresets.map((preset) => {
+                const active = preset.id === activeTimingPreset.id
+                return (
+                  <button
+                    type="button"
+                    key={preset.id}
+                    data-controller-nav-item
+                    data-controller-default={active || undefined}
+                    data-active={active}
+                    onClick={() => onChooseTimingPreset(preset.id)}
+                  >
+                    <span>
+                      <strong>{preset.name}</strong>
+                      <small>
+                        {preset.calibration.audioOffsetMs} audio ·{' '}
+                        {preset.calibration.inputOffsetMs} input ·{' '}
+                        {preset.calibration.videoOffsetMs} visual ms
+                      </small>
+                    </span>
+                    <b aria-hidden="true">{active ? '●' : '○'}</b>
                   </button>
                 )
               })}

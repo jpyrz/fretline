@@ -107,6 +107,8 @@ export function PlayView() {
     keyboardMapping,
     playPreferences,
     setPlayPreferences,
+    observeOutputLatency,
+    saveActiveTimingPresetLatency,
   } = useAppState()
   const requestedInputMode = location.state?.inputMode
   const inputMode =
@@ -125,6 +127,7 @@ export function PlayView() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const engineRef = useRef<GameEngine | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
+  const outputLatencyRef = useRef<number | null>(null)
   const autoStartedRef = useRef(false)
   const tapControlsEntranceTimerRef = useRef<number | null>(null)
   const [phase, setPhase] = useState<Phase>(
@@ -348,6 +351,11 @@ export function PlayView() {
           'The browser paused the audio clock. Press start to try again.',
         )
       }
+      const outputLatency = audioContext.outputLatency
+      if (Number.isFinite(outputLatency) && outputLatency >= 0) {
+        outputLatencyRef.current = outputLatency
+        observeOutputLatency(outputLatency)
+      }
       const audioBuffersPromise =
         song.kind === 'calibration'
           ? Promise.resolve([createCalibrationAudio(audioContext)])
@@ -484,6 +492,9 @@ export function PlayView() {
       ...calibration,
       inputOffsetMs: nextOffsetMs,
     })
+    if (outputLatencyRef.current !== null) {
+      saveActiveTimingPresetLatency(outputLatencyRef.current)
+    }
     setAppliedOffsetMs(nextOffsetMs)
   }
 
