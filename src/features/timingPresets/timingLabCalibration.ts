@@ -1,4 +1,5 @@
 import type { CalibrationSettings } from '../../types/game'
+import type { PlayInputMode } from '../../lib/inputMode'
 
 function clampOffset(value: number): number {
   return Math.max(-200, Math.min(200, Math.round(value)))
@@ -9,6 +10,7 @@ interface TimingLabCalibrationOptions {
   runInputOffsetMs: number
   suggestedCorrectionMs: number
   outputLatencySeconds: number | null
+  inputMode: PlayInputMode
 }
 
 /**
@@ -22,6 +24,7 @@ export function timingLabCalibration({
   runInputOffsetMs,
   suggestedCorrectionMs,
   outputLatencySeconds,
+  inputMode,
 }: TimingLabCalibrationOptions): CalibrationSettings {
   const usableOutputLatency =
     outputLatencySeconds !== null &&
@@ -32,16 +35,20 @@ export function timingLabCalibration({
       runInputOffsetMs +
       suggestedCorrectionMs,
   )
-  const nextAudioOffsetMs = usableOutputLatency
-    ? clampOffset(outputLatencySeconds * 1000)
-    : measuredEndToEndOffsetMs
-  const audioCorrectionChangeMs =
-    nextAudioOffsetMs - calibration.audioOffsetMs
-  const nextInputOffsetMs = clampOffset(
-    runInputOffsetMs +
-      suggestedCorrectionMs -
-      audioCorrectionChangeMs,
-  )
+  const nextAudioOffsetMs =
+    inputMode === 'tap'
+      ? measuredEndToEndOffsetMs
+      : usableOutputLatency
+        ? clampOffset(outputLatencySeconds * 1000)
+        : measuredEndToEndOffsetMs
+  const nextInputOffsetMs =
+    inputMode === 'tap'
+      ? 0
+      : clampOffset(
+          runInputOffsetMs +
+            suggestedCorrectionMs -
+            (nextAudioOffsetMs - calibration.audioOffsetMs),
+        )
   const priorAutomaticVisualOffsetMs = usableOutputLatency
     ? clampOffset(-outputLatencySeconds * 1000)
     : clampOffset(-runInputOffsetMs)

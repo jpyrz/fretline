@@ -487,6 +487,7 @@ export function PlayView() {
       runInputOffsetMs,
       suggestedCorrectionMs: suggestedCorrection,
       outputLatencySeconds: outputLatencyRef.current,
+      inputMode,
     })
     setCalibration(nextCalibration)
     if (outputLatencyRef.current !== null) {
