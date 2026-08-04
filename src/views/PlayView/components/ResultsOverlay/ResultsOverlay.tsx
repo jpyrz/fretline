@@ -124,11 +124,11 @@ export function ResultsOverlay({
         </p>
       ) : appliedOffsetMs !== null ? (
         <div className={styles.appliedNotice} role="status">
-          <strong>Input correction saved</strong>
+          <strong>Timing setup saved</strong>
           <span>
             {runInputOffsetMs} ms → {appliedOffsetMs} ms
           </span>
-          <small>The song audio was not moved.</small>
+          <small>Hit detection and highway alignment were updated.</small>
         </div>
       ) : (
         <p>
@@ -148,7 +148,7 @@ export function ResultsOverlay({
           >
             {appliedOffsetMs !== null
               ? 'Correction saved ✓'
-              : 'Apply input correction'}
+              : 'Apply timing correction'}
           </button>
         )}
         <button

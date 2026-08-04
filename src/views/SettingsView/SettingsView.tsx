@@ -259,8 +259,8 @@ export function SettingsView() {
                 </span>
                 <input
                   type="range"
-                  min="-100"
-                  max="100"
+                  min="-200"
+                  max="200"
                   step="1"
                   value={calibration.videoOffsetMs}
                   onChange={(event) =>

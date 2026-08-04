@@ -19,6 +19,7 @@ import { preloadGameplayVfx } from '../../game/rendering/vfxSprites'
 import { DEFAULT_HIT_LINE_RATIO } from '../../game/rendering/highwayGeometry'
 import { useProfiles } from '../../features/profiles/ProfileProvider'
 import { profileChartKey } from '../../features/profiles/runIdentity'
+import { timingLabCalibration } from '../../features/timingPresets/timingLabCalibration'
 import { createCalibrationAudio } from '../../lib/calibrationSong'
 import { audioFileMetadata } from '../../lib/songLibrary'
 import {
@@ -481,21 +482,17 @@ export function PlayView() {
 
   const applySuggestion = () => {
     if (suggestedCorrection === null || appliedOffsetMs !== null) return
-    const nextOffsetMs = Math.max(
-      -200,
-      Math.min(
-        200,
-        Math.round(runInputOffsetMs + suggestedCorrection),
-      ),
-    )
-    setCalibration({
-      ...calibration,
-      inputOffsetMs: nextOffsetMs,
+    const nextCalibration = timingLabCalibration({
+      calibration,
+      runInputOffsetMs,
+      suggestedCorrectionMs: suggestedCorrection,
+      outputLatencySeconds: outputLatencyRef.current,
     })
+    setCalibration(nextCalibration)
     if (outputLatencyRef.current !== null) {
       saveActiveTimingPresetLatency(outputLatencyRef.current)
     }
-    setAppliedOffsetMs(nextOffsetMs)
+    setAppliedOffsetMs(nextCalibration.inputOffsetMs)
   }
 
   const togglePause = () => {
@@ -723,7 +720,7 @@ export function PlayView() {
                 <>
                   <p>
                     {song.kind === 'calibration'
-                      ? 'Play each beat naturally. Timing Lab corrects when your controller or taps are judged—it never moves the song audio.'
+                      ? 'Play each beat naturally. Timing Lab aligns hit detection and the highway with the audio route used for this setup.'
                       : inputMode === 'tap'
                         ? 'Tap a colored lane as its note reaches the target. Hold for sustains, drag a held fret upward to whammy, and use multiple fingers for chords.'
                         : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
