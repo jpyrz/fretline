@@ -36,6 +36,7 @@ html {
 body {
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background:
     radial-gradient(circle at 75% -10%, rgba(226, 38, 54, 0.13), transparent 38rem),
