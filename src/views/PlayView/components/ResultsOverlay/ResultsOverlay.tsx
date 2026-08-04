@@ -128,7 +128,7 @@ export function ResultsOverlay({
           <span>
             {runInputOffsetMs} ms → {appliedOffsetMs} ms
           </span>
-          <small>Hit detection and highway alignment were updated.</small>
+          <small>Audio-route and input corrections were updated.</small>
         </div>
       ) : (
         <p>
