@@ -1,5 +1,4 @@
 import type { CalibrationSettings } from '../../types/game'
-import type { PlayInputMode } from '../../lib/inputMode'
 
 function clampOffset(value: number): number {
   return Math.max(-200, Math.min(200, Math.round(value)))
@@ -10,45 +9,27 @@ interface TimingLabCalibrationOptions {
   runInputOffsetMs: number
   suggestedCorrectionMs: number
   outputLatencySeconds: number | null
-  inputMode: PlayInputMode
 }
 
 /**
  * The audio-only lab measures the full path from Web Audio through the output
  * route and back through the player's input. Wireless output delay belongs in
- * audio correction so the heard song meets the unchanged highway. Only the
- * remaining controller/touch delay belongs in input correction.
+ * audio correction so the heard song meets the unchanged highway. Input
+ * correction is an independent device/player measurement and is preserved.
  */
 export function timingLabCalibration({
   calibration,
   runInputOffsetMs,
   suggestedCorrectionMs,
   outputLatencySeconds,
-  inputMode,
 }: TimingLabCalibrationOptions): CalibrationSettings {
   const usableOutputLatency =
     outputLatencySeconds !== null &&
     Number.isFinite(outputLatencySeconds) &&
     outputLatencySeconds >= 0.004
-  const measuredEndToEndOffsetMs = clampOffset(
-    calibration.audioOffsetMs +
-      runInputOffsetMs +
-      suggestedCorrectionMs,
+  const nextAudioOffsetMs = clampOffset(
+    calibration.audioOffsetMs + suggestedCorrectionMs,
   )
-  const nextAudioOffsetMs =
-    inputMode === 'tap'
-      ? measuredEndToEndOffsetMs
-      : usableOutputLatency
-        ? clampOffset(outputLatencySeconds * 1000)
-        : measuredEndToEndOffsetMs
-  const nextInputOffsetMs =
-    inputMode === 'tap'
-      ? 0
-      : clampOffset(
-          runInputOffsetMs +
-            suggestedCorrectionMs -
-            (nextAudioOffsetMs - calibration.audioOffsetMs),
-        )
   const priorAutomaticVisualOffsetMs = usableOutputLatency
     ? clampOffset(-outputLatencySeconds * 1000)
     : clampOffset(-runInputOffsetMs)
@@ -60,7 +41,7 @@ export function timingLabCalibration({
   return {
     ...calibration,
     audioOffsetMs: nextAudioOffsetMs,
-    inputOffsetMs: nextInputOffsetMs,
+    inputOffsetMs: clampOffset(runInputOffsetMs),
     videoOffsetMs: nextVideoOffsetMs,
   }
 }

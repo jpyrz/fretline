@@ -487,7 +487,6 @@ export function PlayView() {
       runInputOffsetMs,
       suggestedCorrectionMs: suggestedCorrection,
       outputLatencySeconds: outputLatencyRef.current,
-      inputMode,
     })
     setCalibration(nextCalibration)
     if (outputLatencyRef.current !== null) {
@@ -721,7 +720,7 @@ export function PlayView() {
                 <>
                   <p>
                     {song.kind === 'calibration'
-                      ? 'Play each beat naturally. Timing Lab aligns the audio route and hit detection for this setup.'
+                      ? 'Play each beat naturally. Timing Lab aligns this audio route while preserving the setup’s input correction.'
                       : inputMode === 'tap'
                         ? 'Tap a colored lane as its note reaches the target. Hold for sustains, drag a held fret upward to whammy, and use multiple fingers for chords.'
                         : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
@@ -767,7 +766,6 @@ export function PlayView() {
                 chartProgress,
                 multiplier,
               }}
-              runInputOffsetMs={runInputOffsetMs}
               appliedOffsetMs={appliedOffsetMs}
               onApplySuggestion={applySuggestion}
               onRunAgain={() => void startSession()}

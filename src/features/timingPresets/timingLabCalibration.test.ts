@@ -9,24 +9,23 @@ const calibration = {
 }
 
 describe('timingLabCalibration', () => {
-  it('advances Bluetooth audio and leaves only input-device delay in scoring', () => {
+  it('advances Bluetooth audio without changing established input timing', () => {
     expect(
       timingLabCalibration({
         calibration,
         runInputOffsetMs: 0,
         suggestedCorrectionMs: 146,
         outputLatencySeconds: 0.128,
-        inputMode: 'standard',
       }),
     ).toEqual({
       ...calibration,
-      audioOffsetMs: 128,
-      inputOffsetMs: 18,
+      audioOffsetMs: 146,
+      inputOffsetMs: 0,
       videoOffsetMs: 0,
     })
   })
 
-  it('repairs an existing input-only preset and the bad automatic visual shift', () => {
+  it('preserves existing input timing while repairing the bad visual shift', () => {
     expect(
       timingLabCalibration({
         calibration: {
@@ -37,11 +36,10 @@ describe('timingLabCalibration', () => {
         runInputOffsetMs: 146,
         suggestedCorrectionMs: 1,
         outputLatencySeconds: 0.128,
-        inputMode: 'standard',
       }),
     ).toMatchObject({
-      audioOffsetMs: 128,
-      inputOffsetMs: 19,
+      audioOffsetMs: 1,
+      inputOffsetMs: 146,
       videoOffsetMs: 0,
     })
   })
@@ -53,7 +51,6 @@ describe('timingLabCalibration', () => {
         runInputOffsetMs: 0,
         suggestedCorrectionMs: 52,
         outputLatencySeconds: 0,
-        inputMode: 'standard',
       }),
     ).toMatchObject({
       audioOffsetMs: 52,
@@ -62,7 +59,7 @@ describe('timingLabCalibration', () => {
     })
   })
 
-  it('repairs an existing input-only preset when output latency is unavailable', () => {
+  it('does not reinterpret input timing when output latency is unavailable', () => {
     expect(
       timingLabCalibration({
         calibration: {
@@ -73,11 +70,10 @@ describe('timingLabCalibration', () => {
         runInputOffsetMs: 146,
         suggestedCorrectionMs: 0,
         outputLatencySeconds: 0,
-        inputMode: 'standard',
       }),
     ).toMatchObject({
-      audioOffsetMs: 146,
-      inputOffsetMs: 0,
+      audioOffsetMs: 0,
+      inputOffsetMs: 146,
       videoOffsetMs: 0,
     })
   })
@@ -89,27 +85,25 @@ describe('timingLabCalibration', () => {
         runInputOffsetMs: 0,
         suggestedCorrectionMs: 146,
         outputLatencySeconds: 0.128,
-        inputMode: 'standard',
       }),
     ).toMatchObject({ videoOffsetMs: 17 })
   })
 
-  it('moves the complete Tap route measurement into audio and clears synthetic input delay', () => {
+  it('preserves a working Tap input correction when calibrating another route', () => {
     expect(
       timingLabCalibration({
         calibration: {
           ...calibration,
           audioOffsetMs: 128,
-          inputOffsetMs: 18,
+          inputOffsetMs: -25,
         },
-        runInputOffsetMs: 18,
-        suggestedCorrectionMs: 0,
+        runInputOffsetMs: -25,
+        suggestedCorrectionMs: 18,
         outputLatencySeconds: 0.128,
-        inputMode: 'tap',
       }),
     ).toMatchObject({
       audioOffsetMs: 146,
-      inputOffsetMs: 0,
+      inputOffsetMs: -25,
       videoOffsetMs: 0,
     })
   })

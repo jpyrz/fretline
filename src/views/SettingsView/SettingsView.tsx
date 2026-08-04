@@ -175,8 +175,8 @@ export function SettingsView() {
                 <span>
                   <strong>Timing Lab</strong>
                   <small>
-                    Run the guided calibration and apply its recommended input
-                    correction.
+                    Run the guided calibration for the current audio route
+                    without changing established input timing.
                   </small>
                 </span>
                 <button type="button" onClick={openTimingLab}>
@@ -190,7 +190,7 @@ export function SettingsView() {
                   <strong>Audio correction</strong>
                   <small>
                     Manually moves song audio. Positive values play it earlier;
-                    Timing Lab never changes this.
+                    Timing Lab adjusts this for the active setup.
                   </small>
                 </span>
                 <input
@@ -213,7 +213,8 @@ export function SettingsView() {
                 <span>
                   <strong>Input correction</strong>
                   <small>
-                    Compensates only for controller or keyboard input delay.
+                    Compensates for touch, controller, or keyboard timing.
+                    Timing Lab preserves this value.
                   </small>
                 </span>
                 <input

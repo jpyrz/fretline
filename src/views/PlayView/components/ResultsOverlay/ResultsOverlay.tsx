@@ -9,7 +9,6 @@ interface ResultsOverlayProps {
   calibrationRun: boolean
   inputMode: PlayInputMode
   results: SessionResults
-  runInputOffsetMs: number
   appliedOffsetMs: number | null
   onApplySuggestion: () => void
   onRunAgain: () => void
@@ -24,7 +23,6 @@ export function ResultsOverlay({
   calibrationRun,
   inputMode,
   results,
-  runInputOffsetMs,
   appliedOffsetMs,
   onApplySuggestion,
   onRunAgain,
@@ -126,9 +124,9 @@ export function ResultsOverlay({
         <div className={styles.appliedNotice} role="status">
           <strong>Timing setup saved</strong>
           <span>
-            {runInputOffsetMs} ms → {appliedOffsetMs} ms
+            Input correction preserved at {appliedOffsetMs} ms
           </span>
-          <small>Audio-route and input corrections were updated.</small>
+          <small>The active setup’s audio-route correction was updated.</small>
         </div>
       ) : (
         <p>
@@ -148,7 +146,7 @@ export function ResultsOverlay({
           >
             {appliedOffsetMs !== null
               ? 'Correction saved ✓'
-              : 'Apply timing correction'}
+              : 'Apply audio correction'}
           </button>
         )}
         <button
