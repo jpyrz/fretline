@@ -171,6 +171,47 @@ describe('standard guitar input reconciliation', () => {
   })
 })
 
+describe('Timing Lab input capture', () => {
+  it('records route delays larger than the normal gameplay hit window', () => {
+    let latestStats: SessionStats | null = null
+    const engine = new GameEngine({
+      audioContext: {} as AudioContext,
+      audioBuffers: [],
+      chart: testChart([note(1, 0, false)]),
+      calibration: {
+        modelVersion: 2,
+        audioOffsetMs: 0,
+        inputOffsetMs: 0,
+        videoOffsetMs: 0,
+      },
+      controllerMapping: null,
+      keyboardMapping,
+      inputMode: 'tap',
+      calibrationMode: true,
+      onFrame: () => undefined,
+      onStats: (stats) => {
+        latestStats = stats
+      },
+      onFinish: () => undefined,
+      onPauseChange: () => undefined,
+    })
+    const input = engine as unknown as {
+      songTimeAt: (performanceTime: number) => number
+    }
+    input.songTimeAt = (performanceTime) => performanceTime / 1_000
+
+    engine.submitCalibrationHit(1_320)
+
+    expect(latestStats).toMatchObject({
+      hits: 1,
+      records: [{ result: 'hit' }],
+    })
+    expect((latestStats as SessionStats | null)?.records[0].errorMs).toBeCloseTo(
+      320,
+    )
+  })
+})
+
 describe('HandiTap star-power tremolo holds', () => {
   function starPowerTremoloChart(): ParsedChart {
     const notes = [

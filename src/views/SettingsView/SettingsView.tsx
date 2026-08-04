@@ -175,8 +175,8 @@ export function SettingsView() {
                 <span>
                   <strong>Timing Lab</strong>
                   <small>
-                    Run the guided calibration for the current audio route
-                    without changing established input timing.
+                    Measure visual input timing and audio output timing in one
+                    guided two-stage run.
                   </small>
                 </span>
                 <button type="button" onClick={openTimingLab}>
@@ -190,13 +190,13 @@ export function SettingsView() {
                   <strong>Audio correction</strong>
                   <small>
                     Manually moves song audio. Positive values play it earlier;
-                    Timing Lab adjusts this for the active setup.
+                    Timing Lab calculates this automatically.
                   </small>
                 </span>
                 <input
                   type="range"
-                  min="-200"
-                  max="200"
+                  min="-400"
+                  max="400"
                   step="1"
                   value={calibration.audioOffsetMs}
                   onChange={(event) =>
@@ -214,13 +214,13 @@ export function SettingsView() {
                   <strong>Input correction</strong>
                   <small>
                     Compensates for touch, controller, or keyboard timing.
-                    Timing Lab preserves this value.
+                    Timing Lab calculates this automatically.
                   </small>
                 </span>
                 <input
                   type="range"
-                  min="-200"
-                  max="200"
+                  min="-400"
+                  max="400"
                   step="1"
                   value={calibration.inputOffsetMs}
                   onChange={(event) =>
@@ -260,8 +260,8 @@ export function SettingsView() {
                 </span>
                 <input
                   type="range"
-                  min="-200"
-                  max="200"
+                  min="-400"
+                  max="400"
                   step="1"
                   value={calibration.videoOffsetMs}
                   onChange={(event) =>

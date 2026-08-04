@@ -123,7 +123,7 @@ export function loadVisualSettings(): VisualSettings {
 
 function finiteOffset(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(-200, Math.min(200, value))
+    ? Math.max(-400, Math.min(400, value))
     : fallback
 }
 

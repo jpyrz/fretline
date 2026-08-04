@@ -20,7 +20,10 @@ import { DEFAULT_HIT_LINE_RATIO } from '../../game/rendering/highwayGeometry'
 import { useProfiles } from '../../features/profiles/ProfileProvider'
 import { profileChartKey } from '../../features/profiles/runIdentity'
 import { timingLabCalibration } from '../../features/timingPresets/timingLabCalibration'
-import { createCalibrationAudio } from '../../lib/calibrationSong'
+import {
+  createCalibrationAudio,
+  createCalibrationSilence,
+} from '../../lib/calibrationSong'
 import { audioFileMetadata } from '../../lib/songLibrary'
 import {
   decodeSongAudio,
@@ -33,7 +36,12 @@ import {
 } from '../../lib/practiceMode'
 import { parseTrackChoice } from '../../lib/trackSelection'
 import { useAppState } from '../../state/AppState'
-import type { GameFrame, LocalSong, SessionStats } from '../../types/game'
+import type {
+  CalibrationSettings,
+  GameFrame,
+  LocalSong,
+  SessionStats,
+} from '../../types/game'
 import { PauseScreen } from './components/PauseScreen'
 import { ResultsOverlay } from './components/ResultsOverlay'
 import { ScoreHud } from './components/ScoreHud'
@@ -54,6 +62,8 @@ type Phase =
   | 'paused'
   | 'finished'
   | 'error'
+
+type CalibrationStage = 'visual' | 'audio'
 
 const emptyStats: SessionStats = {
   score: 0,
@@ -140,10 +150,12 @@ export function PlayView() {
   const [tapControlsEntering, setTapControlsEntering] = useState(false)
   const [practiceSpeed, setPracticeSpeed] =
     useState<PracticeSpeed>(initialPracticeSpeed)
-  const [runInputOffsetMs, setRunInputOffsetMs] = useState(
-    calibration.inputOffsetMs,
-  )
-  const [appliedOffsetMs, setAppliedOffsetMs] = useState<number | null>(null)
+  const [calibrationStage, setCalibrationStage] =
+    useState<CalibrationStage>('visual')
+  const [visualTimingMedianMs, setVisualTimingMedianMs] =
+    useState<number | null>(null)
+  const [appliedCalibration, setAppliedCalibration] =
+    useState<CalibrationSettings | null>(null)
   const [runSaveState, setRunSaveState] = useState<RunSaveState>('idle')
   const [newPersonalBest, setNewPersonalBest] = useState(false)
 
@@ -269,10 +281,10 @@ export function PlayView() {
   )
   const displayChart = useMemo(
     () =>
-      song.kind === 'calibration'
+      song.kind === 'calibration' && calibrationStage === 'audio'
         ? { ...gameplayChart, notes: [], starPowerPhrases: [] }
         : gameplayChart,
-    [gameplayChart, song.kind],
+    [calibrationStage, gameplayChart, song.kind],
   )
 
   const stopSession = () => {
@@ -334,8 +346,10 @@ export function PlayView() {
     setPhase('loading')
     setStats(emptyStats)
     setError('')
-    setRunInputOffsetMs(calibration.inputOffsetMs)
-    setAppliedOffsetMs(null)
+    setAppliedCalibration(null)
+    if (song.kind === 'calibration' && calibrationStage === 'visual') {
+      setVisualTimingMedianMs(null)
+    }
     setRunSaveState('idle')
     setNewPersonalBest(false)
 
@@ -359,7 +373,11 @@ export function PlayView() {
       }
       const audioBuffersPromise =
         song.kind === 'calibration'
-          ? Promise.resolve([createCalibrationAudio(audioContext)])
+          ? Promise.resolve([
+              calibrationStage === 'visual'
+                ? createCalibrationSilence(audioContext)
+                : createCalibrationAudio(audioContext),
+            ])
           : decodeSongAudio(song, audioContext)
       const minimumLoadingTime = autoStartRequested
         ? new Promise<void>((resolve) => window.setTimeout(resolve, 900))
@@ -373,11 +391,19 @@ export function PlayView() {
         audioContext,
         audioBuffers,
         chart: gameplayChart,
-        calibration: {
-          ...calibration,
-          audioOffsetMs:
-            calibration.audioOffsetMs + (song.audioOffsetMs ?? 0),
-        },
+        calibration:
+          song.kind === 'calibration'
+            ? {
+                modelVersion: 2,
+                audioOffsetMs: 0,
+                inputOffsetMs: 0,
+                videoOffsetMs: 0,
+              }
+            : {
+                ...calibration,
+                audioOffsetMs:
+                  calibration.audioOffsetMs + (song.audioOffsetMs ?? 0),
+              },
         controllerMapping,
         keyboardMapping,
         inputMode,
@@ -401,10 +427,27 @@ export function PlayView() {
         onStats: setStats,
         onFinish: (finalStats) => {
           setStats(finalStats)
-          setPhase('finished')
           engineRef.current = null
           void audioContextRef.current?.close()
           audioContextRef.current = null
+
+          if (song.kind === 'calibration') {
+            const stageMedian = calculateSessionResults(
+              finalStats,
+              activeNoteCount,
+              4,
+            ).suggestedCorrection
+            if (calibrationStage === 'visual' && stageMedian !== null) {
+              setVisualTimingMedianMs(stageMedian)
+              setCalibrationStage('audio')
+              setPhase('ready')
+              return
+            }
+            setPhase('finished')
+            return
+          }
+
+          setPhase('finished')
 
           if (song.kind !== 'folder') return
           if (practiceSection || practiceSpeed !== 1) {
@@ -481,18 +524,22 @@ export function PlayView() {
   }, [autoStartRequested])
 
   const applySuggestion = () => {
-    if (suggestedCorrection === null || appliedOffsetMs !== null) return
+    if (
+      suggestedCorrection === null ||
+      visualTimingMedianMs === null ||
+      appliedCalibration !== null
+    ) {
+      return
+    }
     const nextCalibration = timingLabCalibration({
-      calibration,
-      runInputOffsetMs,
-      suggestedCorrectionMs: suggestedCorrection,
-      outputLatencySeconds: outputLatencyRef.current,
+      visualTimingMedianMs,
+      audioTimingMedianMs: suggestedCorrection,
     })
     setCalibration(nextCalibration)
     if (outputLatencyRef.current !== null) {
       saveActiveTimingPresetLatency(outputLatencyRef.current)
     }
-    setAppliedOffsetMs(nextCalibration.inputOffsetMs)
+    setAppliedCalibration(nextCalibration)
   }
 
   const togglePause = () => {
@@ -501,7 +548,7 @@ export function PlayView() {
 
   const restartSession = () => {
     setStats(emptyStats)
-    setAppliedOffsetMs(null)
+    setAppliedCalibration(null)
     triggerTapControlsEntrance()
     engineRef.current?.restart()
   }
@@ -712,7 +759,11 @@ export function PlayView() {
                     : 'Decoding audio…'
                   : phase === 'error'
                     ? 'Could not start'
-                    : 'Ready when you are'}
+                    : song.kind === 'calibration'
+                      ? calibrationStage === 'visual'
+                        ? 'Stage 1 · Screen & input'
+                        : 'Stage 2 · Audio route'
+                      : 'Ready when you are'}
               </h1>
               {error ? (
                 <p className={styles.error}>{error}</p>
@@ -720,7 +771,9 @@ export function PlayView() {
                 <>
                   <p>
                     {song.kind === 'calibration'
-                      ? 'Play each beat naturally. Timing Lab aligns this audio route while preserving the setup’s input correction.'
+                      ? calibrationStage === 'visual'
+                        ? 'This stage is silent. Tap or strum as each note crosses the strike line.'
+                        : 'Now follow the clicks without watching notes. Together, both stages separate input timing from audio delay.'
                       : inputMode === 'tap'
                         ? 'Tap a colored lane as its note reaches the target. Hold for sustains, drag a held fret upward to whammy, and use multiple fingers for chords.'
                         : 'Read the gem center: dark caps require a strum, white caps are HOPOs, and translucent glowing gems are taps.'}
@@ -743,7 +796,11 @@ export function PlayView() {
                 disabled={phase === 'loading'}
                 onClick={() => void startSession()}
               >
-                {phase === 'error' ? 'Try again' : 'Begin run'}
+                {phase === 'error'
+                  ? 'Try again'
+                  : song.kind === 'calibration' && calibrationStage === 'audio'
+                    ? 'Continue to audio'
+                    : 'Begin run'}
               </button>
             </div>
           )}
@@ -766,9 +823,18 @@ export function PlayView() {
                 chartProgress,
                 multiplier,
               }}
-              appliedOffsetMs={appliedOffsetMs}
+              appliedCalibration={appliedCalibration}
               onApplySuggestion={applySuggestion}
-              onRunAgain={() => void startSession()}
+              onRunAgain={() => {
+                if (song.kind === 'calibration') {
+                  setCalibrationStage('visual')
+                  setVisualTimingMedianMs(null)
+                  setAppliedCalibration(null)
+                  setPhase('ready')
+                  return
+                }
+                void startSession()
+              }}
               playerName={activePlayerName}
               saveState={runSaveState}
               newPersonalBest={newPersonalBest}
@@ -776,13 +842,28 @@ export function PlayView() {
           )}
 
           {phase === 'playing' && song.kind === 'calibration' && (
-            <div className={styles.audioCalibration}>
-              <p>Audio-only calibration</p>
-              <h1>Follow the clicks</h1>
+            <div
+              className={styles.audioCalibration}
+              data-stage={calibrationStage}
+            >
+              <p>
+                {calibrationStage === 'visual'
+                  ? 'Stage 1 of 2 · Silent'
+                  : 'Stage 2 of 2 · Audio only'}
+              </p>
+              <h1>
+                {calibrationStage === 'visual'
+                  ? 'Meet the strike line'
+                  : 'Follow the clicks'}
+              </h1>
               <span>
-                {inputMode === 'tap'
-                  ? 'Tap anywhere in this pad on each beat.'
-                  : 'Strum once on each beat. No frets are needed.'}
+                {calibrationStage === 'visual'
+                  ? inputMode === 'tap'
+                    ? 'Tap anywhere as each note reaches the targets.'
+                    : 'Strum as each note reaches the targets. No frets are needed.'
+                  : inputMode === 'tap'
+                    ? 'Tap anywhere on each beat.'
+                    : 'Strum once on each beat. No frets are needed.'}
               </span>
               {inputMode === 'tap' && (
                 <button
@@ -793,10 +874,16 @@ export function PlayView() {
                     handleCalibrationTap(event.timeStamp)
                   }}
                 >
-                  Tap to the beat
+                  {calibrationStage === 'visual'
+                    ? 'Tap when notes cross'
+                    : 'Tap to the beat'}
                 </button>
               )}
-              <small>Close your eyes if it helps—there are no visual notes.</small>
+              <small>
+                {calibrationStage === 'visual'
+                  ? 'There is no audio in this stage.'
+                  : 'Close your eyes if it helps—there are no visual notes.'}
+              </small>
             </div>
           )}
 

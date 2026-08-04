@@ -12,9 +12,10 @@ describe('parseChart', () => {
 
     expect(chart.metadata.resolution).toBe(192)
     expect(chart.trackName).toBe('ExpertSingle')
-    expect(chart.notes).toHaveLength(32)
+    expect(chart.notes).toHaveLength(20)
     expect(chart.notes[0].timeSeconds).toBe(0)
     expect(chart.notes[8].lanes).toEqual([0, 4])
+    expect(chart.notes[8].timeSeconds).toBe(8)
   })
 
   it('integrates multiple BPM segments', () => {

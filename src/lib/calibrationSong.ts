@@ -2,7 +2,7 @@ import { parseChart } from './chartParser'
 import type { LocalSong } from '../types/game'
 
 const resolution = 192
-const playableBeats = 32
+const playableBeats = 20
 
 function buildCalibrationChart(): string {
   const notes: string[] = []
@@ -27,7 +27,7 @@ function buildCalibrationChart(): string {
 [SyncTrack]
 {
   0 = TS 4
-  0 = B 120000
+  0 = B 60000
 }
 [Events]
 {
@@ -52,7 +52,7 @@ export const calibrationSong: LocalSong = {
 }
 
 export function createCalibrationAudio(audioContext: AudioContext): AudioBuffer {
-  const bpm = 120
+  const bpm = 60
   const beatSeconds = 60 / bpm
   const totalBeats = playableBeats + 2
   const duration = totalBeats * beatSeconds
@@ -79,4 +79,15 @@ export function createCalibrationAudio(audioContext: AudioContext): AudioBuffer 
   }
 
   return buffer
+}
+
+export function createCalibrationSilence(
+  audioContext: AudioContext,
+): AudioBuffer {
+  const duration = playableBeats + 2
+  return audioContext.createBuffer(
+    2,
+    Math.ceil(duration * audioContext.sampleRate),
+    audioContext.sampleRate,
+  )
 }

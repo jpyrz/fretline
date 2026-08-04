@@ -1,5 +1,8 @@
 import type { PlayInputMode } from '../../../../lib/inputMode'
-import type { SessionStats } from '../../../../types/game'
+import type {
+  CalibrationSettings,
+  SessionStats,
+} from '../../../../types/game'
 import type { RunSaveState, SessionResults } from '../../sessionResults'
 import styles from '../../PlayView.module.scss'
 
@@ -9,7 +12,7 @@ interface ResultsOverlayProps {
   calibrationRun: boolean
   inputMode: PlayInputMode
   results: SessionResults
-  appliedOffsetMs: number | null
+  appliedCalibration: CalibrationSettings | null
   onApplySuggestion: () => void
   onRunAgain: () => void
   playerName: string | null
@@ -23,7 +26,7 @@ export function ResultsOverlay({
   calibrationRun,
   inputMode,
   results,
-  appliedOffsetMs,
+  appliedCalibration,
   onApplySuggestion,
   onRunAgain,
   playerName,
@@ -120,13 +123,14 @@ export function ResultsOverlay({
           {results.earlyHits} early · {results.lateHits} late ·{' '}
           {stats.sustainsCompleted} holds completed
         </p>
-      ) : appliedOffsetMs !== null ? (
+      ) : appliedCalibration !== null ? (
         <div className={styles.appliedNotice} role="status">
-          <strong>Timing setup saved</strong>
+          <strong>Full calibration saved</strong>
           <span>
-            Input correction preserved at {appliedOffsetMs} ms
+            {appliedCalibration.audioOffsetMs} ms audio ·{' '}
+            {appliedCalibration.inputOffsetMs} ms input
           </span>
-          <small>The active setup’s audio-route correction was updated.</small>
+          <small>The active timing setup is ready for real songs.</small>
         </div>
       ) : (
         <p>
@@ -141,12 +145,12 @@ export function ResultsOverlay({
             type="button"
             className="button primary"
             data-controller-nav-item
-            disabled={appliedOffsetMs !== null}
+            disabled={appliedCalibration !== null}
             onClick={onApplySuggestion}
           >
-            {appliedOffsetMs !== null
-              ? 'Correction saved ✓'
-              : 'Apply audio correction'}
+            {appliedCalibration !== null
+              ? 'Calibration saved ✓'
+              : 'Apply full calibration'}
           </button>
         )}
         <button

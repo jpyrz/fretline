@@ -1,6 +1,7 @@
 import type { ChartNote, Lane } from '../types/game'
 
 export const HIT_WINDOW_MS = 120
+export const CALIBRATION_HIT_WINDOW_MS = 400
 export const SUSTAIN_POINTS_PER_BEAT = 25
 export const SUSTAIN_RELEASE_GRACE_SECONDS = 0.075
 

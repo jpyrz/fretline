@@ -8,7 +8,7 @@ const DEFAULT_PRESET_ID = 'default-setup'
 
 function finiteOffset(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
-    ? Math.max(-200, Math.min(200, Math.round(value)))
+    ? Math.max(-400, Math.min(400, Math.round(value)))
     : 0
 }
 

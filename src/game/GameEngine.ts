@@ -3,6 +3,7 @@ import { reconnectDirectHidDevice } from '../lib/directHidController'
 import { keyboardEventCode } from '../lib/keyboardMapping'
 import {
   canFretHit,
+  CALIBRATION_HIT_WINDOW_MS,
   HIT_WINDOW_MS,
   lanesMatchWithActiveSustains,
   scoreForHit,
@@ -1079,7 +1080,9 @@ export class GameEngine {
     if (rawSongTime < 0) return false
     const scoringTime =
       rawSongTime - this.calibration.inputOffsetMs / 1000
-    const windowSeconds = HIT_WINDOW_MS / 1000
+    const windowSeconds =
+      (this.calibrationMode ? CALIBRATION_HIT_WINDOW_MS : HIT_WINDOW_MS) /
+      1000
 
     const heldLanes = heldLanesOverride ?? this.heldLanes()
     const activeSustainLanes = this.activeSustainLanes()
@@ -1303,7 +1306,10 @@ export class GameEngine {
   }
 
   private markMisses(scoringTime: number): void {
-    const windowSeconds = HIT_WINDOW_MS / 1000
+    const hitWindowMs = this.calibrationMode
+      ? CALIBRATION_HIT_WINDOW_MS
+      : HIT_WINDOW_MS
+    const windowSeconds = hitWindowMs / 1000
     let changed = false
 
     while (
@@ -1321,7 +1327,7 @@ export class GameEngine {
         this.lastHopoHitScoringTime = null
         this.stats.records.push({
           noteIndex: this.missCursor,
-          errorMs: HIT_WINDOW_MS,
+          errorMs: hitWindowMs,
           result: 'miss',
         })
         this.recordsDirty = true
